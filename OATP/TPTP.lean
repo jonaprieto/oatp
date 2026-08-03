@@ -6,6 +6,7 @@ Authors: Jonathan Prieto-Cubides
 
 import Grip
 import OATP.Core
+import OATP.TPTP.Syntax
 
 /-!
 # OATP.TPTP: positioned TPTP/TSTP statement envelopes
@@ -149,6 +150,12 @@ def parseStatement (source : String) : Except String Statement :=
   match statementParser.parse source.toUTF8 with
   | .ok statement => .ok statement
   | .error error => .error (error.pretty source.toUTF8)
+
+def Statement.ofFof (name : String) (role : Role) (formula : Syntax.Formula) : Statement where
+  kind := "fof"
+  name
+  role
+  formula := formula.toTPTP
 
 def Problem.ofStatement (name : String) (statement : Statement) : Problem where
   name := name

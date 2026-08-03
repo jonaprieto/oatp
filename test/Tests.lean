@@ -55,8 +55,16 @@ open OATP OATP.TPTP
   context := #["h : p"]
   target := "p"
 }] == "goal: demo\n  h : p\n⊢ p"
-
 def main : IO UInt32 := do
+  let x := OATP.TPTP.Syntax.Term.function "f" #[
+    .constant "a", .var "X"
+  ]
+  let formula := OATP.TPTP.Syntax.Formula.forall "X"
+    (.implies (.atom "p" #[x]) (.atom "q" #[.var "X"]))
+  if formula.toTPTP != "![X] : ((p(f(a, X)) => q(X)))" then
+    throw <| IO.userError "first-order formula rendering changed"
+  if (Statement.ofFof "goal" .conjecture formula).formula != formula.toTPTP then
+    throw <| IO.userError "first-order statement rendering changed"
   let problem : Problem := { name := "stdin", source := "fof(goal, conjecture, p).\n" }
   let processResult ← OATP.Process.run
     { name := "cat" } problem { wallSeconds := 2 }

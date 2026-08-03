@@ -14,6 +14,8 @@ rich terminal output.
 
 - pure prover, SZS status, limits, artifact, outcome, and search-event models;
 - a positioned, balanced TPTP/TSTP `fof`/`cnf` statement-envelope parser built on [grip](https://github.com/jonaprieto/lean-grip);
+- a small typed first-order formula AST and `fof` renderer for generated
+  conjectures;
 - bounded HTTPS requests through an argv-safe `curl` transport, with a
   post-capture response-size check;
 - a pure SystemOnTPTP response normalizer for HTTP status and SZS results;
