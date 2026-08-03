@@ -4,7 +4,7 @@ ARG METIS_VERSION=2.4.20260305
 ARG METIS_SHA256=9f9567fd6f51e965e7385099e0c6c690a13eb185b1bb847330221086e8d2fe0a
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends --yes ca-certificates curl make polyml perl-modules-5.36 \
+    && apt-get install --no-install-recommends --yes ca-certificates curl libencode-perl make polyml perl-modules-5.36 \
     && curl --fail --location --silent --show-error \
       "https://github.com/gilith/metis/releases/download/v${METIS_VERSION}/metis.tar.gz" \
       --output /tmp/metis.tar.gz \
