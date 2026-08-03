@@ -2,7 +2,7 @@
 
 ## Next vertical slices
 
-- [ ] replace the line-envelope parser with full TPTP/TSTP syntax modules;
+- [ ] add semantic TPTP/TSTP AST modules on top of the balanced envelope;
 - [ ] add URL-encoded and multipart form encoders;
 - [ ] parse and normalize SystemOnTPTP responses into artifacts;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;

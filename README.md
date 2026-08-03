@@ -13,7 +13,7 @@ rich terminal output.
 ## What exists
 
 - pure prover, SZS status, limits, artifact, outcome, and search-event models;
-- a positioned TPTP `fof`/`cnf` statement-envelope parser built on [grip](https://github.com/jonaprieto/lean-grip);
+- a positioned, balanced TPTP/TSTP `fof`/`cnf` statement-envelope parser built on [grip](https://github.com/jonaprieto/lean-grip);
 - bounded HTTPS requests through an argv-safe `curl` transport, with a
   post-capture response-size check;
 - TermColor plain and ANSI-16 event rendering;
