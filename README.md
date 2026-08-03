@@ -85,3 +85,6 @@ checks the demo, checks Lean style, and audits the properties target's axioms.
 Process and HTTP output limits are checked after capture in this prototype;
 large untrusted outputs therefore remain a future streaming-limit slice.
 Process deadlines request process-group termination through Lean's native API.
+Lean 4.32's `Std.Http` is currently a low-level sans-I/O HTTP/1.1 protocol and
+transport layer, not a complete HTTPS client, so OATP keeps `curl` as its
+explicit transport boundary until a suitable client API exists.
