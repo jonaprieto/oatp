@@ -1,0 +1,6 @@
+.lake/
+lake-manifest.json
+*.olean
+*.ilean
+build/
+.DS_Store
