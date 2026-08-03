@@ -4,172 +4,67 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Jonathan Prieto-Cubides
 -/
 
-import Grip
 import OATP.Core
-import OATP.TPTP.Parse
-import OATP.TPTP.Syntax
+import TPTP
 
 /-!
-# OATP.TPTP: positioned TPTP/TSTP statement envelopes
+# OATP.TPTP: OATP's format-layer adapter
 
-The prototype parses the stable outer `fof`/`cnf` envelope, including balanced
-terms, quoted atoms, and optional TSTP annotations. Formula semantics remain
-opaque text until the supported Lean fragment is defined.
+TPTP/TSTP syntax belongs to the standalone `lean-tptp` package. This module
+keeps OATP's import path and adds only the small constructors needed by the
+ATP domain model.
 -/
 
 namespace OATP.TPTP
 
-open Grip GParser
+abbrev Name := _root_.TPTP.Name
+abbrev Kind := _root_.TPTP.Kind
+abbrev Role := _root_.TPTP.Role
+abbrev Statement := _root_.TPTP.Statement
+abbrev Include := _root_.TPTP.Include
+abbrev Item := _root_.TPTP.Item
+abbrev Document := _root_.TPTP.Document
 
-inductive Role where
-  | axiom
-  | conjecture
-  | negatedConjecture
-  | hypothesis
-  | unknown
-  deriving BEq, DecidableEq, Repr
+def parse (source : String) : Except Grip.ParseError Document :=
+  _root_.TPTP.parseString source
 
-def Role.toString : Role → String
-  | .axiom => "axiom"
-  | .conjecture => "conjecture"
-  | .negatedConjecture => "negated_conjecture"
-  | .hypothesis => "hypothesis"
-  | .unknown => "unknown"
+def parseStatement (source : String) : Except Grip.ParseError Statement :=
+  _root_.TPTP.parseStatementString source
 
-instance : ToString Role where
-  toString := Role.toString
+namespace Syntax
 
-def Role.ofString : String → Role
-  | "axiom" => .axiom
-  | "conjecture" => .conjecture
-  | "negated_conjecture" => .negatedConjecture
-  | "hypothesis" => .hypothesis
-  | _ => .unknown
+abbrev Term := _root_.TPTP.Formula.Term
+abbrev Formula := _root_.TPTP.Formula.Expr
 
-structure Statement where
-  kind : String
-  name : String
-  role : Role
-  formula : String
-  annotations : Option String := none
-  deriving BEq, DecidableEq, Repr
+def parseFormula (source : String) : Except Grip.ParseError Formula :=
+  _root_.TPTP.Formula.parseFormulaString source
 
-def identifier : Parser String :=
-  GParser.capture (GParser.weakenFallible (GParser.takeWhile1 (fun b =>
-    Ascii.isAlphaNum b || b == 95 || b == 36)
-  ))
+end Syntax
 
-def spaces : Parser Unit :=
-  GParser.map (fun _ => ()) (GParser.weakenFallible GParser.ws)
+namespace Statement
 
-private def escapedChunk : GParser conditional String :=
-  gdo
-    let _ ← GParser.byte 92
-    let escaped ← GParser.satisfy (fun _ => true)
-    return String.ofList ['\\', Char.ofNat escaped.toNat]
-
-private def quotedChunk (quote : UInt8) : GParser conditional String :=
-  gdo
-    let _ ← GParser.byte quote
-    let chunks ← GParser.many (GParser.alt
-      (GParser.capture (GParser.takeWhile1 (fun b => b != quote && b != 92)))
-      escapedChunk)
-    let _ ← GParser.byte quote
-    return String.ofList [Char.ofNat quote.toNat] ++ String.join chunks ++
-      String.ofList [Char.ofNat quote.toNat]
-
-private def parenthesizedPiece (body : GParser conditional String) :
-    GParser conditional String :=
-  gdo
-    let _ ← GParser.ch '('
-    let value ← body
-    let _ ← GParser.ch ')'
-    return "(" ++ value ++ ")"
-
-private def formulaPiece (body : GParser conditional String) : GParser conditional String :=
-  GParser.dispatch (fun b =>
-    if b == 34 then quotedChunk 34
-    else if b == 39 then quotedChunk 39
-    else if b == 40 then parenthesizedPiece body
-    else GParser.capture (GParser.takeWhile1 (fun byte =>
-      byte != 40 && byte != 41 && byte != 34 && byte != 39)))
-
-def formulaBody : GParser conditional String :=
-  GParser.fix (fun body => GParser.map String.join (GParser.many1 (formulaPiece body)))
-
-private def splitAnnotations (body : String) : String × Option String :=
-  let rec go : List Char → Nat → Option Char → Bool → List Char → String × Option String
-    | [], _, _, _, acc => (String.ofList acc.reverse, none)
-    | character :: rest, depth, quote, escaped, acc =>
-        match quote with
-        | some delimiter =>
-            if escaped then go rest depth quote false (character :: acc)
-            else if character == '\\' then go rest depth quote true (character :: acc)
-            else if character == delimiter then go rest depth none false (character :: acc)
-            else go rest depth quote false (character :: acc)
-        | none =>
-            if character == '"' || character == '\'' then
-              go rest depth (some character) false (character :: acc)
-            else if character == '(' then
-              go rest (depth + 1) none false (character :: acc)
-            else if character == ')' && depth > 0 then
-              go rest (depth - 1) none false (character :: acc)
-            else if character == ',' && depth == 0 then
-              (String.ofList acc.reverse, some (String.ofList rest))
-            else go rest depth none false (character :: acc)
-  go body.toList 0 none false []
-
-def statementParser : Parser Statement := do
-  let kind ← GParser.capture (GParser.weakenFallible
-    (GParser.string "fof" <|> GParser.string "cnf"))
-  spaces
-  GParser.ch '('
-  spaces
-  let name ← identifier
-  spaces
-  GParser.ch ','
-  spaces
-  let roleName ← identifier
-  spaces
-  GParser.ch ','
-  spaces
-  let body ← GParser.weakenFallible formulaBody
-  spaces
-  GParser.ch ')'
-  GParser.ch '.'
-  let _ ← GParser.weakenFallible GParser.eof
-  let (formula, annotations) := splitAnnotations body
-  pure {
-    kind,
-    name,
-    role := Role.ofString roleName,
-    formula := formula.trimAscii.toString,
-    annotations := annotations.map (·.trimAscii.toString)
-  }
-
-def parseStatement (source : String) : Except String Statement :=
-  match statementParser.parse source.toUTF8 with
-  | .ok statement => .ok statement
-  | .error error => .error (error.pretty source.toUTF8)
-
-def Statement.ofFof (name : String) (role : Role) (formula : Syntax.Formula) :
-    Except String Statement := do
+def ofFof (name : String) (role : Role) (formula : _root_.TPTP.Formula.Expr) :
+    Except String _root_.TPTP.Statement := do
   let formula ← formula.toTPTP
   pure {
-    kind := "fof"
-    name
+    kind := .fof
+    name := .bare name
     role
     formula
   }
 
-def Statement.parseFormula (statement : Statement) : Except String Syntax.Formula :=
-  Syntax.parseFormula statement.formula
+def parseFormula (statement : _root_.TPTP.Statement) :
+    Except Grip.ParseError _root_.TPTP.Formula.Expr :=
+  _root_.TPTP.Statement.parseFormula statement
 
-def Problem.ofStatement (name : String) (statement : Statement) : Problem where
-  name := name
-  source :=
-    let annotationText := Option.map (fun value => s!", {value}") statement.annotations |>.getD ""
-    s!"{statement.kind}({statement.name}, {statement.role}, {statement.formula})" ++
-      annotationText ++ "."
+end Statement
 
 end OATP.TPTP
+
+namespace OATP
+
+def Problem.ofStatement (name : String) (statement : _root_.TPTP.Statement) : Problem where
+  name := name
+  source := _root_.TPTP.Statement.render statement
+
+end OATP

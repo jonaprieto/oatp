@@ -9,6 +9,10 @@ require grip from git
   "https://github.com/jonaprieto/lean-grip.git"
   @ "986b668d3da7919f24e2612770c227a2e8bb1fb5"
 
+require tptp from git
+  "https://github.com/jonaprieto/lean-tptp.git"
+  @ "27fd36e"
+
 require «termcolor» from git
   "https://github.com/jonaprieto/lean-termcolor.git"
   @ "708bfb2a314ed81aeb9bf5461895a55fe3aa49e8"

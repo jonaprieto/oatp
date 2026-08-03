@@ -24,11 +24,9 @@ is that more complete redesign.
 ## What exists
 
 - pure prover, SZS status, limits, artifact, outcome, and search-event models;
-- a positioned, balanced TPTP/TSTP `fof`/`cnf` statement-envelope parser built on [grip](https://github.com/jonaprieto/lean-grip);
-- a small typed first-order formula AST and validated `fof` renderer for
-  generated conjectures;
-- a matching parser for that explicitly supported unquoted first-order
-  fragment;
+- the standalone [lean-tptp](https://github.com/jonaprieto/lean-tptp) package,
+  which owns total Grip-backed TPTP/TSTP parsing and the first-order formula
+  layer;
 - bounded HTTPS requests through an argv-safe `curl` transport, with a
   post-capture response-size check;
 - a pure SystemOnTPTP response normalizer for HTTP status and SZS results,
@@ -126,8 +124,10 @@ TSTP/SZS output remains an untrusted candidate until reconstruction accepts it.
 
 ## Ecosystem
 
-OATP keeps pure data separate from IO. This first slice uses `grip` for
-byte-oriented TPTP parsing and `termcolor` for pure terminal text. The
+OATP keeps pure data separate from IO. TPTP syntax is owned by the standalone
+`lean-tptp` package, which uses `grip` for byte-oriented parsing; OATP adds
+the prover, HTTP, process, and reconstruction boundaries around it. `termcolor`
+provides pure terminal text. The
 diagnostics, terminal, and `argus` integrations remain follow-up work tracked
 in the issue list. ProofWidgets4 support is available as the optional
 [oatp-proofwidgets](https://github.com/jonaprieto/oatp-proofwidgets) package.

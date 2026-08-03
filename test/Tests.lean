@@ -64,10 +64,10 @@ open OATP OATP.TPTP
   target := "p"
 }] == "goal: demo\n  h : p\n⊢ p"
 def main : IO UInt32 := do
-  let x := OATP.TPTP.Syntax.Term.function "f" #[
+  let x := _root_.TPTP.Formula.Term.function "f" #[
     .constant "a", .var "X"
   ]
-  let formula := OATP.TPTP.Syntax.Formula.forall "X"
+  let formula := _root_.TPTP.Formula.Expr.forall #["X"]
     (.implies (.atom "p" #[x]) (.atom "q" #[.var "X"]))
   let rendered ← match formula.toTPTP with
     | .ok rendered => pure rendered
@@ -79,30 +79,30 @@ def main : IO UInt32 := do
       if statement.formula != rendered then
         throw <| IO.userError "first-order statement rendering changed"
   | .error message => throw <| IO.userError message
-  let invalid := OATP.TPTP.Syntax.Formula.atom "Bad" #[]
+  let invalid := _root_.TPTP.Formula.Expr.atom "Bad" #[]
   match invalid.toTPTP with
   | .error _ => pure ()
   | .ok _ => throw <| IO.userError "invalid TPTP symbol was rendered"
-  let unbound := OATP.TPTP.Syntax.Formula.atom "p" #[.var "X"]
+  let unbound := _root_.TPTP.Formula.Expr.atom "p" #[.var "X"]
   match unbound.toTPTP with
   | .error _ => pure ()
   | .ok _ => throw <| IO.userError "unbound TPTP variable was rendered"
   let parsed ← match OATP.TPTP.Syntax.parseFormula
       "![X] : (p(f(X)) => q(X))" with
     | .ok parsed => pure parsed
-    | .error message => throw <| IO.userError message
+    | .error message => throw <| IO.userError (message.pretty "![X] : (p(f(X)) => q(X))".toUTF8)
   let parsedRendered ← match parsed.toTPTP with
     | .ok rendered => pure rendered
     | .error message => throw <| IO.userError message
   if parsedRendered != "![X] : ((p(f(X)) => q(X)))" then
     throw <| IO.userError "first-order formula parser round-trip changed"
   let parsedStatement : Statement := {
-    kind := "fof"
-    name := "goal"
+    kind := .fof
+    name := .bare "goal"
     role := .conjecture
     formula := "p(a)"
   }
-  match parsedStatement.parseFormula with
+  match _root_.TPTP.Statement.parseFormula parsedStatement with
   | .ok (.atom "p" #[.constant "a"]) => pure ()
   | _ => throw <| IO.userError "statement semantic formula parse changed"
   match OATP.TPTP.Syntax.parseFormula "p(a) trailing" with
