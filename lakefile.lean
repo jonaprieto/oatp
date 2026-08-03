@@ -25,6 +25,10 @@ lean_exe «demo» where
   root := `Demo
   srcDir := "examples"
 
+lean_exe «proof-demo» where
+  root := `ProofDemo
+  srcDir := "examples"
+
 lean_exe «tests» where
   root := `Tests
   srcDir := "test"

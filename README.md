@@ -19,6 +19,7 @@ rich terminal output.
 - a pure SystemOnTPTP response normalizer for HTTP status and SZS results;
 - a local argv-safe prover runner with stdin delivery, timeout cancellation, and output limits;
 - a Lean metavariable snapshotter and kernel-facing candidate checker;
+- a small kernel-checked propositional reconstruction calculus;
 - TermColor plain and ANSI-16 event rendering;
 - separate properties and executable tests.
 
@@ -31,6 +32,7 @@ only a future kernel-checked reconstruction path can add one.
 ```sh
 lake build
 lake exe demo
+lake exe proof-demo
 lake exe tests
 python3 scripts/style-check.py
 python3 scripts/check-axioms.py

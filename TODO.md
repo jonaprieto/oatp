@@ -8,7 +8,7 @@
 - [ ] add `Std.Http` transport when the stable client/session API is ready;
 - [ ] add prover-specific command adapters and recorded local-process fixtures;
 - [ ] translate one explicitly supported first-order fragment to TPTP;
-- [ ] reconstruct one proof calculus from ATP artifacts;
+- [ ] translate ATP proof steps into `OATP.Proof.Step`;
 - [ ] add optional Aesop portfolio orchestration;
 - [ ] add shared proof/search widgets for terminal and ProofWidgets4 views;
 - [ ] add recorded remote fixtures and no-network CI tests.

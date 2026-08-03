@@ -9,5 +9,6 @@ import OATP.Events
 import OATP.Http
 import OATP.Lean
 import OATP.Process
+import OATP.Proof
 import OATP.SystemOnTPTP
 import OATP.TPTP
