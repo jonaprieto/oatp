@@ -15,7 +15,7 @@ require «termcolor» from git
 
 @[default_target]
 lean_lib «OATP» where
-  globs := #[.andSubmodules `OATP]
+  roots := #[`OATP]
 
 lean_lib «OATP.Properties» where
   roots := #[`OATP.Properties]
