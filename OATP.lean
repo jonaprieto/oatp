@@ -7,6 +7,7 @@ Authors: Jonathan Prieto-Cubides
 import OATP.Core
 import OATP.Events
 import OATP.Http
+import OATP.Lean
 import OATP.Process
 import OATP.SystemOnTPTP
 import OATP.TPTP

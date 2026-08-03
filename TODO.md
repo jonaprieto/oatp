@@ -7,8 +7,8 @@
 - [ ] add recorded SystemOnTPTP response fixtures and richer artifact metadata;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;
 - [ ] add prover-specific command adapters and recorded local-process fixtures;
-- [ ] add Lean goal extraction for one explicitly supported first-order fragment;
-- [ ] reconstruct and kernel-check one proof calculus;
+- [ ] translate one explicitly supported first-order fragment to TPTP;
+- [ ] reconstruct one proof calculus from ATP artifacts;
 - [ ] add optional Aesop portfolio orchestration;
 - [ ] add shared proof/search widgets for terminal and ProofWidgets4 views;
 - [ ] add recorded remote fixtures and no-network CI tests.

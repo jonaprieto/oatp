@@ -18,6 +18,7 @@ rich terminal output.
   post-capture response-size check;
 - a pure SystemOnTPTP response normalizer for HTTP status and SZS results;
 - a local argv-safe prover runner with stdin delivery, timeout cancellation, and output limits;
+- a Lean metavariable snapshotter and kernel-facing candidate checker;
 - TermColor plain and ANSI-16 event rendering;
 - separate properties and executable tests.
 
