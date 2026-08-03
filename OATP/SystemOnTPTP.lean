@@ -18,37 +18,7 @@ form does not leak into the core model.
 namespace OATP.SystemOnTPTP
 
 open OATP
-
-structure Field where
-  name : String
-  value : String
-  deriving BEq, DecidableEq, Repr
-
-private def hexDigits : Array Char :=
-  #[
-    '0', '1', '2', '3', '4', '5', '6', '7',
-    '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
-  ]
-
-private def isUnreserved (byte : UInt8) : Bool :=
-  (byte >= 48 && byte <= 57) ||
-  (byte >= 65 && byte <= 90) ||
-  (byte >= 97 && byte <= 122) ||
-  byte == 45 || byte == 46 || byte == 95 || byte == 126
-
-private def encodeByte (byte : UInt8) : String :=
-  if isUnreserved byte then
-    Char.ofNat byte.toNat |>.toString
-  else
-    let n := byte.toNat
-    s!"%{hexDigits[n / 16]!}{hexDigits[n % 16]!}"
-
-def encodeComponent (value : String) : String :=
-  String.join (value.toUTF8.toList.map encodeByte)
-
-def encodeForm (fields : Array Field) : String :=
-  String.intercalate "&" <| fields.toList.map fun field =>
-    s!"{encodeComponent field.name}={encodeComponent field.value}"
+open OATP.Http.Form
 
 structure Config where
   endpoint : String := "https://tptp.org/cgi-bin/SystemOnTPTP"
@@ -94,7 +64,7 @@ def fields (config : Config) (problem : Problem) : Array Field :=
 def request (config : Config) (problem : Problem) : Http.Request where
   method := .post
   url := config.endpoint
-  body := encodeForm (fields config problem)
+  body := encodeUrlEncoded (fields config problem)
   headers := #["Content-Type: application/x-www-form-urlencoded"]
   maxSeconds := config.timeLimit + 10
 

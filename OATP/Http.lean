@@ -16,6 +16,75 @@ performed after capture; streaming cancellation remains a follow-up.
 
 namespace OATP.Http
 
+namespace Form
+
+structure Field where
+  name : String
+  value : String
+  deriving BEq, DecidableEq, Repr
+
+private def hexDigits : Array Char :=
+  #[
+    '0', '1', '2', '3', '4', '5', '6', '7',
+    '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+  ]
+
+private def isUnreserved (byte : UInt8) : Bool :=
+  (byte >= 48 && byte <= 57) ||
+  (byte >= 65 && byte <= 90) ||
+  (byte >= 97 && byte <= 122) ||
+  byte == 45 || byte == 46 || byte == 95 || byte == 126
+
+private def encodeByte (byte : UInt8) : String :=
+  if isUnreserved byte then
+    Char.ofNat byte.toNat |>.toString
+  else
+    let n := byte.toNat
+    s!"%{hexDigits[n / 16]!}{hexDigits[n % 16]!}"
+
+def encodeComponent (value : String) : String :=
+  String.join (value.toUTF8.toList.map encodeByte)
+
+def encodeUrlEncoded (fields : Array Field) : String :=
+  String.intercalate "&" <| fields.toList.map fun field =>
+    s!"{encodeComponent field.name}={encodeComponent field.value}"
+
+structure MultipartPart where
+  name : String
+  value : String
+  filename : Option String := none
+  contentType : Option String := none
+  deriving BEq, DecidableEq, Repr
+
+private def validHeaderValue (value : String) : Bool :=
+  value.toList.all fun character =>
+    character != '"' && character != '\\' && character != '\r' && character != '\n'
+
+def encodeMultipart (boundary : String) (parts : Array MultipartPart) : Except String String := do
+  if boundary.isEmpty || !boundary.toList.all (fun character =>
+      character.isAlphanum || character == '-' || character == '_') then
+    throw "multipart boundary must contain only letters, digits, '-' or '_'"
+  for part in parts do
+    unless validHeaderValue part.name do
+      throw s!"invalid multipart field name `{part.name}`"
+    for filename in part.filename do
+      unless validHeaderValue filename do
+        throw s!"invalid multipart filename `{filename}`"
+    for contentType in part.contentType do
+      unless validHeaderValue contentType do
+        throw s!"invalid multipart content type `{contentType}`"
+  let encoded := parts.toList.map fun part =>
+    let disposition := match part.filename with
+      | some filename => s!"; filename=\"{filename}\""
+      | none => ""
+    let contentType := part.contentType.map (fun value => s!"\r\nContent-Type: {value}") |>.getD ""
+    let headers := s!"--{boundary}\r\nContent-Disposition: form-data; name=\"{part.name}\"" ++
+      disposition ++ contentType
+    s!"{headers}\r\n\r\n{part.value}\r\n"
+  pure <| String.join encoded ++ s!"--{boundary}--\r\n"
+
+end Form
+
 inductive Method where
   | get
   | post

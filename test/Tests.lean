@@ -37,11 +37,19 @@ open OATP OATP.TPTP
     { statusCode := 500, body := "server error" } with
   | .error (.httpStatus 500) => true
   | _ => false
-#guard OATP.SystemOnTPTP.encodeComponent "a b&c" == "a%20b%26c"
-#guard OATP.SystemOnTPTP.encodeForm #[
+#guard OATP.Http.Form.encodeComponent "a b&c" == "a%20b%26c"
+#guard OATP.Http.Form.encodeUrlEncoded #[
   { name := "x", value := "a b" },
   { name := "y", value := "✓" }
 ] == "x=a%20b&y=%E2%9C%93"
+#guard match OATP.Http.Form.encodeMultipart "oatp-boundary" #[
+    { name := "problem", value := "fof(goal, conjecture, p)." }
+  ] with
+  | .ok body => body.startsWith "--oatp-boundary\r\n"
+  | .error _ => false
+#guard match OATP.Http.Form.encodeMultipart "bad\r\n" #[] with
+  | .error _ => true
+  | .ok _ => false
 #guard OATP.Term.renderPlain #[.goal {
   title := "demo"
   context := #["h : p"]

@@ -3,7 +3,7 @@
 ## Next vertical slices
 
 - [ ] add semantic TPTP/TSTP AST modules on top of the balanced envelope;
-- [ ] add URL-encoded and multipart form encoders;
+- [ ] add streaming multipart uploads for large proof artifacts;
 - [ ] add recorded SystemOnTPTP response fixtures and richer artifact metadata;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;
 - [ ] add prover-specific command adapters and recorded local-process fixtures;
