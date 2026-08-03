@@ -6,6 +6,7 @@
 - [x] parse the supported first-order fragment into a semantic TPTP AST;
 - [ ] add streaming multipart uploads for large proof artifacts;
 - [x] add recorded SystemOnTPTP response fixtures and richer artifact metadata;
+- [x] add a reproducible E-prover container and no-network smoke fixture;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;
 - [ ] add prover-specific command adapters and recorded local-process fixtures;
 - [x] translate one explicitly supported first-order fragment to TPTP;

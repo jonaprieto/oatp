@@ -10,6 +10,15 @@ rich terminal output.
 > Prototype: the public API is intentionally small. External ATP results remain
 > untrusted until a kernel-checked reconstruction path accepts them.
 
+## Background
+
+OATP grows out of [online-atps](https://github.com/jonaprieto/online-atps), an
+earlier Lean 4 project I created for working with online automated theorem
+provers. That experience made the next requirements clear: local and remote
+prover backends, reproducible artifacts, readable diagnostics, and an explicit
+boundary between an external candidate and a kernel-checked Lean proof. OATP
+is the resulting redesign toward a more complete and reusable tool.
+
 ## What exists
 
 - pure prover, SZS status, limits, artifact, outcome, and search-event models;
@@ -24,6 +33,7 @@ rich terminal output.
   retaining problem names in artifacts;
 - a local argv-safe prover runner with stdin delivery, timeout termination
   requests, and output limits;
+- a reproducible, no-network E prover container for local development;
 - a Lean metavariable snapshotter and kernel-facing candidate checker;
 - a small kernel-checked propositional reconstruction calculus;
 - TermColor plain and ANSI-16 event rendering;
@@ -60,6 +70,38 @@ require oatp from git
 The prototype currently targets Lean 4.32.1. Pin a release or commit for
 reproducible builds.
 
+## Reproducible local prover
+
+Docker is optional. The repository includes a small E prover image with its
+Debian package version pinned. Build it once:
+
+```sh
+docker build -f docker/eprover/Dockerfile \
+  -t oatp/eprover:bookworm-2.6 .
+```
+
+Run a TPTP problem through the hardened wrapper:
+
+```sh
+OATP_EPROVER_IMAGE=oatp/eprover:bookworm-2.6 \
+  scripts/run-eprover-docker.sh < problem.p
+```
+
+The same wrapper is an ordinary OATP process command:
+
+```lean
+let command : OATP.Process.Command := {
+  executable := "./scripts/run-eprover-docker.sh"
+  arguments := #["--cpu-limit=5"]
+}
+```
+
+The wrapper disables networking, drops Linux capabilities, uses a read-only
+root filesystem, and applies CPU, memory, PID, and temporary-space limits. A
+Lean caller can use the same wrapper through `OATP.Process.Command`; Docker is
+therefore an environment boundary, not a library dependency. The returned
+TSTP/SZS output remains an untrusted candidate until reconstruction accepts it.
+
 ## Ecosystem
 
 OATP keeps pure data separate from IO. This first slice uses `grip` for
@@ -83,7 +125,9 @@ other ecosystem libraries. CI builds all targets, runs the executable tests,
 checks the demo, checks Lean style, and audits the properties target's axioms.
 
 Process and HTTP output limits are checked after capture in this prototype;
-large untrusted outputs therefore remain a future streaming-limit slice.
+large untrusted outputs therefore remain a future streaming-limit slice. The
+container wrapper limits the prover process itself, but does not replace those
+library-level limits.
 Process deadlines request process-group termination through Lean's native API.
 Lean 4.32's `Std.Http` is currently a low-level sans-I/O HTTP/1.1 protocol and
 transport layer, not a complete HTTPS client, so OATP keeps `curl` as its
