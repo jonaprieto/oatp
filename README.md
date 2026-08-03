@@ -7,8 +7,8 @@ rich terminal output.
 [![Lean 4](https://img.shields.io/badge/Lean-v4.32.1-blue)](lean-toolchain)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
-> Prototype: the public API is intentionally small and the Lean-to-TPTP proof
-> reconstruction layer is not implemented yet.
+> Prototype: the public API is intentionally small. External ATP results remain
+> untrusted until a kernel-checked reconstruction path accepts them.
 
 ## What exists
 
@@ -39,7 +39,8 @@ python3 scripts/check-axioms.py
 ```
 
 The demo shows a goal, tactic attempts, an external candidate, and the
-proof-artifact trust boundary in both plain and ANSI output.
+proof-artifact trust boundary in both plain and ANSI output. The proof demo
+constructs and assigns a kernel-checked `True` proof.
 
 ## Install
 

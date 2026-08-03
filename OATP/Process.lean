@@ -23,7 +23,6 @@ structure Command where
   deriving BEq, DecidableEq, Repr
 
 inductive Error where
-  | timedOut
   | outputTooLarge (actual limit : Nat)
   deriving Repr
 
