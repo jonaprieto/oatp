@@ -6,9 +6,8 @@ RUN apt-get update \
     && apt-get install --no-install-recommends --yes "eprover=${EPROVER_VERSION}" \
     && rm -rf /var/lib/apt/lists/*
 
-COPY docker/eprover/entrypoint.sh /usr/local/bin/oatp-eprover
-RUN chmod 0555 /usr/local/bin/oatp-eprover
+COPY docker/tptp/entrypoint.sh /usr/local/bin/oatp-tptp
+RUN chmod 0555 /usr/local/bin/oatp-tptp
 
 WORKDIR /tmp
-ENTRYPOINT ["/usr/local/bin/oatp-eprover"]
-
+ENTRYPOINT ["/usr/local/bin/oatp-tptp", "eprover", "--tstp-in", "--tstp-out", "--auto"]

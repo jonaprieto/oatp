@@ -53,13 +53,29 @@ jobs:
       - run: git diff --check
 
   docker:
-    name: Docker E prover
+    name: Docker TPTP provers
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: E prover
+            dockerfile: docker/eprover/Dockerfile
+            image: oatp/eprover:bookworm-2.6
+            arguments: ""
+          - name: Vampire
+            dockerfile: docker/vampire/Dockerfile
+            image: oatp/vampire:bookworm-5.0.1
+            arguments: "--time_limit 5"
+          - name: Metis
+            dockerfile: docker/metis/Dockerfile
+            image: oatp/metis:bookworm-2.4.20260305
+            arguments: "--time-limit 5"
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Build E prover image
-        run: docker build --file docker/eprover/Dockerfile --tag oatp/eprover:bookworm-2.6 .
+      - name: Build ${{ matrix.name }} image
+        run: docker build --file "${{ matrix.dockerfile }}" --tag "${{ matrix.image }}" .
       - name: Run no-network smoke test
-        run: scripts/docker-eprover-smoke.sh oatp/eprover:bookworm-2.6
+        run: scripts/docker-tptp-smoke.sh "${{ matrix.image }}" ${{ matrix.arguments }}

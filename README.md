@@ -33,7 +33,8 @@ is the resulting redesign toward a more complete and reusable tool.
   retaining problem names in artifacts;
 - a local argv-safe prover runner with stdin delivery, timeout termination
   requests, and output limits;
-- a reproducible, no-network E prover container for local development;
+- reproducible, no-network E, Vampire, and Metis containers for local
+  development;
 - a Lean metavariable snapshotter and kernel-facing candidate checker;
 - a small kernel-checked propositional reconstruction calculus;
 - TermColor plain and ANSI-16 event rendering;
@@ -70,24 +71,29 @@ require oatp from git
 The prototype currently targets Lean 4.32.1. Pin a release or commit for
 reproducible builds.
 
-## Reproducible local prover
+## Reproducible local provers
 
-Docker is optional. The repository includes a small E prover image with its
-Debian package version pinned. Build it once:
+Docker is optional. The repository includes small, no-network images for the
+three direct-TPTP provers currently covered by the prototype:
 
 ```sh
 docker build -f docker/eprover/Dockerfile \
   -t oatp/eprover:bookworm-2.6 .
+docker build -f docker/vampire/Dockerfile \
+  -t oatp/vampire:bookworm-5.0.1 .
+docker build -f docker/metis/Dockerfile \
+  -t oatp/metis:bookworm-2.4.20260305 .
 ```
 
-Run a TPTP problem through the hardened wrapper:
+Run a TPTP problem through the hardened generic wrapper:
 
 ```sh
-OATP_EPROVER_IMAGE=oatp/eprover:bookworm-2.6 \
-  scripts/run-eprover-docker.sh < problem.p
+scripts/run-tptp-docker.sh oatp/eprover:bookworm-2.6 < problem.p
+scripts/run-tptp-docker.sh oatp/vampire:bookworm-5.0.1 --time_limit 5 < problem.p
+scripts/run-tptp-docker.sh oatp/metis:bookworm-2.4.20260305 --time-limit 5 < problem.p
 ```
 
-The same wrapper is an ordinary OATP process command:
+The E-specific wrapper remains available for existing callers:
 
 ```lean
 let command : OATP.Process.Command := {
@@ -95,6 +101,20 @@ let command : OATP.Process.Command := {
   arguments := #["--cpu-limit=5"]
 }
 ```
+
+For host-based smoke testing, install the direct-TPTP tools with Homebrew:
+
+```sh
+brew install eprover vampire polyml
+```
+
+Metis is not the Homebrew `metis` formula: that formula is a graph-partitioning
+library. Build Metis from its [official release](https://github.com/gilith/metis/releases)
+with Poly/ML, then put `bin/polyml/metis` on your `PATH`.
+
+Prover9 is also useful for future testing (`brew install prover9`), but the
+available Homebrew release uses LADR input rather than this TPTP fixture. Z3
+and cvc5 target SMT-LIB; they need a separate translation boundary.
 
 The wrapper disables networking, drops Linux capabilities, uses a read-only
 root filesystem, and applies CPU, memory, PID, and temporary-space limits. A
@@ -126,8 +146,9 @@ checks the demo, checks Lean style, and audits the properties target's axioms.
 
 Process and HTTP output limits are checked after capture in this prototype;
 large untrusted outputs therefore remain a future streaming-limit slice. The
-container wrapper limits the prover process itself, but does not replace those
-library-level limits.
+container wrappers limit the prover process itself, but do not replace those
+library-level limits. The CI matrix builds and runs a no-network identity
+fixture against E, Vampire, and Metis.
 Process deadlines request process-group termination through Lean's native API.
 Lean 4.32's `Std.Http` is currently a low-level sans-I/O HTTP/1.1 protocol and
 transport layer, not a complete HTTPS client, so OATP keeps `curl` as its
