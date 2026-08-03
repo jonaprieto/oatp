@@ -15,5 +15,5 @@ else
 fi
 
 cat "$output"
-grep -Fq '% SZS status Theorem' "$output"
+grep -Eq '^[#%] SZS status Theorem([[:space:]]|$)' "$output"
 printf '%s\n' "Docker E prover smoke test passed"
