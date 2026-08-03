@@ -17,7 +17,9 @@ open OATP TermColor
 
 def eventText : SearchEvent → Text
   | .goal snapshot =>
-      Text.styled "goal: " Style.bold ++ Text.plain snapshot.title ++
+      let context := if snapshot.context.isEmpty then "" else
+        "\n" ++ String.intercalate "\n" (snapshot.context.toList.map (fun line => "  " ++ line))
+      Text.styled "goal: " Style.bold ++ Text.plain snapshot.title ++ Text.plain context ++
         Text.plain "\n" ++ Text.plain "⊢ " ++ Text.plain snapshot.target
   | .attempt attempt =>
       Text.styled "attempt: " Style.cyan ++ Text.plain attempt.tactic ++

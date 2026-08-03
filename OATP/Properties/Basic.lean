@@ -19,4 +19,12 @@ theorem note_plain_render :
     OATP.Term.renderPlain #[.note "ready"] = "note: ready" := by
   rfl
 
+theorem goal_context_plain_render :
+    OATP.Term.renderPlain #[.goal {
+      title := "demo"
+      context := #["h : p"]
+      target := "p"
+    }] = "goal: demo\n  h : p\n⊢ p" := by
+  rfl
+
 end OATP.Properties

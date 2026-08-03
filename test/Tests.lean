@@ -1,6 +1,7 @@
 import OATP
 import OATP.TPTP
 import OATP.SystemOnTPTP
+import OATP.Term
 
 open OATP OATP.TPTP
 
@@ -15,6 +16,11 @@ open OATP OATP.TPTP
   { name := "x", value := "a b" },
   { name := "y", value := "✓" }
 ] == "x=a%20b&y=%E2%9C%93"
+#guard OATP.Term.renderPlain #[.goal {
+  title := "demo"
+  context := #["h : p"]
+  target := "p"
+}] == "goal: demo\n  h : p\n⊢ p"
 
 def main : IO UInt32 := do
   IO.println "OATP tests passed"
