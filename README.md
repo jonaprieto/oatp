@@ -17,6 +17,7 @@ rich terminal output.
 - bounded HTTPS requests through an argv-safe `curl` transport, with a
   post-capture response-size check;
 - a pure SystemOnTPTP response normalizer for HTTP status and SZS results;
+- a local argv-safe prover runner with stdin delivery, timeout cancellation, and output limits;
 - TermColor plain and ANSI-16 event rendering;
 - separate properties and executable tests.
 

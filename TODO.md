@@ -6,7 +6,7 @@
 - [ ] add URL-encoded and multipart form encoders;
 - [ ] add recorded SystemOnTPTP response fixtures and richer artifact metadata;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;
-- [ ] add local prover process backends with typed limits and cancellation;
+- [ ] add prover-specific command adapters and recorded local-process fixtures;
 - [ ] add Lean goal extraction for one explicitly supported first-order fragment;
 - [ ] reconstruct and kernel-check one proof calculus;
 - [ ] add optional Aesop portfolio orchestration;

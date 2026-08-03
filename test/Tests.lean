@@ -49,5 +49,24 @@ open OATP OATP.TPTP
 }] == "goal: demo\n  h : p\n⊢ p"
 
 def main : IO UInt32 := do
+  let problem : Problem := { name := "stdin", source := "fof(goal, conjecture, p).\n" }
+  let processResult ← OATP.Process.run
+    { name := "cat" } problem { wallSeconds := 2 }
+    { executable := "cat" }
+  match processResult with
+  | .ok artifact =>
+      if artifact.stdout != problem.source then
+        throw <| IO.userError "local process backend did not preserve stdin"
+  | .error _ =>
+      throw <| IO.userError "local process backend failed to run cat"
+  let limited ← OATP.Process.run
+    { name := "cat" } problem { wallSeconds := 2, maxOutputBytes := 1 }
+    { executable := "cat" }
+  match limited with
+  | .error (.outputTooLarge actual 1) =>
+      if actual ≤ 1 then
+        throw <| IO.userError "local process backend reported an invalid output size"
+  | _ =>
+      throw <| IO.userError "local process backend ignored the output limit"
   IO.println "OATP tests passed"
   return 0
