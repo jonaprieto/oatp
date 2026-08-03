@@ -4,7 +4,7 @@
 
 - [ ] replace the line-envelope parser with full TPTP/TSTP syntax modules;
 - [ ] add URL-encoded and multipart form encoders;
-- [ ] add SystemOnTPTP request/response adapter;
+- [ ] parse and normalize SystemOnTPTP responses into artifacts;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;
 - [ ] add local prover process backends with typed limits and cancellation;
 - [ ] add Lean goal extraction for one explicitly supported first-order fragment;

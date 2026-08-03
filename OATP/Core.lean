@@ -75,20 +75,17 @@ structure Artifact where
   deriving BEq, DecidableEq, Repr
 
 inductive Outcome where
-  | proved (artifact : Artifact)
   | candidate (artifact : Artifact)
   | timedOut (artifact : Artifact)
   | failed (message : String) (artifact : Option Artifact := none)
   deriving Repr
 
 def Outcome.artifact : Outcome → Option Artifact
-  | .proved artifact => some artifact
   | .candidate artifact => some artifact
   | .timedOut artifact => some artifact
   | .failed _ artifact => artifact
 
 def Outcome.status : Outcome → String
-  | .proved artifact => s!"proved ({artifact.status})"
   | .candidate artifact => s!"candidate ({artifact.status})"
   | .timedOut _ => "timeout"
   | .failed message _ => s!"failed: {message}"

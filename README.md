@@ -14,13 +14,14 @@ rich terminal output.
 
 - pure prover, SZS status, limits, artifact, outcome, and search-event models;
 - a positioned TPTP `fof`/`cnf` statement-envelope parser built on [grip](https://github.com/jonaprieto/lean-grip);
-- bounded HTTPS requests through an argv-safe `curl` transport;
+- bounded HTTPS requests through an argv-safe `curl` transport, with a
+  post-capture response-size check;
 - TermColor plain and ANSI-16 event rendering;
 - separate properties and executable tests.
 
 The central trust rule is explicit: an ATP `Theorem` result is a `candidate`,
-not a Lean proof. Only a future kernel-checked reconstruction path can produce
-`proved`.
+not a Lean proof. This prototype has no public verified-result constructor;
+only a future kernel-checked reconstruction path can add one.
 
 ## Quick start
 
@@ -48,9 +49,11 @@ reproducible builds.
 
 ## Ecosystem
 
-OATP keeps pure data separate from IO. It uses `grip` for byte-oriented TPTP
-parsing and the `lean-termcolor-*` stack for presentation. Future editor views
-will target [ProofWidgets4](https://github.com/leanprover-community/ProofWidgets4).
+OATP keeps pure data separate from IO. This first slice uses `grip` for
+byte-oriented TPTP parsing and `termcolor` for pure terminal text. The
+diagnostics, terminal, widget, and `argus` integrations are intentionally
+follow-up work tracked in the issue list; future editor views will target
+[ProofWidgets4](https://github.com/leanprover-community/ProofWidgets4).
 
 ## Roadmap
 
