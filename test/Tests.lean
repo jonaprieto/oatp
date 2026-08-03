@@ -29,11 +29,14 @@ open OATP OATP.TPTP
   | .ok _ => false
 #guard match OATP.SystemOnTPTP.parseResponse
     { systemLabel := "vampire" }
+    { name := "goal", source := "fof(goal, conjecture, p)." }
     { statusCode := 200, body := "% SZS status Theorem for goal\n" } with
-  | .ok artifact => artifact.status == .theorem && artifact.prover.name == "vampire"
+  | .ok artifact => artifact.status == .theorem && artifact.prover.name == "vampire" &&
+      artifact.problemName == some "goal"
   | .error _ => false
 #guard match OATP.SystemOnTPTP.parseResponse
     { systemLabel := "vampire" }
+    { name := "goal", source := "" }
     { statusCode := 500, body := "server error" } with
   | .error (.httpStatus 500) => true
   | _ => false
@@ -65,6 +68,22 @@ def main : IO UInt32 := do
     throw <| IO.userError "first-order formula rendering changed"
   if (Statement.ofFof "goal" .conjecture formula).formula != formula.toTPTP then
     throw <| IO.userError "first-order statement rendering changed"
+  let theoremFixture ← IO.FS.readFile "test/fixtures/system-on-tptp/theorem.txt"
+  let theoremArtifact ← match OATP.SystemOnTPTP.parseResponse
+      { systemLabel := "vampire" } { name := "fixture", source := "" }
+      { statusCode := 200, body := theoremFixture } with
+    | .ok artifact => pure artifact
+    | .error _ => throw <| IO.userError "theorem fixture did not parse"
+  if theoremArtifact.status != .theorem || theoremArtifact.problemName != some "fixture" then
+    throw <| IO.userError "theorem fixture metadata changed"
+  let timeoutFixture ← IO.FS.readFile "test/fixtures/system-on-tptp/timeout.txt"
+  let timeoutArtifact ← match OATP.SystemOnTPTP.parseResponse
+      { systemLabel := "vampire" } { name := "fixture", source := "" }
+      { statusCode := 200, body := timeoutFixture } with
+    | .ok artifact => pure artifact
+    | .error _ => throw <| IO.userError "timeout fixture did not parse"
+  if timeoutArtifact.status != .timeout then
+    throw <| IO.userError "timeout fixture status changed"
   let problem : Problem := { name := "stdin", source := "fof(goal, conjecture, p).\n" }
   let processResult ← OATP.Process.run
     { name := "cat" } problem { wallSeconds := 2 }

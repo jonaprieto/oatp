@@ -1,0 +1,4 @@
+% SZS status Theorem for fixture
+% SZS output start CNFRefutation
+% recorded no-network fixture
+% SZS output end CNFRefutation

@@ -69,6 +69,7 @@ def run (prover : Prover) (problem : Problem) (limits : Limits) (command : Comma
   let artifact : Artifact := {
     prover,
     status,
+    problemName := some problem.name,
     stdout,
     stderr,
     exitCode := some exitCode,

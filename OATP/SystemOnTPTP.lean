@@ -72,7 +72,7 @@ def submit (config : Config) (problem : Problem) :
   IO (Except Http.Error Http.Response) :=
   Http.requestWithCurl (request config problem)
 
-def parseResponse (config : Config) (response : Http.Response) :
+def parseResponse (config : Config) (problem : Problem) (response : Http.Response) :
     Except ResponseError Artifact := do
   if response.statusCode < 200 || response.statusCode ≥ 300 then
     throw (.httpStatus response.statusCode)
@@ -85,6 +85,7 @@ def parseResponse (config : Config) (response : Http.Response) :
   pure {
     prover := { name := config.systemLabel }
     status
+    problemName := some problem.name
     stdout := response.body
     stderr := response.stderr
   }

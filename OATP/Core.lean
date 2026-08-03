@@ -81,6 +81,7 @@ structure Problem where
 structure Artifact where
   prover : Prover
   status : SZSStatus
+  problemName : Option String := none
   stdout : String := ""
   stderr : String := ""
   exitCode : Option UInt32 := none

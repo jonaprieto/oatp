@@ -18,7 +18,8 @@ rich terminal output.
   conjectures;
 - bounded HTTPS requests through an argv-safe `curl` transport, with a
   post-capture response-size check;
-- a pure SystemOnTPTP response normalizer for HTTP status and SZS results;
+- a pure SystemOnTPTP response normalizer for HTTP status and SZS results,
+  retaining problem names in artifacts;
 - a local argv-safe prover runner with stdin delivery, timeout cancellation, and output limits;
 - a Lean metavariable snapshotter and kernel-facing candidate checker;
 - a small kernel-checked propositional reconstruction calculus;
