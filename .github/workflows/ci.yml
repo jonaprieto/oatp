@@ -34,6 +34,8 @@ jobs:
         with:
           lake-package-directory: .
           build-args: "OATP OATP.Properties demo tests"
+      - name: Audit proof axioms
+        run: python3 scripts/check-axioms.py
       - name: Run tests
         run: lake exe tests
       - name: Render demo gallery
@@ -46,6 +48,4 @@ jobs:
       - uses: actions/checkout@v5
       - name: Lean style (100-col / trailing-ws / tabs)
         run: python3 scripts/style-check.py
-      - name: Audit proof axioms
-        run: python3 scripts/check-axioms.py
       - run: git diff --check
