@@ -27,6 +27,16 @@ open OATP OATP.TPTP
 #guard match parseStatement "fof(goal, conjecture, p). trailing" with
   | .error _ => true
   | .ok _ => false
+#guard match OATP.SystemOnTPTP.parseResponse
+    { systemLabel := "vampire" }
+    { statusCode := 200, body := "% SZS status Theorem for goal\n" } with
+  | .ok artifact => artifact.status == .theorem && artifact.prover.name == "vampire"
+  | .error _ => false
+#guard match OATP.SystemOnTPTP.parseResponse
+    { systemLabel := "vampire" }
+    { statusCode := 500, body := "server error" } with
+  | .error (.httpStatus 500) => true
+  | _ => false
 #guard OATP.SystemOnTPTP.encodeComponent "a b&c" == "a%20b%26c"
 #guard OATP.SystemOnTPTP.encodeForm #[
   { name := "x", value := "a b" },

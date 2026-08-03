@@ -41,6 +41,18 @@ inductive SZSStatus where
 
 namespace SZSStatus
 
+def ofString : String → Option SZSStatus
+  | "Theorem" | "theorem" => some .theorem
+  | "Unsatisfiable" | "unsatisfiable" => some .unsatisfiable
+  | "Satisfiable" | "satisfiable" => some .satisfiable
+  | "CounterSatisfiable" | "counterSatisfiable" | "countersatisfiable" =>
+      some .counterSatisfiable
+  | "Timeout" | "timeout" => some .timeout
+  | "GaveUp" | "gaveUp" | "gaveup" => some .gaveUp
+  | "Error" | "error" => some .error
+  | "Unknown" | "unknown" => some .unknown
+  | _ => none
+
 def toString : SZSStatus → String
   | .theorem => "Theorem"
   | .unsatisfiable => "Unsatisfiable"

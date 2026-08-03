@@ -16,6 +16,7 @@ rich terminal output.
 - a positioned, balanced TPTP/TSTP `fof`/`cnf` statement-envelope parser built on [grip](https://github.com/jonaprieto/lean-grip);
 - bounded HTTPS requests through an argv-safe `curl` transport, with a
   post-capture response-size check;
+- a pure SystemOnTPTP response normalizer for HTTP status and SZS results;
 - TermColor plain and ANSI-16 event rendering;
 - separate properties and executable tests.
 
