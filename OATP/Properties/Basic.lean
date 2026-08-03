@@ -28,4 +28,8 @@ theorem goal_context_plain_render :
     }] = "goal: demo\n  h : p\n⊢ p" := by
   rfl
 
+#print axioms empty_plain_render
+#print axioms note_plain_render
+#print axioms goal_context_plain_render
+
 end OATP.Properties

@@ -10,8 +10,8 @@ import OATP.Core
 # OATP.Process: local prover execution
 
 Commands are passed as argv to Lean's native process API. The runner sends the
-problem on stdin, drains both output streams concurrently, kills the process
-group on timeout, and applies the output limit after capture.
+problem on stdin, drains both output streams concurrently, requests process
+group termination on timeout, and applies the output limit after capture.
 -/
 
 namespace OATP.Process
@@ -23,6 +23,7 @@ structure Command where
   deriving BEq, DecidableEq, Repr
 
 inductive Error where
+  | io (message : String)
   | outputTooLarge (actual limit : Nat)
   deriving Repr
 
@@ -41,7 +42,7 @@ private partial def waitForExit {cfg : IO.Process.StdioConfig}
         IO.sleep (min 10 remaining).toUInt32
         waitForExit child deadline
 
-def run (prover : Prover) (problem : Problem) (limits : Limits) (command : Command) :
+private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (command : Command) :
     IO (Except Error Artifact) := do
   let child ← IO.Process.spawn {
     cmd := command.executable
@@ -53,12 +54,14 @@ def run (prover : Prover) (problem : Problem) (limits : Limits) (command : Comma
     setsid := true
   }
   let (stdin, child) ← child.takeStdin
-  stdin.putStr problem.source
-  stdin.flush
   let stdoutTask ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
   let stderrTask ← IO.asTask child.stderr.readToEnd Task.Priority.dedicated
   let started ← IO.monoMsNow
+  let stdinTask ← IO.asTask (do
+    stdin.putStr problem.source
+    stdin.flush) Task.Priority.dedicated
   let (timedOut, exitCode) ← waitForExit child (started + limits.wallSeconds * 1000)
+  let _ ← IO.ofExcept stdinTask.get
   let stdout ← IO.ofExcept stdoutTask.get
   let stderr ← IO.ofExcept stderrTask.get
   let elapsedMs := (← IO.monoMsNow) - started
@@ -76,5 +79,12 @@ def run (prover : Prover) (problem : Problem) (limits : Limits) (command : Comma
     elapsedMs
   }
   return .ok artifact
+
+def run (prover : Prover) (problem : Problem) (limits : Limits) (command : Command) :
+    IO (Except Error Artifact) := do
+  try
+    runUnsafe prover problem limits command
+  catch error =>
+    pure (.error (.io s!"{error}"))
 
 end OATP.Process

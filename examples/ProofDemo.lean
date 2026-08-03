@@ -13,6 +13,30 @@ private def runProofDemo : TermElabM Unit := do
   match ← OATP.Proof.reconstruct goal.mvarId! .trueIntro with
   | .ok _ => logInfo "OATP proof demo: kernel-checked True introduction"
   | .error message => throwError message
+  let trueType := mkConst ``True
+  let conjunction ← mkAppM ``And #[trueType, trueType]
+  let conjunctionGoal ← mkFreshExprMVar (some conjunction)
+  match ← OATP.Proof.reconstruct conjunctionGoal.mvarId! (.andIntro .trueIntro .trueIntro) with
+  | .ok _ => pure ()
+  | .error message => throwError message
+  let implication ← mkArrow trueType trueType
+  let implicationGoal ← mkFreshExprMVar (some implication)
+  match ← OATP.Proof.reconstruct implicationGoal.mvarId!
+      (.implicationIntro `h .trueIntro) with
+  | .ok _ => pure ()
+  | .error message => throwError message
+  withLocalDeclD `h trueType fun _ => do
+    let localGoal ← mkFreshExprMVar (some trueType)
+    let snapshot ← OATP.Lean.snapshot localGoal.mvarId!
+    unless snapshot.context.any (·.startsWith "h :") do
+      throwError "OATP proof demo lost the local metavariable context"
+    match ← OATP.Proof.reconstruct localGoal.mvarId! (.exact `h) with
+    | .ok _ => pure ()
+    | .error message => throwError message
+  let invalidGoal ← mkFreshExprMVar (some trueType)
+  match ← OATP.Proof.reconstruct invalidGoal.mvarId! (.andIntro .trueIntro .trueIntro) with
+  | .error _ => pure ()
+  | .ok _ => throwError "OATP proof demo accepted an invalid reconstruction"
 
 syntax (name := oatpProofDemo) "#oatp_proof_demo" : command
 

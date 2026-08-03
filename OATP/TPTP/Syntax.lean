@@ -7,9 +7,8 @@ Authors: Jonathan Prieto-Cubides
 /-!
 # OATP.TPTP.Syntax: supported first-order formula fragment
 
-This small AST is for generating TPTP `fof` formulas. Identifiers are kept as
-strings because the surrounding TPTP envelope already uses source-level names;
-callers are responsible for supplying valid TPTP identifiers.
+This small AST is for generating TPTP `fof` formulas. Rendering validates the
+supported unquoted identifier subset and rejects unbound variables.
 -/
 
 namespace OATP.TPTP.Syntax
@@ -36,31 +35,79 @@ inductive Formula where
 private def join (values : List String) : String :=
   String.intercalate ", " values
 
-partial def Term.toTPTP : Term → String
-  | .var name => name
-  | .constant name => name
-  | .function name arguments =>
-      if arguments.isEmpty then name
-      else s!"{name}({join (arguments.toList.map Term.toTPTP)})"
+private def validName (first : Char → Bool) (name : String) : Bool :=
+  match name.toList with
+  | [] => false
+  | character :: rest => first character && rest.all (fun value =>
+      Char.isAlphanum value || value == '_' || value == '$')
 
-partial def Formula.toTPTP : Formula → String
-  | .atom predicate arguments =>
-      if arguments.isEmpty then predicate
-      else s!"{predicate}({join (arguments.toList.map Term.toTPTP)})"
-  | .truth => "$true"
-  | .falsity => "$false"
-  | .not body => s!"~({body.toTPTP})"
-  | .and left right => s!"({left.toTPTP} & {right.toTPTP})"
-  | .or left right => s!"({left.toTPTP} | {right.toTPTP})"
-  | .implies left right => s!"({left.toTPTP} => {right.toTPTP})"
-  | .iff left right => s!"({left.toTPTP} <=> {right.toTPTP})"
-  | .forall varName body => s!"![{varName}] : ({body.toTPTP})"
-  | .exists varName body => s!"?[{varName}] : ({body.toTPTP})"
+private def symbolName (kind name : String) : Except String String :=
+  if validName (fun character => character.isLower || character == '$') name then
+    .ok name
+  else
+    .error s!"invalid TPTP {kind} `{name}`"
 
-instance : ToString Term where
-  toString := Term.toTPTP
+private def variableName (name : String) : Except String String :=
+  if validName (fun character => character.isUpper || character == '_') name then
+    .ok name
+  else
+    .error s!"invalid TPTP variable `{name}`"
 
-instance : ToString Formula where
-  toString := Formula.toTPTP
+partial def Term.toTPTP (term : Term) (bound : Array String := #[]) :
+    Except String String :=
+  match term with
+  | .var name =>
+      if bound.toList.contains name then
+        .ok name
+      else
+        .error s!"unbound TPTP variable `{name}`"
+  | .constant name => symbolName "symbol" name
+  | .function name arguments => do
+      let name ← symbolName "function" name
+      let arguments ← arguments.toList.mapM (fun term => term.toTPTP bound)
+      if arguments.isEmpty then
+        pure name
+      else
+        pure s!"{name}({join arguments})"
+
+partial def Formula.toTPTP (formula : Formula) (bound : Array String := #[]) :
+    Except String String :=
+  match formula with
+  | .atom predicate arguments => do
+      let predicate ← symbolName "predicate" predicate
+      let arguments ← arguments.toList.mapM (fun term => term.toTPTP bound)
+      if arguments.isEmpty then
+        pure predicate
+      else
+        pure s!"{predicate}({join arguments})"
+  | .truth => pure "$true"
+  | .falsity => pure "$false"
+  | .not body => do
+      let body ← body.toTPTP bound
+      pure s!"~({body})"
+  | .and left right => do
+      let left ← left.toTPTP bound
+      let right ← right.toTPTP bound
+      pure s!"({left} & {right})"
+  | .or left right => do
+      let left ← left.toTPTP bound
+      let right ← right.toTPTP bound
+      pure s!"({left} | {right})"
+  | .implies left right => do
+      let left ← left.toTPTP bound
+      let right ← right.toTPTP bound
+      pure s!"({left} => {right})"
+  | .iff left right => do
+      let left ← left.toTPTP bound
+      let right ← right.toTPTP bound
+      pure s!"({left} <=> {right})"
+  | .forall varName body => do
+      let varName ← variableName varName
+      let body ← body.toTPTP (bound.push varName)
+      pure s!"![{varName}] : ({body})"
+  | .exists varName body => do
+      let varName ← variableName varName
+      let body ← body.toTPTP (bound.push varName)
+      pure s!"?[{varName}] : ({body})"
 
 end OATP.TPTP.Syntax

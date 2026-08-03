@@ -2,7 +2,8 @@
 
 ## Next vertical slices
 
-- [x] add semantic TPTP/TSTP AST modules on top of the balanced envelope;
+- [x] add a typed first-order formula generator on top of the balanced envelope;
+- [ ] parse the supported first-order fragment into a semantic TPTP AST;
 - [ ] add streaming multipart uploads for large proof artifacts;
 - [x] add recorded SystemOnTPTP response fixtures and richer artifact metadata;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;
@@ -10,7 +11,7 @@
 - [x] translate one explicitly supported first-order fragment to TPTP;
 - [ ] translate ATP proof steps into `OATP.Proof.Step`;
 - [ ] add optional Aesop portfolio orchestration;
-- [ ] add shared proof/search widgets for terminal and ProofWidgets4 views;
+- [x] add shared proof/search widgets for terminal and ProofWidgets4 views;
 - [x] add recorded remote fixtures and no-network CI tests.
 
 ## Non-goals for the prototype

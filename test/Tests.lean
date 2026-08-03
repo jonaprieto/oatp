@@ -53,6 +53,11 @@ open OATP OATP.TPTP
 #guard match OATP.Http.Form.encodeMultipart "bad\r\n" #[] with
   | .error _ => true
   | .ok _ => false
+#guard match OATP.Http.Form.encodeMultipart "boundary" #[
+    { name := "problem", value := "contains-boundary" }
+  ] with
+  | .error _ => true
+  | .ok _ => false
 #guard OATP.Term.renderPlain #[.goal {
   title := "demo"
   context := #["h : p"]
@@ -64,10 +69,24 @@ def main : IO UInt32 := do
   ]
   let formula := OATP.TPTP.Syntax.Formula.forall "X"
     (.implies (.atom "p" #[x]) (.atom "q" #[.var "X"]))
-  if formula.toTPTP != "![X] : ((p(f(a, X)) => q(X)))" then
+  let rendered ← match formula.toTPTP with
+    | .ok rendered => pure rendered
+    | .error message => throw <| IO.userError message
+  if rendered != "![X] : ((p(f(a, X)) => q(X)))" then
     throw <| IO.userError "first-order formula rendering changed"
-  if (Statement.ofFof "goal" .conjecture formula).formula != formula.toTPTP then
-    throw <| IO.userError "first-order statement rendering changed"
+  match Statement.ofFof "goal" .conjecture formula with
+  | .ok statement =>
+      if statement.formula != rendered then
+        throw <| IO.userError "first-order statement rendering changed"
+  | .error message => throw <| IO.userError message
+  let invalid := OATP.TPTP.Syntax.Formula.atom "Bad" #[]
+  match invalid.toTPTP with
+  | .error _ => pure ()
+  | .ok _ => throw <| IO.userError "invalid TPTP symbol was rendered"
+  let unbound := OATP.TPTP.Syntax.Formula.atom "p" #[.var "X"]
+  match unbound.toTPTP with
+  | .error _ => pure ()
+  | .ok _ => throw <| IO.userError "unbound TPTP variable was rendered"
   let theoremFixture ← IO.FS.readFile "test/fixtures/system-on-tptp/theorem.txt"
   let theoremArtifact ← match OATP.SystemOnTPTP.parseResponse
       { systemLabel := "vampire" } { name := "fixture", source := "" }
@@ -103,5 +122,27 @@ def main : IO UInt32 := do
         throw <| IO.userError "local process backend reported an invalid output size"
   | _ =>
       throw <| IO.userError "local process backend ignored the output limit"
+  let largeProblem : Problem := {
+    name := "large-stdin"
+    source := String.join (List.replicate 200000 "x")
+  }
+  let largeResult ← OATP.Process.run
+    { name := "cat" } largeProblem { wallSeconds := 2 }
+    { executable := "cat" }
+  match largeResult with
+  | .ok artifact =>
+      if artifact.stdout != largeProblem.source then
+        throw <| IO.userError "local process backend deadlocked on large stdin"
+  | .error _ =>
+      throw <| IO.userError "local process backend rejected large stdin"
+  let missing ← OATP.Process.run
+    { name := "missing" } problem { wallSeconds := 2 }
+    { executable := "oatp-executable-that-does-not-exist" }
+  match missing with
+  | .ok artifact =>
+      if artifact.status != .error then
+        throw <| IO.userError "missing executable was not reported as a process error"
+  | .error (.io _) => pure ()
+  | .error _ => throw <| IO.userError "local process IO failure was misclassified"
   IO.println "OATP tests passed"
   return 0

@@ -28,7 +28,7 @@ private def prettyExpr (expression : Expr) : MetaM String := do
   let formatted ← ppExpr expression
   pure s!"{formatted}"
 
-def snapshot (mvarId : MVarId) : MetaM GoalSnapshot := do
+def snapshot (mvarId : MVarId) : MetaM GoalSnapshot := mvarId.withContext do
   let target ← instantiateMVars (← mvarId.getType)
   let lctx ← getLCtx
   let context ← lctx.getFVarIds.toList.mapM fun fvarId => do
@@ -41,7 +41,8 @@ def snapshot (mvarId : MVarId) : MetaM GoalSnapshot := do
     target := ← prettyExpr target
   }
 
-def check (mvarId : MVarId) (candidate : Expr) : MetaM (Except String CheckedProof) := do
+def check (mvarId : MVarId) (candidate : Expr) : MetaM (Except String CheckedProof) :=
+  mvarId.withContext do
   let target ← instantiateMVars (← mvarId.getType)
   let candidate ← instantiateMVars candidate
   let candidateType ← inferType candidate
@@ -53,7 +54,7 @@ def check (mvarId : MVarId) (candidate : Expr) : MetaM (Except String CheckedPro
     pure (.error s!"candidate type mismatch: expected {expected}, got {actual}")
 
 def checkAndAssign (mvarId : MVarId) (candidate : Expr) :
-    MetaM (Except String CheckedProof) := do
+    MetaM (Except String CheckedProof) := mvarId.withContext do
   match ← check mvarId candidate with
   | .error message => pure (.error message)
   | .ok checked =>

@@ -80,7 +80,7 @@ private def build (target : Expr) : Step → MetaM (Except String Expr)
       | _ => pure (.error "implication-intro requires an implication target")
 
 def reconstruct (mvarId : MVarId) (step : Step) :
-    MetaM (Except String OATP.Lean.CheckedProof) := do
+    MetaM (Except String OATP.Lean.CheckedProof) := mvarId.withContext do
   let target ← instantiateMVars (← mvarId.getType)
   match ← build target step with
   | .error message => pure (.error message)

@@ -65,6 +65,8 @@ def encodeMultipart (boundary : String) (parts : Array MultipartPart) : Except S
       character.isAlphanum || character == '-' || character == '_') then
     throw "multipart boundary must contain only letters, digits, '-' or '_'"
   for part in parts do
+    unless !part.value.contains boundary do
+      throw s!"multipart field `{part.name}` contains the boundary"
     unless validHeaderValue part.name do
       throw s!"invalid multipart field name `{part.name}`"
     for filename in part.filename do
@@ -110,6 +112,7 @@ structure Response where
   deriving Repr
 
 inductive Error where
+  | io (message : String)
   | transport (message : String)
   | malformedStatus (output : String)
   | bodyTooLarge (actual limit : Nat)
@@ -126,7 +129,7 @@ private def statusFromOutput (output : String) : Option (String × Nat) :=
       | none => none
   | _ => none
 
-def requestWithCurl (request : Request) : IO (Except Error Response) := do
+private def requestWithCurlUnsafe (request : Request) : IO (Except Error Response) := do
   let base : Array String := #[
     "--silent", "--show-error",
     "--max-time", toString request.maxSeconds,
@@ -153,5 +156,11 @@ def requestWithCurl (request : Request) : IO (Except Error Response) := do
         return Except.error (Error.bodyTooLarge actual request.maxBodyBytes)
       else
         return Except.ok { statusCode := statusCode, body := body, stderr := output.stderr }
+
+def requestWithCurl (request : Request) : IO (Except Error Response) := do
+  try
+    requestWithCurlUnsafe request
+  catch error =>
+    pure (.error (.io s!"{error}"))
 
 end OATP.Http

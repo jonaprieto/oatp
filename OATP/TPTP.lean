@@ -151,11 +151,15 @@ def parseStatement (source : String) : Except String Statement :=
   | .ok statement => .ok statement
   | .error error => .error (error.pretty source.toUTF8)
 
-def Statement.ofFof (name : String) (role : Role) (formula : Syntax.Formula) : Statement where
-  kind := "fof"
-  name
-  role
-  formula := formula.toTPTP
+def Statement.ofFof (name : String) (role : Role) (formula : Syntax.Formula) :
+    Except String Statement := do
+  let formula ← formula.toTPTP
+  pure {
+    kind := "fof"
+    name
+    role
+    formula
+  }
 
 def Problem.ofStatement (name : String) (statement : Statement) : Problem where
   name := name

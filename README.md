@@ -14,21 +14,23 @@ rich terminal output.
 
 - pure prover, SZS status, limits, artifact, outcome, and search-event models;
 - a positioned, balanced TPTP/TSTP `fof`/`cnf` statement-envelope parser built on [grip](https://github.com/jonaprieto/lean-grip);
-- a small typed first-order formula AST and `fof` renderer for generated
-  conjectures;
+- a small typed first-order formula AST and validated `fof` renderer for
+  generated conjectures;
 - bounded HTTPS requests through an argv-safe `curl` transport, with a
   post-capture response-size check;
 - a pure SystemOnTPTP response normalizer for HTTP status and SZS results,
   retaining problem names in artifacts;
-- a local argv-safe prover runner with stdin delivery, timeout cancellation, and output limits;
+- a local argv-safe prover runner with stdin delivery, timeout termination
+  requests, and output limits;
 - a Lean metavariable snapshotter and kernel-facing candidate checker;
 - a small kernel-checked propositional reconstruction calculus;
 - TermColor plain and ANSI-16 event rendering;
 - separate properties and executable tests.
 
 The central trust rule is explicit: an ATP `Theorem` result is a `candidate`,
-not a Lean proof. This prototype has no public verified-result constructor;
-only a future kernel-checked reconstruction path can add one.
+not a Lean proof. The current reconstruction path only covers the small
+kernel-checked propositional calculus; it does not turn arbitrary ATP output
+into a verified result.
 
 ## Quick start
 
@@ -60,9 +62,9 @@ reproducible builds.
 
 OATP keeps pure data separate from IO. This first slice uses `grip` for
 byte-oriented TPTP parsing and `termcolor` for pure terminal text. The
-diagnostics, terminal, widget, and `argus` integrations are intentionally
-follow-up work tracked in the issue list; future editor views will target
-[ProofWidgets4](https://github.com/leanprover-community/ProofWidgets4).
+diagnostics, terminal, and `argus` integrations remain follow-up work tracked
+in the issue list. ProofWidgets4 support is available as the optional
+[oatp-proofwidgets](https://github.com/jonaprieto/oatp-proofwidgets) package.
 
 ## Roadmap
 
@@ -77,3 +79,7 @@ lake build OATP OATP.Properties demo tests
 The repository follows the same separate-properties-target convention as the
 other ecosystem libraries. CI builds all targets, runs the executable tests,
 checks the demo, checks Lean style, and audits the properties target's axioms.
+
+Process and HTTP output limits are checked after capture in this prototype;
+large untrusted outputs therefore remain a future streaming-limit slice.
+Process deadlines request process-group termination through Lean's native API.
