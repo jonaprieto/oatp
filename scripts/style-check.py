@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Mechanical Lean style gate: 100 columns, no trailing whitespace/tabs."""
 
+import shutil
 import subprocess
 import sys
 
 MAX = 100
-files = subprocess.check_output(["rg", "--files", "-g", "*.lean"], text=True).split()
+if shutil.which("rg"):
+    files = subprocess.check_output(["rg", "--files", "-g", "*.lean"], text=True).split()
+else:
+    files = subprocess.check_output(["git", "ls-files", "*.lean"], text=True).split()
 violations = []
 for path in files:
     with open(path, encoding="utf-8") as source:
