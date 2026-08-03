@@ -13,11 +13,13 @@ rich terminal output.
 ## Background
 
 OATP grows out of [online-atps](https://github.com/jonaprieto/online-atps), an
-earlier Lean 4 project I created for working with online automated theorem
-provers. That experience made the next requirements clear: local and remote
-prover backends, reproducible artifacts, readable diagnostics, and an explicit
+earlier Haskell project I created for working with online automated theorem
+provers and reconstructing their proofs for Agda. I also contributed to
+[ASR/Apia](https://github.com/asr/apia). Now, with Lean 4 and the surrounding
+ecosystem, we can do better: local and remote prover backends, reusable TPTP
+parsing, reproducible artifacts, readable diagnostics, and an explicit
 boundary between an external candidate and a kernel-checked Lean proof. OATP
-is the resulting redesign toward a more complete and reusable tool.
+is that more complete redesign.
 
 ## What exists
 
