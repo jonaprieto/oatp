@@ -28,7 +28,11 @@ jobs:
           restore-keys: lake-${{ runner.os }}-
       - name: Configure private ecosystem access
         env:
-          GH_TOKEN: ${{ secrets.ECOSYSTEM_READ_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.ECOSYSTEM_READ_TOKEN }}
+        run: test -n "$GH_TOKEN"
+      - name: Configure private ecosystem URL
+        env:
+          GH_TOKEN: ${{ secrets.ECOSYSTEM_READ_TOKEN }}
         run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: leanprover/lean-action@v1
         with:

@@ -11,7 +11,7 @@ require grip from git
 
 require tptp from git
   "https://github.com/jonaprieto/lean-tptp.git"
-  @ "c69a85d"
+  @ "dafe15ae3cd57a4dad4947d303b8086693d19e30"
 
 require «termcolor» from git
   "https://github.com/jonaprieto/lean-termcolor.git"
