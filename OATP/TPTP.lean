@@ -6,6 +6,7 @@ Authors: Jonathan Prieto-Cubides
 
 import Grip
 import OATP.Core
+import OATP.TPTP.Parse
 import OATP.TPTP.Syntax
 
 /-!
@@ -160,6 +161,9 @@ def Statement.ofFof (name : String) (role : Role) (formula : Syntax.Formula) :
     role
     formula
   }
+
+def Statement.parseFormula (statement : Statement) : Except String Syntax.Formula :=
+  Syntax.parseFormula statement.formula
 
 def Problem.ofStatement (name : String) (statement : Statement) : Problem where
   name := name

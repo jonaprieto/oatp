@@ -3,7 +3,7 @@
 ## Next vertical slices
 
 - [x] add a typed first-order formula generator on top of the balanced envelope;
-- [ ] parse the supported first-order fragment into a semantic TPTP AST;
+- [x] parse the supported first-order fragment into a semantic TPTP AST;
 - [ ] add streaming multipart uploads for large proof artifacts;
 - [x] add recorded SystemOnTPTP response fixtures and richer artifact metadata;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;

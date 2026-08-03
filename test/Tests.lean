@@ -87,6 +87,27 @@ def main : IO UInt32 := do
   match unbound.toTPTP with
   | .error _ => pure ()
   | .ok _ => throw <| IO.userError "unbound TPTP variable was rendered"
+  let parsed ← match OATP.TPTP.Syntax.parseFormula
+      "![X] : (p(f(X)) => q(X))" with
+    | .ok parsed => pure parsed
+    | .error message => throw <| IO.userError message
+  let parsedRendered ← match parsed.toTPTP with
+    | .ok rendered => pure rendered
+    | .error message => throw <| IO.userError message
+  if parsedRendered != "![X] : ((p(f(X)) => q(X)))" then
+    throw <| IO.userError "first-order formula parser round-trip changed"
+  let parsedStatement : Statement := {
+    kind := "fof"
+    name := "goal"
+    role := .conjecture
+    formula := "p(a)"
+  }
+  match parsedStatement.parseFormula with
+  | .ok (.atom "p" #[.constant "a"]) => pure ()
+  | _ => throw <| IO.userError "statement semantic formula parse changed"
+  match OATP.TPTP.Syntax.parseFormula "p(a) trailing" with
+  | .error _ => pure ()
+  | .ok _ => throw <| IO.userError "semantic formula parser accepted trailing input"
   let theoremFixture ← IO.FS.readFile "test/fixtures/system-on-tptp/theorem.txt"
   let theoremArtifact ← match OATP.SystemOnTPTP.parseResponse
       { systemLabel := "vampire" } { name := "fixture", source := "" }

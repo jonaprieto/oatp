@@ -16,6 +16,8 @@ rich terminal output.
 - a positioned, balanced TPTP/TSTP `fof`/`cnf` statement-envelope parser built on [grip](https://github.com/jonaprieto/lean-grip);
 - a small typed first-order formula AST and validated `fof` renderer for
   generated conjectures;
+- a matching parser for that explicitly supported unquoted first-order
+  fragment;
 - bounded HTTPS requests through an argv-safe `curl` transport, with a
   post-capture response-size check;
 - a pure SystemOnTPTP response normalizer for HTTP status and SZS results,
