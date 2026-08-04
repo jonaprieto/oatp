@@ -7,15 +7,15 @@ package «oatp» where
 
 require grip from git
   "https://github.com/jonaprieto/lean-grip.git"
-  @ "986b668d3da7919f24e2612770c227a2e8bb1fb5"
+  @ "17bed154d8188650bf8dd458ec44385ce72d6ba4"
 
 require tptp from git
   "https://github.com/jonaprieto/lean-tptp.git"
-  @ "dafe15ae3cd57a4dad4947d303b8086693d19e30"
+  @ "853ebb7334186c4c3bbc26d181ff1cc0e6937014"
 
 require «termcolor» from git
   "https://github.com/jonaprieto/lean-termcolor.git"
-  @ "708bfb2a314ed81aeb9bf5461895a55fe3aa49e8"
+  @ "0d5a6ba9ac64912a91fd724eb986a18fc0793b98"
 
 @[default_target]
 lean_lib «OATP» where
