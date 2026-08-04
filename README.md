@@ -4,7 +4,7 @@ Lean 4 ATP orchestration with proof-artifact-first results, TPTP support, and
 rich terminal output.
 
 [![CI](https://github.com/jonaprieto/oatp/actions/workflows/ci.yml/badge.svg)](https://github.com/jonaprieto/oatp/actions/workflows/ci.yml)
-[![Lean 4](https://img.shields.io/badge/Lean-v4.32.1-blue)](lean-toolchain)
+[![Lean 4](https://img.shields.io/badge/Lean-v4.32.2-blue)](lean-toolchain)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
 > Prototype: the public API is intentionally small. External ATP results remain
@@ -68,7 +68,7 @@ require oatp from git
   @ "main"
 ```
 
-The prototype currently targets Lean 4.32.1. Pin a release or commit for
+The prototype currently targets Lean 4.32.2. Pin a release or commit for
 reproducible builds.
 
 ## Reproducible local provers

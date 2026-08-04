@@ -14,6 +14,16 @@ open OATP OATP.TPTP
 #guard SZSStatus.toString .theorem == "Theorem"
 #guard (parseStatement "fof(goal, conjecture, p)." |>.isOk)
 #guard (parseStatement "cnf(c1, axiom, p | ~q)." |>.isOk)
+#guard match _root_.TPTP.TFF.parseFormulaString "#[X:$i] : p(X)" with
+  | .ok formula =>
+      formula.render.startsWith "# [X: $i]" &&
+        (_root_.TPTP.TFF.validateFormula {} formula).isOk
+  | .error _ => false
+#guard match _root_.TPTP.TFF.parseTypeDeclarationString
+    "identity: !>[A:$tType] : (A > A)" with
+  | .ok declaration =>
+      (_root_.TPTP.TFF.validateDeclaration {} declaration).isOk
+  | .error _ => false
 #guard match parseStatement "fof(goal, conjecture, p(f(a,b)))." with
   | .ok statement => statement.formula == "p(f(a,b))" && statement.annotations.isNone
   | .error _ => false
