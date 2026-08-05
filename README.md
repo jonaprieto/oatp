@@ -90,7 +90,7 @@ require oatp from git
   @ "main"
 ```
 
-The prototype currently targets Lean 4.32.2, TPTP 0.5.0, and Argus 0.4.4.
+The prototype currently targets Lean 4.32.2, TPTP 0.5.1, and Argus 0.4.4.
 Pin releases or commits for reproducible builds.
 
 ## Reproducible local provers
@@ -155,6 +155,11 @@ TTY detection, redraw, and live progress; `termcolor-widgets` owns the pure
 indeterminate bar. OATP only supplies the backend operation and label.
 ProofWidgets4 support is available as the optional
 [oatp-proofwidgets](https://github.com/jonaprieto/oatp-proofwidgets) package.
+
+## Architecture
+
+The module graph, trust boundary, runtime flows, and ownership of the sibling
+terminal libraries are documented in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Roadmap
 
