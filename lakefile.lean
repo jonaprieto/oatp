@@ -2,16 +2,16 @@ import Lake
 open Lake DSL
 
 package «oatp» where
-  version := v!"0.2.2"
+  version := v!"0.2.3"
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`relaxedAutoImplicit, false⟩]
 
 require grip from git
   "https://github.com/jonaprieto/lean-grip.git"
-  @ "17bed154d8188650bf8dd458ec44385ce72d6ba4"
+  @ "v0.1.0"
 
 require tptp from git
   "https://github.com/jonaprieto/lean-tptp.git"
-  @ "v0.5.0"
+  @ "v0.5.1"
 
 require «termcolor» from git
   "https://github.com/jonaprieto/lean-termcolor.git"
@@ -19,7 +19,7 @@ require «termcolor» from git
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
-  @ "c38b78d113d56fccc300d77c9707aee7a55dc719"
+  @ "v0.4.4"
 
 @[default_target]
 lean_lib «OATP» where
