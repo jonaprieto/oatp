@@ -11,7 +11,9 @@
   fixtures;
 - [ ] add `Std.Http` transport when the stable client/session API is ready;
 - [x] translate one explicitly supported first-order fragment to TPTP;
-- [ ] translate ATP proof steps into `OATP.Proof.Step`;
+- [x] translate a documented conservative Lean proposition fragment to TPTP;
+- [ ] translate ATP proof steps into `OATP.Proof.Step` and keep them accepted
+  only by the kernel reconstruction boundary;
 - [ ] add optional Aesop portfolio orchestration;
 - [x] add shared proof/search widgets for terminal and ProofWidgets4 views;
 - [x] add recorded remote fixtures and no-network CI tests.
@@ -21,8 +23,9 @@
 - [ ] [#2](https://github.com/jonaprieto/oatp/issues/2): replace the curl/wget
   boundary when Lean exposes a stable HTTPS client/session API; keep bounded
   streaming and deterministic transport mocks;
-- [ ] [#3](https://github.com/jonaprieto/oatp/issues/3): translate only a
-  documented Lean/TPTP fragment and ATP proof steps accepted by the kernel
+- [x] [#3](https://github.com/jonaprieto/oatp/issues/3): translate a
+  documented conservative Lean proposition fragment;
+- [ ] extend #3 with ATP proof-step translation accepted by the kernel
   reconstruction boundary;
 - [ ] add prover-specific command adapters and recorded local-process fixtures;
 - [ ] add artifact export and a stable machine-readable CLI output mode.

@@ -12,3 +12,4 @@ import OATP.Process
 import OATP.Proof
 import OATP.SystemOnTPTP
 import OATP.TPTP
+import OATP.Translate

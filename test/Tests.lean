@@ -120,6 +120,21 @@ def main : IO UInt32 := do
   match OATP.TPTP.Syntax.parseFormula "p(a) trailing" with
   | .error _ => pure ()
   | .ok _ => throw <| IO.userError "semantic formula parser accepted trailing input"
+  let invalidHttp ← OATP.Http.requestWith .curl {
+    url := ""
+    maxSeconds := 1
+  }
+  match invalidHttp with
+  | .error (.invalidRequest _) => pure ()
+  | _ => throw <| IO.userError "invalid HTTP requests were not rejected before transport"
+  let oversizedHttp ← OATP.Http.requestWith .curl {
+    url := "https://invalid.example"
+    body := "123"
+    maxRequestBodyBytes := 2
+  }
+  match oversizedHttp with
+  | .error (.requestBodyTooLarge 3 2) => pure ()
+  | _ => throw <| IO.userError "HTTP request body limits were not enforced before transport"
   let theoremFixture ← IO.FS.readFile "test/fixtures/system-on-tptp/theorem.txt"
   let theoremArtifact ← match OATP.SystemOnTPTP.parseResponse
       { systemLabel := "vampire" } { name := "fixture", source := "" }

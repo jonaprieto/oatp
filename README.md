@@ -36,6 +36,8 @@ is that more complete redesign.
 - reproducible, no-network E, Vampire, and Metis containers for local
   development;
 - a Lean metavariable snapshotter and kernel-facing candidate checker;
+- a conservative Lean proposition-to-TPTP goal translator with explicit
+  rejection for unsupported expressions;
 - a small kernel-checked propositional reconstruction calculus;
 - TermColor plain and ANSI-16 event rendering;
 - an `argus` CLI with structured usage diagnostics for local and online runs;
@@ -88,7 +90,7 @@ require oatp from git
   @ "main"
 ```
 
-The prototype currently targets Lean 4.32.2, TPTP 0.5.0, and Argus 0.4.1.
+The prototype currently targets Lean 4.32.2, TPTP 0.5.0, and Argus 0.4.4.
 Pin releases or commits for reproducible builds.
 
 ## Reproducible local provers
@@ -158,9 +160,10 @@ ProofWidgets4 support is available as the optional
 
 See [TODO.md](TODO.md) and the [issue tracker](https://github.com/jonaprieto/oatp/issues).
 
-The two open tracker issues are [#2](https://github.com/jonaprieto/oatp/issues/2),
-real HTTPS/streaming transport beyond the curl/wget boundary, and [#3](https://github.com/jonaprieto/oatp/issues/3),
-conservative Lean goal translation plus verified ATP proof-step reconstruction.
+The issue tracker covers HTTP transport, conservative Lean goal translation,
+bounded uploads, prover adapters, machine-readable output, release artifacts,
+and optional portfolios. The first Lean proposition translation slice is now
+in the library; ATP proof-step reconstruction remains deliberately separate.
 
 ## Binary releases
 
@@ -184,8 +187,9 @@ The repository follows the same separate-properties-target convention as the
 other ecosystem libraries. CI builds all targets, runs the executable tests,
 checks the demo, checks Lean style, and audits the properties target's axioms.
 
-Process and HTTP output limits are checked after capture in this prototype;
-large untrusted outputs therefore remain a future streaming-limit slice. The
+Process and HTTP response limits are checked after capture in this prototype;
+HTTP request bodies are rejected before transport when they exceed their bound.
+Large untrusted outputs therefore remain a future streaming-limit slice. The
 container wrappers limit the prover process itself, but do not replace those
 library-level limits. The CI matrix builds and runs a no-network identity
 fixture against E, Vampire, and Metis.

@@ -8,6 +8,10 @@ import OATP
 
 open Lean Elab Command Meta
 
+def demoP : Prop := True
+def demoQ : Prop := True
+def demoPredicate (_ : Nat) : Prop := True
+
 private def runProofDemo : TermElabM Unit := do
   let goal ← mkFreshExprMVar (some (mkConst ``True))
   match ← OATP.Proof.reconstruct goal.mvarId! .trueIntro with
@@ -25,6 +29,22 @@ private def runProofDemo : TermElabM Unit := do
       (.implicationIntro `h .trueIntro) with
   | .ok _ => pure ()
   | .error message => throwError message
+  let p := mkConst ``demoP
+  let q := mkConst ``demoQ
+  let propositionalTarget ← mkAppM ``And #[p, q]
+  let translationGoal ← mkFreshExprMVar (some propositionalTarget)
+  match ← OATP.Lean.translateGoal translationGoal.mvarId! with
+  | .ok translation =>
+      unless translation.target == "(oatp_64656d6f50 & oatp_64656d6f51)" do
+        throwError "OATP translation rendered the supported propositional goal incorrectly"
+      unless translation.problem.source.contains "fof(goal, conjecture" do
+        throwError "OATP translation omitted the conjecture statement"
+  | .error message => throwError message
+  let unsupportedTarget ← mkAppM ``demoPredicate #[mkNatLit 0]
+  let unsupportedGoal ← mkFreshExprMVar (some unsupportedTarget)
+  match ← OATP.Lean.translateGoal unsupportedGoal.mvarId! with
+  | .error _ => pure ()
+  | .ok _ => throwError "OATP translation accepted an unsupported predicate application"
   withLocalDeclD `h trueType fun _ => do
     let localGoal ← mkFreshExprMVar (some trueType)
     let snapshot ← OATP.Lean.snapshot localGoal.mvarId!

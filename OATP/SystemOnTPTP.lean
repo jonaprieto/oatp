@@ -53,6 +53,7 @@ def request (config : Config) (problem : Problem) : Http.Request where
   headers := #["Content-Type: application/x-www-form-urlencoded"]
   maxSeconds := config.timeLimit + 10
   maxBodyBytes := config.maxBodyBytes
+  maxRequestBodyBytes := config.maxBodyBytes
 
 def submit (config : Config) (problem : Problem) :
   IO (Except Http.Error Http.Response) :=

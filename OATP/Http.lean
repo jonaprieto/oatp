@@ -10,8 +10,9 @@ Authors: Jonathan Prieto-Cubides
 Lean 4's `Std.Http` is the long-term protocol foundation. This first OATP
 slice uses `curl` as the preferred explicit HTTPS/TLS transport and `wget` as a
 fallback so the CLI can run on minimal systems. Arguments are passed as an argv
-array; no shell is involved. The response-size check is performed after
-capture; streaming cancellation remains a follow-up.
+array; no shell is involved. Request bodies are checked before transport; the
+response-size check is performed after capture; streaming cancellation remains
+a follow-up.
 -/
 
 namespace OATP.Http
@@ -103,6 +104,7 @@ structure Request where
   headers : Array String := #[]
   maxSeconds : Nat := 30
   maxBodyBytes : Nat := 4 * 1024 * 1024
+  maxRequestBodyBytes : Nat := 4 * 1024 * 1024
   deriving Repr
 
 structure Response where
@@ -131,10 +133,17 @@ def availableTransports : IO (Array String) := do
 
 inductive Error where
   | io (message : String)
+  | invalidRequest (message : String)
   | transport (message : String)
   | malformedStatus (output : String)
+  | requestBodyTooLarge (actual limit : Nat)
   | bodyTooLarge (actual limit : Nat)
   deriving Repr
+
+inductive Transport where
+  | curl
+  | wget
+  deriving BEq, DecidableEq, Repr
 
 def statusMarker := "OATP_HTTP_STATUS:"
 
@@ -196,6 +205,7 @@ private def requestWithWgetUnsafe (request : Request) : IO (Except Error Respons
   let base : Array String := #[
     "--quiet", "--server-response", "--max-redirect=0", "--tries=1",
     "--timeout=" ++ toString request.maxSeconds,
+    "--max-filesize=" ++ toString request.maxBodyBytes,
     "--output-document=-"
   ]
   let withHeaders := request.headers.foldl (fun args header =>
@@ -217,7 +227,21 @@ private def requestWithWgetUnsafe (request : Request) : IO (Except Error Respons
       else
         return Except.ok { statusCode, body := output.stdout }
 
+private def validateRequest (request : Request) : Except Error Unit := do
+  if request.url.isEmpty then
+    throw (.invalidRequest "HTTP request URL must not be empty")
+  if request.maxSeconds == 0 then
+    throw (.invalidRequest "HTTP request timeout must be greater than zero")
+  if request.maxBodyBytes == 0 then
+    throw (.invalidRequest "HTTP response limit must be greater than zero")
+  let actual := request.body.toUTF8.size
+  if actual > request.maxRequestBodyBytes then
+    throw (.requestBodyTooLarge actual request.maxRequestBodyBytes)
+
 private def requestWithTransportUnsafe (request : Request) : IO (Except Error Response) := do
+  match validateRequest request with
+  | .error error => return .error error
+  | .ok _ => pure ()
   let available ← availableTransports
   if available.contains "curl" then
     requestWithCurlUnsafe request
@@ -232,7 +256,18 @@ def requestWithTransport (request : Request) : IO (Except Error Response) := do
   catch error =>
     pure (.error (.io s!"{error}"))
 
+def requestWith (transport : Transport) (request : Request) : IO (Except Error Response) := do
+  try
+    match validateRequest request with
+    | .error error => pure (.error error)
+    | .ok _ =>
+        match transport with
+        | .curl => requestWithCurlUnsafe request
+        | .wget => requestWithWgetUnsafe request
+  catch error =>
+    pure (.error (.io s!"{error}"))
+
 def requestWithCurl (request : Request) : IO (Except Error Response) := do
-  requestWithTransport request
+  requestWith .curl request
 
 end OATP.Http

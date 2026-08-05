@@ -182,8 +182,11 @@ private def runLocal (options : LocalOptions) : IO UInt32 := do
 
 private def httpErrorMessage : OATP.Http.Error → String
   | .io message => s!"HTTP IO failed: {message}"
+  | .invalidRequest message => s!"invalid HTTP request: {message}"
   | .transport message => s!"HTTP transport failed: {message}"
   | .malformedStatus output => s!"HTTP response had no usable status: {output}"
+  | .requestBodyTooLarge actual limit =>
+      s!"HTTP request exceeded {limit} bytes ({actual} captured)"
   | .bodyTooLarge actual limit => s!"HTTP response exceeded {limit} bytes ({actual} captured)"
 
 private def responseErrorMessage : SystemOnTPTP.ResponseError → String
