@@ -17,7 +17,7 @@ open TermColor.Diagnostics
 open TermColor.Terminal
 open scoped TermColor.Style
 
-def cliVersion : String := "0.2.2"
+def cliVersion : String := "0.2.3"
 
 argus_opts LocalOptions where
   executable : String := Spec.flag "executable" (some 'x') "Local prover executable" Param.path;

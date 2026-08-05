@@ -173,8 +173,8 @@ contain the native binary, `LICENSE`, and this README; Lean is only needed to
 build them. These stable names are ready for a later Homebrew formula:
 
 ```sh
-git tag v0.2.2
-git push origin v0.2.2
+git tag v0.2.3
+git push origin v0.2.3
 ```
 
 ## Development
