@@ -37,7 +37,7 @@ jobs:
       - uses: leanprover/lean-action@v1
         with:
           lake-package-directory: .
-          build-args: "OATP OATP.Properties demo proof-demo tests"
+          build-args: "OATP OATP.Properties demo proof-demo oatp tests"
       - name: Audit proof axioms
         run: python3 scripts/check-axioms.py
       - name: Run tests
@@ -47,6 +47,8 @@ jobs:
       - run: test -s /tmp/oatp-demo.txt
       - name: Run proof demo
         run: lake exe proof-demo
+      - name: Check CLI environment
+        run: lake exe oatp doctor
 
   quality:
     runs-on: ubuntu-latest

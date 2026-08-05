@@ -24,6 +24,7 @@ structure Config where
   endpoint : String := "https://tptp.org/cgi-bin/SystemOnTPTP"
   systemLabel : String
   timeLimit : Nat := 30
+  maxBodyBytes : Nat := 4 * 1024 * 1024
   deriving BEq, DecidableEq, Repr
 
 inductive ResponseError where
@@ -31,22 +32,6 @@ inductive ResponseError where
   | missingStatus
   | unsupportedStatus (value : String)
   deriving Repr
-
-private def statusPrefix := "% SZS status "
-
-private def statusToken (line : String) : Option String :=
-  let line := line.trimAscii.toString
-  if line.startsWith statusPrefix then
-    some ((line.drop statusPrefix.length).toString.splitOn " " |>.headD "")
-  else
-    none
-
-private def findStatusToken : List String → Option String
-  | [] => none
-  | line :: lines =>
-      match statusToken line with
-      | some token => some token
-      | none => findStatusToken lines
 
 def fields (config : Config) (problem : Problem) : Array Field :=
   let label := config.systemLabel
@@ -67,16 +52,17 @@ def request (config : Config) (problem : Problem) : Http.Request where
   body := encodeUrlEncoded (fields config problem)
   headers := #["Content-Type: application/x-www-form-urlencoded"]
   maxSeconds := config.timeLimit + 10
+  maxBodyBytes := config.maxBodyBytes
 
 def submit (config : Config) (problem : Problem) :
   IO (Except Http.Error Http.Response) :=
-  Http.requestWithCurl (request config problem)
+  Http.requestWithTransport (request config problem)
 
 def parseResponse (config : Config) (problem : Problem) (response : Http.Response) :
     Except ResponseError Artifact := do
   if response.statusCode < 200 || response.statusCode ≥ 300 then
     throw (.httpStatus response.statusCode)
-  let token ← match findStatusToken (response.body.splitOn "\n") with
+  let token ← match SZSStatus.tokenFromOutput response.body with
     | some token => Except.ok token
     | none => Except.error .missingStatus
   let status ← match SZSStatus.ofString token with

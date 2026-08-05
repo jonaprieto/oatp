@@ -27,8 +27,8 @@ is that more complete redesign.
 - the standalone [lean-tptp](https://github.com/jonaprieto/lean-tptp) package,
   which owns total Grip-backed TPTP/TSTP parsing and the first-order formula
   layer;
-- bounded HTTPS requests through an argv-safe `curl` transport, with a
-  post-capture response-size check;
+- bounded HTTPS requests through argv-safe `curl` (preferred) or `wget`
+  fallback transport, with a post-capture response-size check;
 - a pure SystemOnTPTP response normalizer for HTTP status and SZS results,
   retaining problem names in artifacts;
 - a local argv-safe prover runner with stdin delivery, timeout termination
@@ -38,6 +38,8 @@ is that more complete redesign.
 - a Lean metavariable snapshotter and kernel-facing candidate checker;
 - a small kernel-checked propositional reconstruction calculus;
 - TermColor plain and ANSI-16 event rendering;
+- an `argus` CLI with structured usage diagnostics for local and online runs;
+- TTY-only indeterminate progress for local and online waits;
 - separate properties and executable tests.
 
 The central trust rule is explicit: an ATP `Theorem` result is a `candidate`,
@@ -51,6 +53,8 @@ into a verified result.
 lake build
 lake exe demo
 lake exe proof-demo
+lake exe oatp --help
+lake exe oatp doctor
 lake exe tests
 python3 scripts/style-check.py
 python3 scripts/check-axioms.py
@@ -58,7 +62,23 @@ python3 scripts/check-axioms.py
 
 The demo shows a goal, tactic attempts, an external candidate, and the
 proof-artifact trust boundary in both plain and ANSI output. The proof demo
-constructs and assigns a kernel-checked `True` proof.
+constructs and assigns a kernel-checked `True` proof. The CLI runs a local
+prover or submits a problem to SystemOnTPTP:
+
+```sh
+lake exe oatp local --executable cat test/fixtures/system-on-tptp/theorem.txt
+lake exe oatp online --system vampire test/fixtures/system-on-tptp/theorem.txt
+```
+
+`oatp doctor` reports the platform, HTTP transport availability, Docker, and
+common local ATP executables. `curl` is preferred; `wget` is used only when
+`curl` is unavailable.
+
+When stdout is a capable TTY, local and online waits use the pure
+`termcolor-widgets` indeterminate bar through `termcolor-terminal`; redirected
+output stays static and machine-readable. The bar's frame and label are
+caller-owned, so OATP does not add a timer or terminal-control dependency to
+its pure event model.
 
 ## Install
 
@@ -68,8 +88,8 @@ require oatp from git
   @ "main"
 ```
 
-The prototype currently targets Lean 4.32.2. Pin a release or commit for
-reproducible builds.
+The prototype currently targets Lean 4.32.2, TPTP 0.5.0, and Argus 0.2.3.
+Pin releases or commits for reproducible builds.
 
 ## Reproducible local provers
 
@@ -127,19 +147,37 @@ TSTP/SZS output remains an untrusted candidate until reconstruction accepts it.
 OATP keeps pure data separate from IO. TPTP syntax is owned by the standalone
 `lean-tptp` package, which uses `grip` for byte-oriented parsing; OATP adds
 the prover, HTTP, process, and reconstruction boundaries around it. `termcolor`
-provides pure terminal text. The
-diagnostics, terminal, and `argus` integrations remain follow-up work tracked
-in the issue list. ProofWidgets4 support is available as the optional
+provides pure terminal text. `argus` supplies typed flags, derived help,
+completions, and source-annotated usage errors; `termcolor-terminal` owns
+TTY detection, redraw, and live progress; `termcolor-widgets` owns the pure
+indeterminate bar. OATP only supplies the backend operation and label.
+ProofWidgets4 support is available as the optional
 [oatp-proofwidgets](https://github.com/jonaprieto/oatp-proofwidgets) package.
 
 ## Roadmap
 
 See [TODO.md](TODO.md) and the [issue tracker](https://github.com/jonaprieto/oatp/issues).
 
+The two open tracker issues are [#2](https://github.com/jonaprieto/oatp/issues/2),
+real HTTPS/streaming transport beyond the curl/wget boundary, and [#3](https://github.com/jonaprieto/oatp/issues/3),
+conservative Lean goal translation plus verified ATP proof-step reconstruction.
+
+## Binary releases
+
+Pushing a `v*` tag runs the release workflow and publishes `otp` archives for
+Linux x86_64, macOS x86_64, and macOS arm64, plus `SHA256SUMS`. The archives
+contain the native binary, `LICENSE`, and this README; Lean is only needed to
+build them. These stable names are ready for a later Homebrew formula:
+
+```sh
+git tag v0.2.1
+git push origin v0.2.1
+```
+
 ## Development
 
 ```sh
-lake build OATP OATP.Properties demo tests
+lake build OATP OATP.Properties demo proof-demo oatp tests
 ```
 
 The repository follows the same separate-properties-target convention as the
@@ -153,5 +191,5 @@ library-level limits. The CI matrix builds and runs a no-network identity
 fixture against E, Vampire, and Metis.
 Process deadlines request process-group termination through Lean's native API.
 Lean 4.32's `Std.Http` is currently a low-level sans-I/O HTTP/1.1 protocol and
-transport layer, not a complete HTTPS client, so OATP keeps `curl` as its
-explicit transport boundary until a suitable client API exists.
+transport layer, not a complete HTTPS client, so OATP keeps `curl`/`wget` as
+its explicit transport boundary until a suitable client API exists.

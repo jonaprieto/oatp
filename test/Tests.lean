@@ -12,6 +12,8 @@ import OATP.Term
 open OATP OATP.TPTP
 
 #guard SZSStatus.toString .theorem == "Theorem"
+#guard SZSStatus.ofOutput "# SZS status Theorem for fixture\n" == some .theorem
+#guard SZSStatus.ofOutput "% SZS status Timeout for fixture\n" == some .timeout
 #guard (parseStatement "fof(goal, conjecture, p)." |>.isOk)
 #guard (parseStatement "cnf(c1, axiom, p | ~q)." |>.isOk)
 #guard match _root_.TPTP.TFF.parseFormulaString "#[X:$i] : p(X)" with

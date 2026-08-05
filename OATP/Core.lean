@@ -41,6 +41,26 @@ inductive SZSStatus where
 
 namespace SZSStatus
 
+private def statusPrefixes : List String := ["% SZS status ", "# SZS status "]
+
+def tokenFromLine (line : String) : Option String :=
+  let line := line.trimAscii.toString
+  let rec find : List String → Option String
+    | [] => none
+    | marker :: markers =>
+        if line.startsWith marker then
+          let token := (line.drop marker.length).toString.splitOn " " |>.headD ""
+          if token.isEmpty then none else some token
+        else find markers
+  find statusPrefixes
+
+private def tokenFromLines : List String → Option String
+  | [] => none
+  | line :: lines => tokenFromLine line |>.orElse (fun _ => tokenFromLines lines)
+
+def tokenFromOutput (output : String) : Option String :=
+  tokenFromLines (output.splitOn "\n")
+
 def ofString : String → Option SZSStatus
   | "Theorem" | "theorem" => some .theorem
   | "Unsatisfiable" | "unsatisfiable" => some .unsatisfiable
@@ -52,6 +72,9 @@ def ofString : String → Option SZSStatus
   | "Error" | "error" => some .error
   | "Unknown" | "unknown" => some .unknown
   | _ => none
+
+def ofOutput (output : String) : Option SZSStatus :=
+  tokenFromOutput output >>= ofString
 
 def toString : SZSStatus → String
   | .theorem => "Theorem"

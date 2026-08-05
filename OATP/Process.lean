@@ -68,7 +68,9 @@ private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (c
   let actual := stdout.toUTF8.size + stderr.toUTF8.size
   if actual > limits.maxOutputBytes then
     return .error (.outputTooLarge actual limits.maxOutputBytes)
-  let status := if timedOut then .timeout else if exitCode == 0 then .unknown else .error
+  let status := if timedOut then .timeout else if exitCode == 0 then
+      (SZSStatus.ofOutput stdout).getD .unknown
+    else .error
   let artifact : Artifact := {
     prover,
     status,

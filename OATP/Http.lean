@@ -8,10 +8,10 @@ Authors: Jonathan Prieto-Cubides
 # OATP.Http: command-backed HTTP prototype
 
 Lean 4's `Std.Http` is the long-term protocol foundation. This first OATP
-slice uses `curl` as an explicit HTTPS/TLS transport so the service adapter can
-be tested and shipped before OATP requires a new TLS implementation. Arguments
-are passed as an argv array; no shell is involved. The response-size check is
-performed after capture; streaming cancellation remains a follow-up.
+slice uses `curl` as the preferred explicit HTTPS/TLS transport and `wget` as a
+fallback so the CLI can run on minimal systems. Arguments are passed as an argv
+array; no shell is involved. The response-size check is performed after
+capture; streaming cancellation remains a follow-up.
 -/
 
 namespace OATP.Http
@@ -111,6 +111,24 @@ structure Response where
   stderr : String := ""
   deriving Repr
 
+def commandVersion (command : String) : IO (Option String) := do
+  try
+    let output ← IO.Process.output { cmd := command, args := #["--version"] }
+    if output.exitCode != 0 then
+      pure none
+    else
+      let text := if output.stdout.isEmpty then output.stderr else output.stdout
+      let line := text.splitOn "\n" |>.headD "" |>.trimAscii.toString
+      pure <| if line.isEmpty then none else some line
+  catch _ => pure none
+
+def availableTransports : IO (Array String) := do
+  let mut available := #[]
+  for command in #["curl", "wget"] do
+    if (← commandVersion command).isSome then
+      available := available.push command
+  pure available
+
 inductive Error where
   | io (message : String)
   | transport (message : String)
@@ -157,10 +175,64 @@ private def requestWithCurlUnsafe (request : Request) : IO (Except Error Respons
       else
         return Except.ok { statusCode := statusCode, body := body, stderr := output.stderr }
 
-def requestWithCurl (request : Request) : IO (Except Error Response) := do
-  try
+private def statusFromWgetLine (line : String) : Option Nat :=
+  let fields := line.trimAscii.toString.splitOn " " |>.filter (!·.isEmpty)
+  match fields with
+  | _ :: code :: _ => code.toNat?
+  | _ => none
+
+private def statusFromWgetOutput (output : String) : Option Nat :=
+  let rec find : List String → Option Nat
+    | [] => none
+    | line :: lines =>
+        if line.trimAscii.toString.startsWith "HTTP/" then
+          match statusFromWgetLine line with
+          | some code => some code
+          | none => find lines
+        else find lines
+  find (output.splitOn "\n")
+
+private def requestWithWgetUnsafe (request : Request) : IO (Except Error Response) := do
+  let base : Array String := #[
+    "--quiet", "--server-response", "--max-redirect=0", "--tries=1",
+    "--timeout=" ++ toString request.maxSeconds,
+    "--output-document=-"
+  ]
+  let withHeaders := request.headers.foldl (fun args header =>
+    args.push ("--header=" ++ header)) base
+  let withBody := if request.method == .post then
+    withHeaders.push ("--post-data=" ++ request.body)
+  else
+    withHeaders
+  let output ← IO.Process.output {
+    cmd := "wget"
+    args := withBody.push request.url
+  }
+  match statusFromWgetOutput output.stderr with
+  | none => return Except.error (.transport output.stderr)
+  | some statusCode =>
+      let actual := output.stdout.toUTF8.size
+      if actual > request.maxBodyBytes then
+        return Except.error (.bodyTooLarge actual request.maxBodyBytes)
+      else
+        return Except.ok { statusCode, body := output.stdout }
+
+private def requestWithTransportUnsafe (request : Request) : IO (Except Error Response) := do
+  let available ← availableTransports
+  if available.contains "curl" then
     requestWithCurlUnsafe request
+  else if available.contains "wget" then
+    requestWithWgetUnsafe request
+  else
+    pure <| Except.error (.transport "OATP requires curl or wget for HTTPS transport")
+
+def requestWithTransport (request : Request) : IO (Except Error Response) := do
+  try
+    requestWithTransportUnsafe request
   catch error =>
     pure (.error (.io s!"{error}"))
+
+def requestWithCurl (request : Request) : IO (Except Error Response) := do
+  requestWithTransport request
 
 end OATP.Http
