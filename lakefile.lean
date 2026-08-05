@@ -15,7 +15,7 @@ require tptp from git
 
 require «termcolor» from git
   "https://github.com/jonaprieto/lean-termcolor.git"
-  @ "0d5a6ba9ac64912a91fd724eb986a18fc0793b98"
+  @ "ac9a102562fa65435365758cf5fe5ac95c6a7a92"
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
