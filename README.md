@@ -88,7 +88,7 @@ require oatp from git
   @ "main"
 ```
 
-The prototype currently targets Lean 4.32.2, TPTP 0.5.0, and Argus 0.2.4.
+The prototype currently targets Lean 4.32.2, TPTP 0.5.0, and Argus 0.2.5.
 Pin releases or commits for reproducible builds.
 
 ## Reproducible local provers
