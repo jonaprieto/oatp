@@ -15,6 +15,7 @@ open OATP
 open TermColor
 open TermColor.Diagnostics
 open TermColor.Terminal
+open scoped TermColor.Style
 
 def cliVersion : String := "0.2.1"
 
@@ -53,10 +54,27 @@ def cli : Command Action :=
     (version := some cliVersion)
     (description := "Proof-artifact-first ATP orchestration")
 
+private def doctorPalette : ColorScheme := ColorScheme.catppuccin
+
+private def doctorSection (title : String) : IO Unit := do
+  writeTextLine Text.empty
+  writeTextLine (Text.styled title (Style.bold <+> Style.fg doctorPalette.purple))
+
+private def doctorRow (label value : String) (ok : Bool) : IO Unit := do
+  let marker := if ok then
+      Text.styled "✓" (Style.bold <+> Style.fg doctorPalette.green)
+    else
+      Text.styled "·" (Style.bold <+> Style.fg doctorPalette.yellow)
+  let label := Layout.padRight 10
+    (Text.styled label (Style.bold <+> Style.fg doctorPalette.cyan))
+  let valueStyle := if ok then Style.fg doctorPalette.foreground else Style.fg doctorPalette.yellow
+  writeTextLine (Text.plain "  " ++ marker ++ Text.plain " " ++ label ++ Text.plain " " ++
+    Text.styled value valueStyle)
+
 private def doctorTool (command : String) : IO Unit := do
   match ← Http.commandVersion command with
-  | some version => IO.println s!"[ok] {command}: {version}"
-  | none => IO.println s!"[--] {command}: not found"
+  | some version => doctorRow command version true
+  | none => doctorRow command "not found" false
 
 private def doctorPlatform : IO String := do
   try
@@ -68,17 +86,30 @@ private def doctorPlatform : IO String := do
   catch _ => pure "unavailable"
 
 private def runDoctor : IO UInt32 := do
-  IO.println s!"oatp doctor {cliVersion}"
-  IO.println s!"platform: {← doctorPlatform}"
-  for command in #["curl", "wget", "docker", "eprover", "vampire", "metis"] do
-    doctorTool command
   let transports ← Http.availableTransports
-  if transports.contains "curl" then
-    IO.println "online: ready (curl preferred)"
-  else if transports.contains "wget" then
-    IO.println "online: ready (wget fallback)"
-  else
-    IO.println "online: unavailable (install curl or wget)"
+  let (online, ready) :=
+    if transports.contains "curl" then
+      ("ready (curl preferred)", true)
+    else if transports.contains "wget" then
+      ("ready (wget fallback)", true)
+    else
+      ("unavailable (install curl or wget)", false)
+  writeTextLine (Text.styled s!"oatp doctor {cliVersion}"
+    (Style.bold <+> Style.fg doctorPalette.purple))
+  doctorSection "SYSTEM"
+  doctorRow "platform" (← doctorPlatform) true
+
+  doctorSection "TRANSPORT"
+  for command in #["curl", "wget"] do
+    doctorTool command
+  doctorRow "online" online ready
+
+  doctorSection "LOCAL ATP"
+  for command in #["eprover", "vampire", "metis"] do
+    doctorTool command
+
+  doctorSection "OPTIONAL"
+  doctorTool "docker"
   pure <| if transports.isEmpty then 1 else 0
 
 private def printDiagnostic (message : String) : IO UInt32 := do
