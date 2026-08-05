@@ -19,7 +19,7 @@ require «termcolor» from git
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
-  @ "23c7489040657f863fe0bbefb76fce38ed6a1f75"
+  @ "5cda80096305e7624561bed7eaeeb1e166bf6b77"
 
 @[default_target]
 lean_lib «OATP» where
