@@ -92,7 +92,7 @@ def cli (identity : CliIdentity) : Command Action :=
     , Argus.cmd "systems" (Spec.map Action.systems SystemsOptions.spec)
         (description := "List installed local and available online provers")
     , Argus.cmd "doctor" (Spec.const Action.doctor)
-        (description := "Check local tools and transport readiness") ]
+        (description := "Check local tools and online prover readiness") ]
     (version := some identity.version)
     (description := "Run TPTP problems with local and explicitly selected online provers")
 
@@ -133,32 +133,34 @@ private def doctorPlatform : IO String := do
       pure "unavailable"
   catch _ => pure "unavailable"
 
-private def runDoctor (identity : CliIdentity) : IO UInt32 := do
-  let transports ← Http.availableTransports
-  let (online, ready) :=
-    if transports.contains "curl" then
-      ("ready (curl preferred)", true)
-    else if transports.contains "wget" then
-      ("ready (wget fallback)", true)
-    else
-      ("unavailable (install curl or wget)", false)
-  writeTextLine (Text.styled s!"{identity.name} doctor {identity.version}"
-    (Style.bold <+> Style.fg doctorPalette.purple))
-  doctorSection "SYSTEM"
-  doctorRow "platform" (← doctorPlatform) true
+private def doctorOnlineProblem : Problem := {
+  name := "oatp-doctor"
+  source := "fof(oatp_doctor, conjecture, (p => p)).\n"
+}
 
-  doctorSection "TRANSPORT"
-  for command in #["curl", "wget"] do
-    doctorTool command
-  doctorRow "online" online ready
+private def doctorOnlineAttempts (endpoint : String)
+    (systems : Array SystemOnTPTP.Catalogue.SystemInfo) : Array Portfolio.Attempt :=
+  systems.map fun system => {
+    name := system.id
+    limits := { wallSeconds := 5, maxOutputBytes := 1024 * 1024 }
+    backend := .online {
+      endpoint
+      systemLabel := system.id
+      systemCommands := if system.command.isEmpty then #[] else #[(system.id, system.command)]
+      timeLimit := 5
+      maxBodyBytes := 1024 * 1024
+    }
+  }
 
-  doctorSection "LOCAL ATP"
-  for command in ← localProverCandidates do
-    doctorTool command
-
-  doctorSection "OPTIONAL"
-  doctorTool "docker"
-  pure <| if transports.isEmpty then 1 else 0
+private def doctorOnlineResult : Portfolio.Result → IO Bool
+  | .artifact attempt artifact => do
+      doctorRow attempt.name s!"responded: {artifact.status} ({artifact.elapsedMs}ms)" true
+      pure true
+  | .failed attempt message => do
+      let responded := message.startsWith "SystemOnTPTP returned unsupported SZS status"
+      let message := message.splitOn "\n" |>.headD "failed"
+      doctorRow attempt.name (if responded then "responded: " ++ message else message) responded
+      pure responded
 
 private def printDiagnostic (message : String) : IO UInt32 := do
   let stderr ← IO.getStderr
@@ -414,6 +416,55 @@ private def withPortfolioProgress {α : Type} (total : Nat)
         live.updateText (portfolioView total currentProgress currentResults)
       let _ ← next.finish
     pure value
+
+private def runDoctorOnline (identity : CliIdentity) (transports : Array String) : IO Bool := do
+  doctorSection "ONLINE ATP (probe)"
+  if transports.isEmpty then
+    doctorRow "service" "unavailable (no HTTP transport)" false
+    pure false
+  else
+    match ← loadCatalogue identity.name identity.endpoint .refresh with
+    | .error message =>
+        doctorRow "service" message false
+        pure false
+    | .ok systems =>
+        doctorRow "service" s!"available ({systems.size} systems)" true
+        let results ← withPortfolioProgress systems.size fun onResult =>
+          Portfolio.runWith doctorOnlineProblem
+            (doctorOnlineAttempts identity.endpoint systems) onResult
+        let mut working := false
+        for result in results do
+          working := (← doctorOnlineResult result) || working
+        pure working
+
+private def runDoctor (identity : CliIdentity) : IO UInt32 := do
+  let transports ← Http.availableTransports
+  let (online, ready) :=
+    if transports.contains "curl" then
+      ("ready (curl preferred)", true)
+    else if transports.contains "wget" then
+      ("ready (wget fallback)", true)
+    else
+      ("unavailable (install curl or wget)", false)
+  writeTextLine (Text.styled s!"{identity.name} doctor {identity.version}"
+    (Style.bold <+> Style.fg doctorPalette.purple))
+  doctorSection "SYSTEM"
+  doctorRow "platform" (← doctorPlatform) true
+
+  doctorSection "TRANSPORT"
+  for command in #["curl", "wget"] do
+    doctorTool command
+  doctorRow "online" online ready
+
+  let onlineWorking ← runDoctorOnline identity transports
+
+  doctorSection "LOCAL ATP"
+  for command in ← localProverCandidates do
+    doctorTool command
+
+  doctorSection "OPTIONAL"
+  doctorTool "docker"
+  pure <| if transports.isEmpty || !onlineWorking then 1 else 0
 
 private def runPortfolio (problem : Problem) (attempts : Array Portfolio.Attempt) : IO UInt32 := do
   let results ← withPortfolioProgress attempts.size fun onResult =>

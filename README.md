@@ -126,8 +126,9 @@ brew install eprover vampire polyml
 ```
 
 `oatp doctor` reports the platform, HTTP transport availability, Docker, and
-common local ATP executables. `curl` is preferred; `wget` is used only when
-`curl` is unavailable.
+common local ATP executables, then probes the online catalogue with a tiny
+tautology and reports each system's response. `curl` is preferred; `wget` is
+used only when `curl` is unavailable.
 
 When stdout is a capable TTY, mixed waits use `termcolor-widgets`' bouncing
 indeterminate bar and result table through `termcolor-terminal`'s live-region
