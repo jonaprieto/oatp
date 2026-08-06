@@ -142,7 +142,7 @@ require oatp from git
   @ "main"
 ```
 
-The prototype currently targets Lean 4.32.2, TPTP 0.5.1, Argus 0.4.6,
+The prototype currently targets Lean 4.32.2, TPTP 0.5.1, Argus 0.4.7,
 TermColor 1.1.0, termcolor-terminal 0.1.11, and termcolor-widgets 0.1.8.
 Pin releases or commits for reproducible builds.
 
