@@ -65,15 +65,15 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           ARCH: ${{ matrix.arch }}
         run: |
-          archive="otp-${VERSION}-${PLATFORM}-${ARCH}.tar.gz"
+          archive="oatp-${VERSION}-${PLATFORM}-${ARCH}.tar.gz"
           mkdir -p dist
-          cp .lake/build/bin/oatp dist/otp
+          cp .lake/build/bin/oatp dist/oatp
           cp LICENSE README.md dist/
-          tar -czf "$PWD/dist/$archive" -C dist otp LICENSE README.md
+          tar -czf "$PWD/dist/$archive" -C dist oatp LICENSE README.md
       - uses: actions/upload-artifact@v4
         with:
-          name: otp-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/otp-*.tar.gz
+          name: oatp-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/oatp-*.tar.gz
           if-no-files-found: error
 
   release:
@@ -83,11 +83,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: otp-*
+          pattern: oatp-*
           merge-multiple: true
       - name: Create checksums
         working-directory: dist
-        run: sha256sum otp-*.tar.gz > SHA256SUMS
+        run: sha256sum oatp-*.tar.gz > SHA256SUMS
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -81,8 +81,8 @@ lake exe oatp online --system vampire test/fixtures/system-on-tptp/theorem.txt
 ```
 
 Arguments after `--` are passed to the selected local prover. A release
-archive installs the same CLI as `otp`, so the first example becomes
-`otp run problem.p` after downloading a binary; Lean is not required.
+archive installs the CLI as `oatp`, so the first example becomes
+`oatp run problem.p` after downloading a binary; Lean is not required.
 
 `oatp doctor` reports the platform, HTTP transport availability, Docker, and
 common local ATP executables. `curl` is preferred; `wget` is used only when
@@ -184,7 +184,7 @@ in the library; ATP proof-step reconstruction remains deliberately separate.
 
 ## Binary releases
 
-Pushing a `v*` tag runs the release workflow and publishes `otp` archives for
+Pushing a `v*` tag runs the release workflow and publishes `oatp` archives for
 Linux x86_64, macOS x86_64, and macOS arm64, plus `SHA256SUMS`. The archives
 contain the native binary, `LICENSE`, and this README; Lean is only needed to
 build them. These stable names are ready for a later Homebrew formula:
