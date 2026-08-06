@@ -15,11 +15,11 @@ require tptp from git
 
 require «termcolor» from git
   "https://github.com/jonaprieto/lean-termcolor.git"
-  @ "ac9a102562fa65435365758cf5fe5ac95c6a7a92"
+  @ "0d5a6ba9ac64912a91fd724eb986a18fc0793b98"
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
-  @ "6e903b606f6cb64476e7e95364050e3a0935c717"
+  @ "7dc4a0bc6336e22129be2527f40edf1cf96cbc65"
 
 @[default_target]
 lean_lib «OATP» where
