@@ -2,7 +2,7 @@ import Lake
 open Lake DSL
 
 package «oatp» where
-  version := v!"0.3.0"
+  version := v!"0.3.1"
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`relaxedAutoImplicit, false⟩]
 
 require grip from git
@@ -19,7 +19,7 @@ require «termcolor» from git
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
-  @ "v0.4.6"
+  @ "v0.4.7"
 
 @[default_target]
 lean_lib «OATP» where
