@@ -33,6 +33,10 @@ is that more complete redesign.
   retaining problem names in artifacts;
 - a local argv-safe prover runner with stdin delivery, timeout termination
   requests, and output limits;
+- a concurrent portfolio runner for local provers plus explicitly selected
+  `online-*` SystemOnTPTP systems;
+- a SystemOnTPTP catalogue with friendly aliases, endpoint-keyed cache, and
+  `oatp systems` discovery;
 - reproducible, no-network E, Vampire, and Metis containers for local
   development;
 - a Lean metavariable snapshotter and kernel-facing candidate checker;
@@ -41,7 +45,7 @@ is that more complete redesign.
 - a small kernel-checked propositional reconstruction calculus;
 - TermColor plain and ANSI-16 event rendering;
 - an `argus` CLI with structured usage diagnostics for local and online runs;
-- TTY-only indeterminate progress for local and online waits;
+- a width-aware TermColor live progress/table view for portfolio attempts;
 - separate properties and executable tests.
 
 The central trust rule is explicit: an ATP `Theorem` result is a `candidate`,
@@ -57,6 +61,7 @@ lake exe demo
 lake exe proof-demo
 lake exe oatp --help
 lake exe oatp run docker/tptp/fixtures/identity.p
+lake exe oatp systems
 lake exe oatp doctor
 lake exe tests
 python3 scripts/style-check.py
@@ -66,28 +71,42 @@ python3 scripts/check-axioms.py
 The demo shows a goal, tactic attempts, an external candidate, and the
 proof-artifact trust boundary in both plain and ANSI output. The proof demo
 constructs and assigns a kernel-checked `True` proof. The CLI runs a local
-prover or submits a problem to SystemOnTPTP. The approachable local form picks
-the first installed prover in this order: E, Vampire, then Metis:
+prover or submits a problem to SystemOnTPTP. With no `--prover`, `run` discovers
+all installed local ATPs and starts them concurrently:
 
 ```sh
 lake exe oatp run docker/tptp/fixtures/identity.p
 ```
 
-Use the explicit forms when selecting a prover or a remote system:
+Select a local or remote portfolio explicitly. Online references always begin
+with `online-`, so network use is visible in the command:
 
 ```sh
-lake exe oatp local --executable cat test/fixtures/system-on-tptp/theorem.txt
-lake exe oatp online --system vampire test/fixtures/system-on-tptp/theorem.txt
+oatp run --prover eprover --prover online-vampire problem.p
+oatp run --prover online-Vampire---5.0.1 problem.p
+oatp systems --online
 ```
 
-Arguments after `--` are passed to the selected local prover. A release
-archive installs the CLI as `oatp`, so the first example becomes
-`oatp run problem.p` after downloading a binary; Lean is not required.
+`online-vampire` is resolved against the current SystemOnTPTP catalogue;
+versioned references such as `online-Vampire---5.0.1` select an exact entry.
+The default server is `https://tptp.org/cgi-bin/SystemOnTPTP`; use
+`--endpoint URL` for another server implementing the same form protocol.
+Use `--refresh` to update the catalogue or `--no-cache` to bypass it. The
+catalogue cache stores only the system list, never problems or proof results.
+
+Runtime identity and discovery are configurable: `OATP_NAME` and
+`OATP_VERSION` override the executable-derived name/version, while
+`OATP_SYSTEM_ENDPOINT` and `OATP_LOCAL_PROVERS` (comma-separated) set the
+default online server and local candidate commands.
+
+Arguments after `--` are passed to every selected local prover. A release
+archive installs the CLI as `oatp`, so Lean is not required at runtime.
 
 `oatp local` does not install a prover: its `--executable` value must already
-be runnable. If no local ATP is installed, run `oatp doctor`, then install E,
-Vampire, or Metis. The `oatp run problem.p` form searches for those executables
-and reports an actionable error if none is available.
+be runnable. If no local ATP is installed, `oatp run problem.p` does not make a
+network request; it reports the missing local tools. Run `oatp doctor`, install
+E/Vampire/Metis, use a Docker wrapper, or explicitly choose an `online-*`
+prover.
 
 ## Standalone CLI
 
@@ -110,11 +129,10 @@ brew install eprover vampire polyml
 common local ATP executables. `curl` is preferred; `wget` is used only when
 `curl` is unavailable.
 
-When stdout is a capable TTY, local and online waits use the pure
-`termcolor-widgets` indeterminate bar through `termcolor-terminal`; redirected
-output stays static and machine-readable. The bar's frame and label are
-caller-owned, so OATP does not add a timer or terminal-control dependency to
-its pure event model.
+When stdout is a capable TTY, mixed waits use `termcolor-widgets`' bouncing
+indeterminate bar and result table through `termcolor-terminal`'s live-region
+redraw. Width is re-queried on updates; redirected output stays static and
+machine-readable.
 
 ## Lean library install
 
@@ -124,7 +142,8 @@ require oatp from git
   @ "main"
 ```
 
-The prototype currently targets Lean 4.32.2, TPTP 0.5.1, and Argus 0.4.4.
+The prototype currently targets Lean 4.32.2, TPTP 0.5.1, Argus 0.4.6,
+TermColor 1.1.0, termcolor-terminal 0.1.9, and termcolor-widgets 0.1.5.
 Pin releases or commits for reproducible builds.
 
 ## Reproducible local provers
@@ -188,9 +207,10 @@ OATP keeps pure data separate from IO. TPTP syntax is owned by the standalone
 `lean-tptp` package, which uses `grip` for byte-oriented parsing; OATP adds
 the prover, HTTP, process, and reconstruction boundaries around it. `termcolor`
 provides pure terminal text. `argus` supplies typed flags, derived help,
-completions, and source-annotated usage errors; `termcolor-terminal` owns
-TTY detection, redraw, and live progress; `termcolor-widgets` owns the pure
-indeterminate bar. OATP only supplies the backend operation and label.
+completions, and source-annotated usage errors; `termcolor-widgets` owns pure
+bars, status markers, and tables; `termcolor-terminal` owns TTY detection,
+dynamic-width redraw, flushing, and cursor cleanup. OATP supplies the backend
+operations and portfolio state.
 ProofWidgets4 support is available as the optional
 [oatp-proofwidgets](https://github.com/jonaprieto/oatp-proofwidgets) package.
 
@@ -216,8 +236,8 @@ contain the native binary, `LICENSE`, and this README; Lean is only needed to
 build them. These stable names are ready for a later Homebrew formula:
 
 ```sh
-git tag v0.2.3
-git push origin v0.2.3
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 ## Development

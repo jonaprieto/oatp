@@ -56,8 +56,11 @@ jobs:
           lake-package-directory: .
           build-args: "oatp"
       - name: Verify binary and doctor
+        env:
+          OATP_VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           test -x .lake/build/bin/oatp
+          test "$(lake exe oatp --version)" = "oatp version ${OATP_VERSION}"
           lake exe oatp doctor
       - name: Package binary
         env:

@@ -2,7 +2,9 @@
 
 ## Next vertical slices
 
-- [x] add a local/online CLI with Argus diagnostics and TTY-only waiting progress;
+- [x] add a unified CLI portfolio with Argus diagnostics and live progress/table UX;
+- [x] discover local provers and opt-in online SystemOnTPTP systems with aliases;
+- [x] cache only the online catalogue, keyed by endpoint, with refresh/bypass flags;
 - [x] add a typed first-order formula generator on top of the balanced envelope;
 - [x] parse the supported first-order fragment into a semantic TPTP AST;
 - [ ] add streaming multipart uploads for large proof artifacts;
@@ -29,14 +31,17 @@
   reconstruction boundary;
 - [ ] add prover-specific command adapters and recorded local-process fixtures;
 - [ ] add artifact export and a stable machine-readable CLI output mode.
+- [ ] return per-system statuses from a batched SystemOnTPTP response instead of
+  one aggregate remote artifact;
+- [ ] add a catalogue fixture and an HTTP transport seam for fully offline CLI
+  tests.
 
 ## Sibling-library requirements
 
-- `lean-termcolor-widgets`: keep `indeterminateProgressBar` pure and driven by
-  caller-owned `frame`, `label`, width, and glyph configuration; no clock,
-  concurrency, or terminal writes;
-- `lean-termcolor-terminal`: own TTY detection, redraw, flushing, cursor
-  cleanup, and non-TTY fallback through `LiveIndeterminateProgress`;
+- `lean-termcolor-widgets`: keep progress, status, and table rendering pure;
+  OATP owns portfolio state and completion labels, not clocks or terminal writes;
+- `lean-termcolor-terminal`: own TTY detection, dynamic-width live-region
+  redraw, flushing, cursor cleanup, and non-TTY fallback;
 - `lean-argus`: preserve bad-value diagnostics through optional flags and render
   help for the resolved subcommand after a parse failure.
 

@@ -10,6 +10,7 @@ import OATP.Http
 import OATP.Lean
 import OATP.Process
 import OATP.Proof
+import OATP.Portfolio
 import OATP.SystemOnTPTP
 import OATP.TPTP
 import OATP.Translate

@@ -58,8 +58,18 @@ private def tokenFromLines : List String → Option String
   | [] => none
   | line :: lines => tokenFromLine line |>.orElse (fun _ => tokenFromLines lines)
 
+private def resultTokenFromLine (line : String) : Option String :=
+  let line := line.trimAscii.toString
+  match line.splitOn " says " with
+  | _ :: result :: _ =>
+      let token := result.splitOn " " |>.headD ""
+      if token.isEmpty then none else some token
+  | _ => none
+
 def tokenFromOutput (output : String) : Option String :=
-  tokenFromLines (output.splitOn "\n")
+  let lines := output.splitOn "\n"
+  tokenFromLines lines |>.orElse fun _ =>
+    lines.findSome? resultTokenFromLine
 
 def ofString : String → Option SZSStatus
   | "Theorem" | "theorem" => some .theorem

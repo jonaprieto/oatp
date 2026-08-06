@@ -67,20 +67,21 @@ anything.
 sequenceDiagram
   participant U as User / CLI
   participant A as Argus
-  participant B as OATP backend
-  participant E as ATP
+  participant B as OATP portfolio
+  participant E as Local ATPs
+  participant S as SystemOnTPTP
   participant R as Artifact
 
-  U->>A: local or online command
-  A->>B: typed Problem + limits
-  alt local
+  U->>A: run [--prover REF]...
+  A->>B: typed Problem + local/online attempts
+  par local portfolio
     B->>E: spawn argv, write problem on stdin
     E-->>B: stdout, stderr, exit status
-  else online
-    B->>E: bounded curl/wget request
-    E-->>B: HTTP response
+  and explicit online portfolio
+    B->>S: catalogue lookup, then one bounded batch request
+    S-->>B: HTTP response
   end
-  B->>R: normalize status and preserve output
+  B->>R: normalize each result and preserve output
   R-->>U: candidate artifact and exit status
 ```
 
@@ -102,7 +103,8 @@ The current runtime limits are deliberately conservative:
 | Lean goals | `OATP.Translate` | supported fragment only; reject the rest |
 | Kernel safety | `OATP.Lean`, `OATP.Proof` | candidate terms checked by Lean |
 | Local ATPs | `OATP.Process` | argv, stdin, timeout, output limits |
-| Remote ATPs | `OATP.Http`, `OATP.SystemOnTPTP` | curl/wget and typed response parsing |
+| Portfolio scheduling | `OATP.Portfolio` | concurrent attempts, completion order, batch remote job |
+| Remote ATPs | `OATP.Http`, `OATP.SystemOnTPTP` | curl/wget, catalogue, form requests, response parsing |
 | Terminal output | `OATP.Term` + TermColor libraries | pure rendering vs TTY IO |
 | CLI | `examples/Cli.lean` + Argus | parsing, diagnostics, orchestration |
 
@@ -117,7 +119,8 @@ and usage diagnostics; `termcolor-widgets` owns pure progress frames;
 - `import OATP.Process` or `import OATP.Http` for execution boundaries;
 - `import OATP.Lean` and `import OATP.Proof` for kernel-facing integrations;
 - `import OATP` for the complete library facade;
-- `lake exe oatp` for the standalone CLI.
+- `lake exe oatp` for the standalone CLI. `oatp run problem.p` is local-only by
+  default; network systems are explicit `--prover online-*` references.
 
 The umbrella module is intentionally a convenience import. Internal modules
 remain separately usable so consumers do not need to depend on the CLI.

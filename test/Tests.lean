@@ -14,6 +14,8 @@ open OATP OATP.TPTP
 #guard SZSStatus.toString .theorem == "Theorem"
 #guard SZSStatus.ofOutput "# SZS status Theorem for fixture\n" == some .theorem
 #guard SZSStatus.ofOutput "% SZS status Timeout for fixture\n" == some .timeout
+#guard SZSStatus.ofOutput
+    "% RESULT: fixture - Vampire says Timeout - CPU = 2 WC = 2\n" == some .timeout
 #guard (parseStatement "fof(goal, conjecture, p)." |>.isOk)
 #guard (parseStatement "cnf(c1, axiom, p | ~q)." |>.isOk)
 #guard match _root_.TPTP.TFF.parseFormulaString "#[X:$i] : p(X)" with
@@ -52,6 +54,23 @@ open OATP OATP.TPTP
     { statusCode := 500, body := "server error" } with
   | .error (.httpStatus 500) => true
   | _ => false
+#guard (OATP.SystemOnTPTP.Catalogue.parse
+    ("<input NAME=\"System___Vampire---5.0.1\" " ++
+      "value=\"Vampire---5.0.1\">\n<input name=\"System___E---3.5.1\">")).size == 2
+#guard match OATP.SystemOnTPTP.Catalogue.parse
+    ("<input NAME=\"System___Vampire---5.0.1\" value=\"Vampire---5.0.1\">" ++
+      "\n<input name=\"System___E---3.5.1\">") with
+  | systems => (OATP.SystemOnTPTP.Catalogue.resolve systems "online-vampire").isSome &&
+      (OATP.SystemOnTPTP.Catalogue.resolve systems "online-E---3.5.1").isSome
+#guard match (OATP.SystemOnTPTP.Catalogue.parse
+    ("<input NAME=\"System___Vampire---5.0.1\">\n" ++
+      "<input name=\"Command___Vampire---5.0.1\" value=\"run_vampire %s %d THM\">\n" ++
+      "<input name=\"TimeLimit___Vampire---5.0.1\" value=\"12\">")).toList with
+  | [system] => system.command == "run_vampire %s %d THM" && system.timeLimit == 12
+  | _ => false
+#guard (OATP.SystemOnTPTP.fields
+    { systemLabel := "one", systemLabels := #["one", "two"] }
+    { name := "goal", source := "fof(goal, conjecture, p)." }).size == 16
 #guard OATP.Http.Form.encodeComponent "a b&c" == "a%20b%26c"
 #guard OATP.Http.Form.encodeUrlEncoded #[
   { name := "x", value := "a b" },
@@ -176,6 +195,12 @@ def main : IO UInt32 := do
   match missing with
   | .error (.io _) => pure ()
   | _ => throw <| IO.userError "missing local executable was not reported as an IO error"
+  let portfolio ← OATP.Portfolio.run problem #[
+    { name := "cat-a", backend := .local { executable := "cat" } },
+    { name := "cat-b", backend := .local { executable := "cat" } }
+  ]
+  if portfolio.size != 2 then
+    throw <| IO.userError "portfolio runner did not collect concurrent attempts"
   let largeProblem : Problem := {
     name := "large-stdin"
     source := String.join (List.replicate 200000 "x")
