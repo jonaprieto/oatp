@@ -174,8 +174,10 @@ private def showArtifact (artifact : Artifact) : IO UInt32 := do
   unless artifact.stderr.isEmpty do IO.eprint artifact.stderr
   pure <| if artifact.status == .theorem then 0 else 1
 
-private def processErrorMessage : OATP.Process.Error → String
-  | .io message => s!"local prover IO failed: {message}"
+private def processErrorMessage (executable : String) : OATP.Process.Error → String
+  | .io message =>
+      s!"could not start local prover `{executable}`: {message}; " ++
+        "check the path or run `oatp doctor`"
   | .outputTooLarge actual limit =>
       s!"local prover output exceeded {limit} bytes ({actual} captured)"
 
@@ -193,7 +195,7 @@ private def runLocal (options : LocalOptions) : IO UInt32 := do
       { executable := options.executable, arguments := options.arguments.toArray }
     match result with
     | .ok artifact => showArtifact artifact
-    | .error error => printDiagnostic (processErrorMessage error)
+    | .error error => printDiagnostic (processErrorMessage options.executable error)
   catch error => printDiagnostic s!"could not read problem: {error}"
 
 private def firstAvailableProver : IO (Option String) := do

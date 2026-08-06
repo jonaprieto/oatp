@@ -84,6 +84,28 @@ Arguments after `--` are passed to the selected local prover. A release
 archive installs the CLI as `oatp`, so the first example becomes
 `oatp run problem.p` after downloading a binary; Lean is not required.
 
+`oatp local` does not install a prover: its `--executable` value must already
+be runnable. If no local ATP is installed, run `oatp doctor`, then install E,
+Vampire, or Metis. The `oatp run problem.p` form searches for those executables
+and reports an actionable error if none is available.
+
+## Standalone CLI
+
+Release archives contain the `oatp` binary, so Lean is not needed at runtime:
+
+```sh
+tar -xzf oatp-VERSION-PLATFORM-ARCH.tar.gz
+mkdir -p ~/.local/bin
+install -m 755 oatp ~/.local/bin/oatp
+oatp doctor
+```
+
+On macOS, host ATPs can be installed with Homebrew:
+
+```sh
+brew install eprover vampire polyml
+```
+
 `oatp doctor` reports the platform, HTTP transport availability, Docker, and
 common local ATP executables. `curl` is preferred; `wget` is used only when
 `curl` is unavailable.
@@ -94,7 +116,7 @@ output stays static and machine-readable. The bar's frame and label are
 caller-owned, so OATP does not add a timer or terminal-control dependency to
 its pure event model.
 
-## Install
+## Lean library install
 
 ```lean
 require oatp from git
@@ -136,10 +158,14 @@ let command : OATP.Process.Command := {
 }
 ```
 
-For host-based smoke testing, install the direct-TPTP tools with Homebrew:
+If Docker is available but no host prover is installed, use a reproducible
+image through the CLI:
 
 ```sh
-brew install eprover vampire polyml
+oatp local \
+  --executable scripts/run-tptp-docker.sh \
+  docker/tptp/fixtures/identity.p \
+  -- oatp/eprover:bookworm-2.6
 ```
 
 Metis is not the Homebrew `metis` formula: that formula is a graph-partitioning

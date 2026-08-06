@@ -64,6 +64,8 @@ private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (c
   let _ ← IO.ofExcept stdinTask.get
   let stdout ← IO.ofExcept stdoutTask.get
   let stderr ← IO.ofExcept stderrTask.get
+  if stderr.startsWith "could not execute external process" then
+    return .error (.io stderr.trimAscii.toString)
   let elapsedMs := (← IO.monoMsNow) - started
   let actual := stdout.toUTF8.size + stderr.toUTF8.size
   if actual > limits.maxOutputBytes then

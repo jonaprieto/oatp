@@ -170,6 +170,12 @@ def main : IO UInt32 := do
         throw <| IO.userError "local process backend reported an invalid output size"
   | _ =>
       throw <| IO.userError "local process backend ignored the output limit"
+  let missing ← OATP.Process.run
+    { name := "missing" } problem { wallSeconds := 2 }
+    { executable := "definitely-not-installed-oatp-prover" }
+  match missing with
+  | .error (.io _) => pure ()
+  | _ => throw <| IO.userError "missing local executable was not reported as an IO error"
   let largeProblem : Problem := {
     name := "large-stdin"
     source := String.join (List.replicate 200000 "x")
