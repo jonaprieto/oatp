@@ -26,7 +26,19 @@ argus_opts LocalOptions where
     "Wall-clock limit" Param.duration);
   maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
     "Maximum captured output" Param.bytes);
-  arguments : List String := Spec.many (Spec.arg "ARG" "Argument passed to the prover" Param.str)
+  arguments : List String := Spec.many
+    (Spec.arg "ARG" "Argument passed to the prover after --" Param.str)
+
+argus_opts RunOptions where
+  problem : String := Spec.arg "PROBLEM" "TPTP problem file" Param.path;
+  prover : Option String := Spec.opt (Spec.flag "prover" (some 'p')
+    "Local prover executable (default: eprover, then vampire, then metis)" Param.path);
+  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
+    "Wall-clock limit" Param.duration);
+  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
+    "Maximum captured output" Param.bytes);
+  arguments : List String := Spec.many
+    (Spec.arg "ARG" "Argument passed to the prover after --" Param.str)
 
 argus_opts OnlineOptions where
   system : String := Spec.flag "system" (some 's') "SystemOnTPTP system label" Param.str;
@@ -39,20 +51,23 @@ argus_opts OnlineOptions where
     "Maximum captured response" Param.bytes)
 
 inductive Action where
+  | run (options : RunOptions)
   | local (options : LocalOptions)
   | online (options : OnlineOptions)
   | doctor
 
 def cli : Command Action :=
   Argus.group "oatp"
-    [ Argus.cmd "local" (Spec.map Action.local LocalOptions.spec)
+    [ Argus.cmd "run" (Spec.map Action.run RunOptions.spec)
+        (description := "Run with the first installed local ATP")
+    , Argus.cmd "local" (Spec.map Action.local LocalOptions.spec)
         (description := "Run a local ATP process")
     , Argus.cmd "online" (Spec.map Action.online OnlineOptions.spec)
         (description := "Submit a problem to SystemOnTPTP")
     , Argus.cmd "doctor" (Spec.const Action.doctor)
         (description := "Check local tools and transport readiness") ]
     (version := some cliVersion)
-    (description := "Proof-artifact-first ATP orchestration")
+    (description := "Run TPTP problems locally or online")
 
 private def doctorPalette : ColorScheme := ColorScheme.catppuccin
 
@@ -153,9 +168,10 @@ private def readProblem (path : String) : IO Problem := do
   pure { name := path, source := ← IO.FS.readFile path }
 
 private def showArtifact (artifact : Artifact) : IO UInt32 := do
+  let marker := if artifact.status == .theorem then "✓" else "!"
+  IO.eprintln s!"{marker} {artifact.prover.label}: {artifact.status} ({artifact.elapsedMs}ms)"
   unless artifact.stdout.isEmpty do IO.print artifact.stdout
   unless artifact.stderr.isEmpty do IO.eprint artifact.stderr
-  IO.eprintln s!"{artifact.prover.label}: {artifact.status} ({artifact.elapsedMs}ms)"
   pure <| if artifact.status == .theorem then 0 else 1
 
 private def processErrorMessage : OATP.Process.Error → String
@@ -179,6 +195,31 @@ private def runLocal (options : LocalOptions) : IO UInt32 := do
     | .ok artifact => showArtifact artifact
     | .error error => printDiagnostic (processErrorMessage error)
   catch error => printDiagnostic s!"could not read problem: {error}"
+
+private def firstAvailableProver : IO (Option String) := do
+  let mut found : Option String := none
+  for executable in #[("eprover" : String), "vampire", "metis"] do
+    if found.isNone && (← Http.commandVersion executable).isSome then
+      found := some executable
+  pure found
+
+private def runDefault (options : RunOptions) : IO UInt32 := do
+  let executable ← match options.prover with
+    | some executable => pure (some executable)
+    | none => firstAvailableProver
+  match executable with
+  | some executable =>
+      return (← runLocal {
+        executable := executable
+        problem := options.problem
+        timeout := options.timeout
+        maxOutput := options.maxOutput
+        arguments := options.arguments
+      })
+  | none =>
+      return (← printDiagnostic
+        "no local ATP found; install eprover, vampire, or metis, or pass --prover PATH"
+      )
 
 private def httpErrorMessage : OATP.Http.Error → String
   | .io message => s!"HTTP IO failed: {message}"
@@ -213,8 +254,14 @@ private def runOnline (options : OnlineOptions) : IO UInt32 := do
   catch error => printDiagnostic s!"could not read problem: {error}"
 
 def main (argv : List String) : IO UInt32 :=
-  Argus.Term.main cli argv fun action =>
-    match action with
-    | .local options => runLocal options
-    | .online options => runOnline options
-    | .doctor => runDoctor
+  if argv.isEmpty then
+    do
+      let _ ← (Argus.Term.printHelp cli)
+      pure 0
+  else
+    Argus.Term.main cli argv fun action =>
+      match action with
+      | .run options => runDefault options
+      | .local options => runLocal options
+      | .online options => runOnline options
+      | .doctor => runDoctor

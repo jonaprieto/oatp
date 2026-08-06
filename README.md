@@ -56,6 +56,7 @@ lake build
 lake exe demo
 lake exe proof-demo
 lake exe oatp --help
+lake exe oatp run docker/tptp/fixtures/identity.p
 lake exe oatp doctor
 lake exe tests
 python3 scripts/style-check.py
@@ -65,12 +66,23 @@ python3 scripts/check-axioms.py
 The demo shows a goal, tactic attempts, an external candidate, and the
 proof-artifact trust boundary in both plain and ANSI output. The proof demo
 constructs and assigns a kernel-checked `True` proof. The CLI runs a local
-prover or submits a problem to SystemOnTPTP:
+prover or submits a problem to SystemOnTPTP. The approachable local form picks
+the first installed prover in this order: E, Vampire, then Metis:
+
+```sh
+lake exe oatp run docker/tptp/fixtures/identity.p
+```
+
+Use the explicit forms when selecting a prover or a remote system:
 
 ```sh
 lake exe oatp local --executable cat test/fixtures/system-on-tptp/theorem.txt
 lake exe oatp online --system vampire test/fixtures/system-on-tptp/theorem.txt
 ```
+
+Arguments after `--` are passed to the selected local prover. A release
+archive installs the same CLI as `otp`, so the first example becomes
+`otp run problem.p` after downloading a binary; Lean is not required.
 
 `oatp doctor` reports the platform, HTTP transport availability, Docker, and
 common local ATP executables. `curl` is preferred; `wget` is used only when
