@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-image="${1:?usage: scripts/run-tptp-docker.sh IMAGE [PROVER ARGS...]}"
+image="${1:?usage: tools/run-tptp-docker.sh IMAGE [PROVER ARGS...]}"
 shift
 
 exec docker run --rm --interactive \

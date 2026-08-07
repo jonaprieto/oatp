@@ -1,12 +1,12 @@
 #!/bin/sh
 set -eu
 
-image="${1:?usage: scripts/docker-tptp-smoke.sh IMAGE [PROVER ARGS...]}"
+image="${1:?usage: tools/docker-tptp-smoke.sh IMAGE [PROVER ARGS...]}"
 shift
 output="$(mktemp)"
 trap 'rm -f "$output"' EXIT HUP INT TERM
 
-if scripts/run-tptp-docker.sh "$image" "$@" \
+if tools/run-tptp-docker.sh "$image" "$@" \
     < docker/tptp/fixtures/identity.p > "$output" 2>&1; then
   :
 else
