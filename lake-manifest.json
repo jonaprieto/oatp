@@ -21,7 +21,7 @@
    "inputRev": "v1.1.0",
    "inherited": false,
    "configFile": "lakefile.lean"},
-  {"url": "https://github.com/jonaprieto/lean-tptp.git",
+  {"url": "https://github.com/jonaprieto/lean-grip-tptp.git",
    "type": "git",
    "subDir": null,
    "scope": "",

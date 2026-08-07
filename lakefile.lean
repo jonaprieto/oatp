@@ -10,7 +10,7 @@ require grip from git
   @ "v0.1.0"
 
 require tptp from git
-  "https://github.com/jonaprieto/lean-tptp.git"
+  "https://github.com/jonaprieto/lean-grip-tptp.git"
   @ "v0.5.1"
 
 require «termcolor» from git

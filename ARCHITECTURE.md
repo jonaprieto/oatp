@@ -14,7 +14,7 @@ flowchart LR
   subgraph pure["Pure and inspectable models"]
     core["OATP.Core\nProblem · Artifact · SZSStatus"]
     events["OATP.Events\nSearchEvent · GoalSnapshot"]
-    tptp["OATP.TPTP\nlean-tptp adapter"]
+    tptp["OATP.TPTP\nlean-grip-tptp adapter"]
     term["OATP.Term\nplain / ANSI event rendering"]
   end
 
@@ -99,7 +99,7 @@ The current runtime limits are deliberately conservative:
 | --- | --- | --- |
 | Domain data | `OATP.Core` | no IO, no terminal, no proof claims |
 | Search events | `OATP.Events` | renderer-independent data |
-| TPTP syntax | `lean-tptp` via `OATP.TPTP` | parsing and formula rendering |
+| TPTP syntax | `lean-grip-tptp` via `OATP.TPTP` | parsing and formula rendering |
 | Lean goals | `OATP.Translate` | supported fragment only; reject the rest |
 | Kernel safety | `OATP.Lean`, `OATP.Proof` | candidate terms checked by Lean |
 | Local ATPs | `OATP.Process` | argv, stdin, timeout, output limits |
