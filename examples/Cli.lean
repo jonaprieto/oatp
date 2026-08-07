@@ -171,28 +171,28 @@ private def printDiagnostic (message : String) : IO UInt32 := do
   pure 1
 
 private partial def progressLoop (finished : IO.Ref Bool)
-    (live : LiveIndeterminateProgress) : IO Unit := do
+    (config : Widgets.ProgressConfig) (state : Widgets.IndeterminateProgressState)
+    (region : LiveRegion) : IO Unit := do
   if ← finished.get then
-    let _ ← live.finish
+    let _ ← region.finish
     pure ()
   else
-    let live ← live.tick
+    let state := { state with frame := state.frame + 1 }
+    let region ← region.updateText (Widgets.indeterminateProgressBar config state)
     IO.sleep 120
-    progressLoop finished live
+    progressLoop finished config state region
 
 private def withProgress {α : Type} (label : String) (action : IO α) : IO α := do
   if !(← stdoutSupportsControl) then
     return ← action
   withHiddenCursor do
     let finished ← IO.mkRef false
-    let initial := LiveIndeterminateProgress.start {
+    let config : Widgets.ProgressConfig := {
       width := 24
       indeterminateWidth := 7
     }
-    let initial := { initial with
-      state := { initial.state with label := Text.plain label } }
     let progress ← IO.asTask (do
-      progressLoop finished initial
+      progressLoop finished config { label := Text.plain label } LiveRegion.start
       ) Task.Priority.dedicated
     let result ← try action finally
       finished.set true
