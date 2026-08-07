@@ -7,8 +7,6 @@
 ATP orchestration for Lean 4 with TPTP parsing, local and online prover runners, reproducible
 artifacts, diagnostics, and explicit trust boundaries.
 
-Version: `v0.3.1`
-
 External ATP output is a candidate result, not a Lean proof. Kernel-checked reconstruction is
 available for the supported propositional calculus.
 
