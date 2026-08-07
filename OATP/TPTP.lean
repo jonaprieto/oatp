@@ -10,7 +10,7 @@ import TPTP
 /-!
 # OATP.TPTP: OATP's format-layer adapter
 
-TPTP/TSTP syntax belongs to the standalone `lean-tptp` package. This module
+TPTP/TSTP syntax belongs to the standalone `lean-grip-tptp` package. This module
 keeps OATP's import path and adds only the small constructors needed by the
 ATP domain model.
 -/

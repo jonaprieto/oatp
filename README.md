@@ -32,7 +32,7 @@ lake exe oatp run --prover online-vampire problem.p
 ## Provides
 
 - pure prover, artifact, outcome, limit, and search-event models;
-- Grip-backed [`tptp`](https://github.com/jonaprieto/lean-tptp) parsing;
+- Grip-backed [`tptp`](https://github.com/jonaprieto/lean-grip-tptp) parsing;
 - bounded local process and HTTP transport;
 - concurrent local-prover portfolios;
 - SystemOnTPTP catalogue and cache;
