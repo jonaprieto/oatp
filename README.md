@@ -64,8 +64,7 @@ lake exe oatp run docker/tptp/fixtures/identity.p
 lake exe oatp systems
 lake exe oatp doctor
 lake exe tests
-python3 scripts/style-check.py
-python3 scripts/check-axioms.py
+pre-commit run --all-files
 ```
 
 The demo shows a goal, tactic attempts, an external candidate, and the
@@ -164,16 +163,16 @@ docker build -f docker/metis/Dockerfile \
 Run a TPTP problem through the hardened generic wrapper:
 
 ```sh
-scripts/run-tptp-docker.sh oatp/eprover:bookworm-2.6 < problem.p
-scripts/run-tptp-docker.sh oatp/vampire:bookworm-5.0.1 --time_limit 5 < problem.p
-scripts/run-tptp-docker.sh oatp/metis:bookworm-2.4.20260305 --time-limit 5 < problem.p
+tools/run-tptp-docker.sh oatp/eprover:bookworm-2.6 < problem.p
+tools/run-tptp-docker.sh oatp/vampire:bookworm-5.0.1 --time_limit 5 < problem.p
+tools/run-tptp-docker.sh oatp/metis:bookworm-2.4.20260305 --time-limit 5 < problem.p
 ```
 
 The E-specific wrapper remains available for existing callers:
 
 ```lean
 let command : OATP.Process.Command := {
-  executable := "./scripts/run-eprover-docker.sh"
+  executable := "./tools/run-eprover-docker.sh"
   arguments := #["--cpu-limit=5"]
 }
 ```
@@ -183,7 +182,7 @@ image through the CLI:
 
 ```sh
 oatp local \
-  --executable scripts/run-tptp-docker.sh \
+  --executable tools/run-tptp-docker.sh \
   docker/tptp/fixtures/identity.p \
   -- oatp/eprover:bookworm-2.6
 ```

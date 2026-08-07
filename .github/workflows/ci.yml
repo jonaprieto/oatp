@@ -38,8 +38,10 @@ jobs:
         with:
           lake-package-directory: .
           build-args: "OATP OATP.Properties demo proof-demo oatp tests"
-      - name: Audit proof axioms
-        run: python3 scripts/check-axioms.py
+      - uses: jonaprieto/precommit-lean/.github/actions/precommit@v0.1.1
+        with:
+          token: ${{ secrets.ECOSYSTEM_READ_TOKEN || github.token }}
+          hooks: lean-axioms
       - name: Run tests
         run: lake exe tests
       - name: Render demo gallery
@@ -54,8 +56,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Lean style (100-col / trailing-ws / tabs)
-        run: python3 scripts/style-check.py
+        with:
+          persist-credentials: false
+      - uses: jonaprieto/precommit-lean/.github/actions/precommit@v0.1.1
+        with:
+          token: ${{ secrets.ECOSYSTEM_READ_TOKEN || github.token }}
+          skip: lean-axioms
       - run: git diff --check
 
   docker:
@@ -84,4 +90,4 @@ jobs:
       - name: Build ${{ matrix.name }} image
         run: docker build --file "${{ matrix.dockerfile }}" --tag "${{ matrix.image }}" .
       - name: Run no-network smoke test
-        run: scripts/docker-tptp-smoke.sh "${{ matrix.image }}" ${{ matrix.arguments }}
+        run: tools/docker-tptp-smoke.sh "${{ matrix.image }}" ${{ matrix.arguments }}
