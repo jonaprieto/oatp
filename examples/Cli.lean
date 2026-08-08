@@ -258,7 +258,7 @@ private def runConfig (identity : CliIdentity) (action : ConfigAction) : IO UInt
           pure 1
       | none => pure 0
 
--- partiality: this live UI loop runs until an external IO action sets finished.
+    -- partiality: this live UI loop runs until an external IO action sets finished.
 private partial def progressLoop (finished : IO.Ref Bool)
     (config : Widgets.ProgressConfig) (state : Widgets.IndeterminateProgressState)
     (region : LiveRegion) : IO Unit := do
