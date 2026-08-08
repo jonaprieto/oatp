@@ -170,6 +170,7 @@ private def printDiagnostic (message : String) : IO UInt32 := do
   stderr.putStr "\n"
   pure 1
 
+-- partiality: this live UI loop runs until an external IO action sets finished.
 private partial def progressLoop (finished : IO.Ref Bool)
     (config : Widgets.ProgressConfig) (state : Widgets.IndeterminateProgressState)
     (region : LiveRegion) : IO Unit := do
@@ -368,6 +369,7 @@ private def portfolioView (total : Nat) (progress : Widgets.IndeterminateProgres
   } { progress with label := Text.styled label (Style.fg doctorPalette.foreground) }
   progress ++ Text.plain "\n" ++ Widgets.renderTable [28, 16, 12] (portfolioRows results)
 
+-- partiality: this live UI loop runs until an external portfolio action sets finished.
 private partial def portfolioProgressLoop (finished : IO.Ref Bool)
     (progress : IO.Ref Widgets.IndeterminateProgressState)
     (results : IO.Ref (List Portfolio.Result)) (region : IO.Ref LiveRegion)

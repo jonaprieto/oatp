@@ -45,6 +45,7 @@ lean_exe «oatp» where
   root := `Cli
   srcDir := "examples"
 
+@[test_driver]
 lean_exe «tests» where
   root := `Tests
   srcDir := "test"
