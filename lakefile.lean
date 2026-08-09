@@ -19,7 +19,7 @@ require «termcolor» from git
 
 require «termcolor-terminal» from git
   "https://github.com/jonaprieto/lean-termcolor-terminal.git"
-  @ "v0.2.0"
+  @ "v0.3.0"
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
