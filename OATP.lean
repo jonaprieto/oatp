@@ -11,6 +11,7 @@ import OATP.Lean
 import OATP.Process
 import OATP.Proof
 import OATP.Portfolio
+import OATP.Repl
 import OATP.Runtime
 import OATP.SystemOnTPTP
 import OATP.TPTP

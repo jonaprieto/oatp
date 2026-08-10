@@ -97,6 +97,16 @@ open OATP OATP.TPTP
   context := #["h : p"]
   target := "p"
 }] == "goal: demo\n  h : p\n⊢ p"
+#guard match OATP.Repl.parseInput "/conjecture goal p" with
+  | .command (.conjecture "goal" "p") => true
+  | _ => false
+#guard match OATP.Repl.parseSource {} "fof(goal, conjecture, p(X))."
+    "fof(goal, conjecture, p(X))." with
+  | .ok session =>
+      session.formulas.size == 1 &&
+      session.symbols.any (fun symbol => symbol.kind == .predicate && symbol.name == "p") &&
+      session.symbols.any (fun symbol => symbol.kind == .variable && symbol.name == "X")
+  | .error _ => false
 def main : IO UInt32 := do
   let x := _root_.TPTP.Formula.Term.function "f" #[
     .constant "a", .var "X"
