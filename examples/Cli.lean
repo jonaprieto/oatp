@@ -81,7 +81,7 @@ inductive Action where
   | systems (options : SystemsOptions)
   | doctor
 
-def cli (identity : CliIdentity) : Command Action :=
+def cli (identity : CliIdentity) : Argus.Command Action :=
   Argus.group identity.name
     [ Argus.cmd "run" (Spec.map Action.run RunOptions.spec)
         (description := "Run a local or explicitly selected online portfolio")
@@ -616,7 +616,7 @@ def main (argv : List String) : IO UInt32 := do
   else
     Argus.Term.main command argv fun action =>
       match action with
-      | .run options => runDefault identity options
+      | Action.run options => runDefault identity options
       | .local options => runLocal identity.name options
       | .online options => runOnline identity options
       | .systems options => runSystems identity options
