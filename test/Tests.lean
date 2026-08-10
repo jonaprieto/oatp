@@ -130,7 +130,8 @@ open OATP OATP.TPTP
     { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
 #guard (OATP.ReplView.screen
     { historyOpen := true, session := { history := #[{ cell := 1, input := "/help", result := "commands" }] } }
-    { columns := 100, rows := 24 }).plainText.contains "history"
+    { columns := 100, rows := 24 }).plainText.contains "history • active"
+#guard (OATP.ReplView.screen { historyOpen := true } { columns := 100, rows := 24 }).height == 24
 #guard (OATP.ReplView.screen
     { entries := [{ cell := 1, input := "/snapshot", output := "first\nsecond" }] }
     { columns := 100, rows := 24 }).plainText.contains "second"

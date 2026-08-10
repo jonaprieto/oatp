@@ -243,7 +243,7 @@ private def symbolLine (symbol : Symbol) : Text :=
 private def stateSection (title : String) : Text :=
   Text.styled title (Style.bold <+> Style.fg theme.purple)
 
-private def contextPanel (app : App) (width : Nat) : Text :=
+private def contextPanel (app : App) (width height : Nat) : Text :=
   let formulas := app.session.formulas.toList.reverse.take 8
   let symbols := app.session.symbols.toList.take 12
   let problem := if app.session.problemSource.isEmpty then
@@ -272,10 +272,12 @@ private def contextPanel (app : App) (width : Nat) : Text :=
     , fitText (max 1 (width - 4)) translation
     , stateSection "CHECKED TERM"
     , Text.plain term ]
+  let innerWidth := boxInnerWidth width
+  let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
   box body { title := some (Text.styled "context" (Style.bold <+> Style.fg theme.cyan))
            , borderStyle := Style.fg theme.selection, maxWidth := some width }
 
-private def historyPanel (app : App) (width : Nat) : Text :=
+private def historyPanel (app : App) (width height : Nat) : Text :=
   let rows := app.session.history.toList.reverse.take 18
   let body := if rows.isEmpty then
       Text.styled "No commands yet." (Style.dim <+> Style.fg theme.comment)
@@ -285,7 +287,9 @@ private def historyPanel (app : App) (width : Nat) : Text :=
           Text.plain "\n" ++
           Text.styled "  = " (Style.bold <+> Style.fg theme.green) ++
           fitText (max 1 (width - 6)) entry.result)
-  box body { title := some (Text.styled "history" (Style.bold <+> Style.fg theme.cyan))
+  let innerWidth := boxInnerWidth width
+  let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
+  box body { title := some (Text.styled "history • active" (Style.bold <+> Style.fg theme.cyan))
            , borderStyle := Style.fg theme.selection, maxWidth := some width }
 
 private def mascot : Text :=
@@ -367,8 +371,8 @@ def screen (app : App) (size : Size) : Text :=
   let content := match drawerOpen, stateDrawerWidths width with
     | true, some (leftWidth, rightWidth) =>
         let left := calcContent app { size with columns := leftWidth }
-        let right := if app.historyOpen then historyPanel app rightWidth
-          else contextPanel app rightWidth
+        let right := if app.historyOpen then historyPanel app rightWidth size.rows
+          else contextPanel app rightWidth size.rows
         columns [leftWidth, rightWidth] 2 [left, right] []
           (Text.styled "│" (Style.fg theme.selection))
     | _, _ => calcContent app size
