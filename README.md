@@ -40,7 +40,9 @@ goals, translated problems, prover artifacts, and kernel-checked terms in one se
 ```
 
 Use `/state` for the context drawer, `/history` for the transcript, and `--script FILE` for a
-non-interactive session.
+non-interactive session. `/to-lean` currently accepts the propositional TPTP fragment; terms and
+quantifiers remain available for `/parse` and prover execution and return an explicit diagnostic
+when a Lean signature is required.
 
 Run a local problem or select an online system explicitly:
 
