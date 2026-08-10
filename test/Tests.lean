@@ -122,6 +122,9 @@ open OATP OATP.TPTP
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
 #guard (OATP.ReplView.screen { translation := some "fof(goal, conjecture, p)." }
     { columns := 100, rows := 24 }).plainText.contains "TRANSLATED TPTP"
+#guard match OATP.Repl.apply {} "/help" with
+  | .ok session => (session.history.toList.getLast?.map (·.result)).getD "" |>.contains "/to-lean"
+  | .error _ => false
 def main : IO UInt32 := do
   let x := _root_.TPTP.Formula.Term.function "f" #[
     .constant "a", .var "X"

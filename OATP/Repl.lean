@@ -323,7 +323,10 @@ def apply (session : Session) (input : String) : Except String Session :=
   | .source source => parseSource session source source
   | .command command =>
       match command with
-      | .help => pure (record session input "commands: /axiom /conjecture /parse /state /history")
+      | .help => pure (record session input
+          ("commands: /load /axiom /conjecture /parse /state /history /clear /reset " ++
+            "/goal /to-lean /snapshot /to-tptp /reconstruct /term /run /local /online " ++
+            "/systems /doctor /quit"))
       | .history => pure (record session input s!"{session.history.size} history entries")
       | .state => pure (record session input s!"{session.formulas.size} formulas, {session.symbols.size} symbols")
       | .clear => pure (record { session with formulas := #[], symbols := #[], problemSource := "" }
