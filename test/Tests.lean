@@ -107,6 +107,7 @@ open OATP OATP.TPTP
       session.symbols.any (fun symbol => symbol.kind == .predicate && symbol.name == "p") &&
       session.symbols.any (fun symbol => symbol.kind == .variable && symbol.name == "X")
   | .error _ => false
+#guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
 def main : IO UInt32 := do
   let x := _root_.TPTP.Formula.Term.function "f" #[
     .constant "a", .var "X"

@@ -169,6 +169,9 @@ private def record (session : Session) (input result : String) : Session :=
     nextCell := session.nextCell + 1
     history := session.history.push { cell := session.nextCell, input, result } }
 
+def note (session : Session) (input result : String) : Session :=
+  record session input result
+
 def addDocument (session : Session) (input : String) (document : _root_.TPTP.Document) : Session :=
   let views := viewsOf session.nextCell document
   let symbols := views.foldl (fun symbols view =>

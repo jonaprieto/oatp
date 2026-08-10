@@ -21,6 +21,10 @@ require «termcolor-terminal» from git
   "https://github.com/jonaprieto/lean-termcolor-terminal.git"
   @ "v0.3.1"
 
+require «termcolor-repl» from git
+  "https://github.com/jonaprieto/lean-termcolor-repl.git"
+  @ "d7650c9"
+
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
   @ "v0.4.7"
@@ -43,6 +47,10 @@ lean_exe «proof-demo» where
 
 lean_exe «oatp» where
   root := `Cli
+  srcDir := "examples"
+
+lean_exe «oatp-repl» where
+  root := `Repl
   srcDir := "examples"
 
 @[test_driver]
