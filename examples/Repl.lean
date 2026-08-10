@@ -6,6 +6,7 @@ Authors: Jonathan Cubides
 
 import OATP
 import OATP.ReplView
+import TermColor.Diagnostics
 import TermColor.Repl.Terminal
 import TermColor.Terminal
 
@@ -20,6 +21,7 @@ open OATP
 open OATP.ReplView
 open Lean
 open TermColor
+open TermColor.Diagnostics
 open TermColor.Repl
 open TermColor.Terminal
 open TermColor.Widgets
@@ -27,14 +29,36 @@ open TermColor.Widgets
 private def words (line : String) : List String :=
   line.splitOn " " |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty)
 
-private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : Bool) : App :=
+private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : Bool)
+    (elapsedMs : Option Nat := none) (sources : Sources := #[])
+    (diagnostic : Option Diagnostic := none) : App :=
   { app with
-    entries := { cell, input, output, ok } :: app.entries
+    entries := { cell, input, output, ok, elapsedMs, sources, diagnostic } :: app.entries
     repl := {} 
     status := if ok then "ready" else "error" }
 
-private def note (app : App) (cell : Nat) (input output : String) (ok : Bool) : App :=
+private def diagnosticFor (source message : String) : Source × Diagnostic :=
+  let sourceText := source
+  let source := Source.fromBytes "input" source.toUTF8
+  let title := message.splitOn "\n" |>.headD message
+  let diagnostic := (Diagnostic.error title).withLabel
+    (Label.primary (Span.range 0 0 sourceText.toUTF8.size))
+  (source, diagnostic)
+
+private def note (app : App) (cell : Nat) (input output : String) (ok : Bool)
+    (elapsedMs : Option Nat := none) : App :=
+  let (sources, diagnostic) := if ok then
+      (#[], none)
+    else
+      let (source, diagnostic) := diagnosticFor input output
+      (#[(source)], some diagnostic)
   appendEntry { app with session := OATP.Repl.note app.session input output } cell input output ok
+    elapsedMs sources diagnostic
+
+private def noteDiagnostic (app : App) (cell : Nat) (input source message : String) : App :=
+  let (source, diagnostic) := diagnosticFor source message
+  appendEntry { app with session := OATP.Repl.note app.session input message } cell input message false
+    none #[source] (some diagnostic)
 
 private def clearDerived (app : App) : App :=
   { app with goal := none, translation := none, term := none, leanGoal := none }
@@ -141,21 +165,26 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
   shouldRun := fun _ input => backendLine input
   start := fun app _ => { app with busy := true, jobResult := none, repl := {} }
   run := fun cancellation app input => do
+    let started ← IO.monoMsNow
     unless ← TermColor.Repl.Terminal.Cancellation.sleep cancellation 1 do
       return app
     match backendRequest input with
     | .error message =>
-        pure { app with jobResult := some { cell := app.session.nextCell, input, output := message, ok := false } }
+        pure { app with jobResult := some {
+          cell := app.session.nextCell, input, output := message, ok := false,
+          elapsedMs := some ((← IO.monoMsNow) - started) } }
     | .ok request =>
         -- partiality: portfolio execution has no process-cancellation seam yet; keep the UI
         -- responsive and add cancellation at Portfolio once process ownership is exposed.
         let (output, ok) ← runRequest app request
-        pure { app with jobResult := some { cell := app.session.nextCell, input, output, ok } }
+        pure { app with jobResult := some {
+          cell := app.session.nextCell, input, output, ok,
+          elapsedMs := some ((← IO.monoMsNow) - started) } }
   finish := fun current completed =>
     match completed.jobResult with
     | some result =>
         note { current with busy := false, jobResult := none }
-          result.cell result.input result.output result.ok
+          result.cell result.input result.output result.ok result.elapsedMs
     | none => { current with busy := false }
   cancel := fun app => { app with busy := false, jobResult := none }
   fail := fun app message =>
@@ -219,7 +248,7 @@ private def submitGoal (app : App) (cell : Nat) (input formula : String) : IO Ap
     | some runtime => pure runtime
     | none => OATP.Lean.Repl.create
   match ← OATP.Lean.Repl.goalFromFormula runtime formula with
-  | .error message => pure (note app cell input message false)
+  | .error message => pure (noteDiagnostic app cell input formula message)
   | .ok (runtime, goal) =>
       let (runtime, snapshot) ← OATP.Lean.Repl.snapshot runtime goal
       let output := "goal created\n" ++ String.intercalate "\n" snapshot.context.toList ++
@@ -273,7 +302,7 @@ private def submitLeanCommand (app : App) (cell : Nat) (input : String) : IO (Op
     | none => return some (note app cell input "no rendered term" false)
   pure none
 
-private def submit (app : App) (input : String) : IO App := do
+private def submitCore (app : App) (input : String) : IO App := do
   let input := input.trimAscii.toString
   let cell := app.session.nextCell
   if input == "/quit" || input == "/exit" then
@@ -350,6 +379,14 @@ private def submit (app : App) (input : String) : IO App := do
       pure <| appendEntry app entryCell input output true
   | .error message => pure (note app cell input message false)
 
+private def submit (app : App) (input : String) : IO App := do
+  let started ← IO.monoMsNow
+  let app ← submitCore app input
+  let elapsedMs := (← IO.monoMsNow) - started
+  match app.entries with
+  | entry :: rest => pure { app with entries := { entry with elapsedMs := some elapsedMs } :: rest }
+  | [] => pure app
+
 private def commandNames : List String :=
   ["/help", "/history", "/state", "/clear", "/reset", "/load", "/axiom", "/conjecture", "/parse",
    "/goal", "/to-lean", "/translate-to-lean", "/snapshot", "/to-tptp", "/reconstruct", "/term",
@@ -389,7 +426,8 @@ private def runScript (app : App) (lines : List String) : IO App := do
 private def staticOutput (app : App) : IO Unit := do
   for entry in app.entries.reverse do
     IO.println s!"[{entry.cell}] › {entry.input}"
-    IO.println s!"    {(if entry.ok then "=" else "!")} {entry.output}"
+    let timing := entry.elapsedMs.map (fun milliseconds => s!" ({formatElapsed milliseconds})") |>.getD ""
+    IO.println s!"    {(if entry.ok then "=" else "!")} {entry.output}{timing}"
 
 private def usage : String :=
   "oatp repl — interactive TPTP/Lean ATP workbench\n\n" ++

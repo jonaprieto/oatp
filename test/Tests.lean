@@ -120,6 +120,11 @@ open OATP OATP.TPTP
       session.symbols.any (fun symbol => symbol.kind == .variable && symbol.name == "X")
   | .error _ => false
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
+#guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "/help"
+#guard OATP.ReplView.formatElapsed 1_500 == "1.5 s"
+#guard (OATP.ReplView.screen
+    { entries := [({ cell := 1, input := "/to-lean p => p", output := "goal created", elapsedMs := some 12 } : OATP.ReplView.TranscriptEntry)] }
+    { columns := 100, rows := 24 }).plainText.contains "(12 ms)"
 #guard (OATP.ReplView.screen
     { stateOpen := true, translation := some "fof(goal, conjecture, p)." }
     { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"

@@ -7,6 +7,7 @@ Authors: Jonathan Cubides
 import OATP.Lean.Repl
 import OATP.Repl
 import TermColor.ColorScheme
+import TermColor.Diagnostics
 import TermColor.Repl
 import TermColor.Terminal
 import TermColor.Widgets
@@ -23,6 +24,7 @@ namespace OATP.ReplView
 open OATP
 open OATP.Repl
 open TermColor
+open TermColor.Diagnostics
 open TermColor.Layout
 open TermColor.Repl
 open TermColor.Terminal
@@ -50,6 +52,9 @@ structure TranscriptEntry where
   input : String
   output : String
   ok : Bool := true
+  elapsedMs : Option Nat := none
+  sources : Sources := #[]
+  diagnostic : Option Diagnostic := none
   deriving Repr
 
 structure JobResult where
@@ -57,6 +62,7 @@ structure JobResult where
   input : String
   output : String
   ok : Bool
+  elapsedMs : Option Nat := none
   deriving Repr
 
 structure App where
@@ -126,25 +132,46 @@ private def opaqueScreen (size : Size) (content : Text) : Text :=
   let lines := lines.map (fun line => withBackground (padRight width line))
   joinLines (lines ++ List.replicate (rows - lines.length) blank)
 
-private def transcriptLine (entry : TranscriptEntry) : Text :=
+def formatElapsed (milliseconds : Nat) : String :=
+  if milliseconds == 0 then "<1 ms"
+  else if milliseconds < 1_000 then s!"{milliseconds} ms"
+  else s!"{milliseconds / 1_000}.{milliseconds % 1_000 / 100} s"
+
+private def diagnosticView (width : Nat) (sources : Sources) (diagnostic : Diagnostic) : Text :=
+  TermColor.Diagnostics.render sources diagnostic
+    { width := max 1 (frameWidth width - 2), contextLines := 0, hyperlinks := false } theme
+
+private def transcriptLine (width : Nat) (entry : TranscriptEntry) : Text :=
   let input := Text.styled s!"[{entry.cell}] " (Style.dim <+> Style.fg theme.comment) ++
     Text.styled "› " (Style.bold <+> Style.fg theme.orange) ++
     Text.styled entry.input (Style.fg theme.foreground)
   let marker := if entry.ok then "=" else "!"
   let style := if entry.ok then Style.fg theme.green else Style.fg theme.red
-  let output := match entry.output.splitOn "\n" with
-    | [] => Text.empty
-    | line :: rest =>
-        let first := Text.styled s!"  {marker} " (Style.bold <+> style) ++ Text.plain line
-        rest.foldl (fun output line => output ++ Text.plain "\n    " ++ Text.plain line)
-          first
-  input ++ Text.plain "\n" ++ output
+  let marker := Text.styled s!"  {marker} " (Style.bold <+> style)
+  let output := match entry.diagnostic with
+    | some diagnostic =>
+        match splitLines (diagnosticView width entry.sources diagnostic) with
+        | [] => marker
+        | line :: rest =>
+            let first := marker ++ line
+            rest.foldl (fun output line => output ++ Text.plain "\n    " ++ line) first
+    | none =>
+        match entry.output.splitOn "\n" with
+        | [] => marker
+        | line :: rest =>
+            let first := marker ++ Text.plain line
+            rest.foldl (fun output line => output ++ Text.plain "\n    " ++ Text.plain line)
+              first
+  let timing := entry.elapsedMs.map (fun milliseconds =>
+      Text.styled s!"  ({formatElapsed milliseconds})"
+        (Style.dim <+> Style.fg theme.comment)) |>.getD Text.empty
+  input ++ Text.plain "\n" ++ output ++ timing
 
-private def fitEntries (_width budget : Nat) (entries : List TranscriptEntry) : List Text :=
+private def fitEntries (width budget : Nat) (entries : List TranscriptEntry) : List Text :=
   let rec keep (remaining : Nat) (kept : List Text) : List TranscriptEntry → List Text
     | [] => kept
     | entry :: older =>
-        let view := transcriptLine entry
+        let view := transcriptLine width entry
         if view.height > remaining then
           if kept.isEmpty then
             [joinLines ((splitLines view).drop (view.height - remaining))]
@@ -158,8 +185,52 @@ private def transcript (width budget : Nat) (entries : List TranscriptEntry) : T
     Text.styled "Type a TPTP statement or /help." (Style.dim <+> Style.fg theme.comment)
   else joinLines views
 
+private def identifierChar (character : Char) : Bool :=
+  character.isAlpha || character.isDigit || character == '_' || character == '$' || character == '\''
+
+private def symbolStyle (symbols : Array Symbol) (token : String) : Style :=
+  if token.startsWith "$" then Style.fg theme.blue
+  else match symbols.find? (fun symbol => symbol.name == token) with
+  | some symbol => match symbol.kind with
+      | .variable => Style.fg theme.yellow
+      | .constant => Style.fg theme.green
+      | .function => Style.fg theme.green
+      | .predicate => Style.fg theme.cyan
+  | none =>
+      match token.toList.head? with
+      | some character =>
+          if character.isUpper then Style.fg theme.yellow else Style.fg theme.foreground
+      | none => Style.fg theme.foreground
+
+private def operatorStyle (token : String) : Style :=
+  if token == "!" || token == "?" then Style.fg theme.pink
+  else if token == "(" || token == ")" || token == "[" || token == "]" || token == "," ||
+      token == ":" then Style.fg theme.purple
+  else Style.fg theme.blue
+
+private def semanticFormula (formula : FormulaView) : Text :=
+  let flush := fun (state : Text × String) =>
+    if state.2.isEmpty then state
+    else (state.1 ++ Text.styled state.2 (symbolStyle formula.symbols state.2), "")
+  let step := fun (state : Text × String) (character : Char) =>
+    if identifierChar character then
+      (state.1, state.2.push character)
+    else
+      let state := flush state
+      let token := String.ofList [character]
+      if character == '!' || character == '?' || character == '(' || character == ')' ||
+          character == '[' || character == ']' || character == ',' || character == ':' ||
+          character == '&' || character == '|' || character == '~' || character == '=' ||
+          character == '<' || character == '>' then
+        (state.1 ++ Text.styled token (operatorStyle token), "")
+      else
+        (state.1 ++ Text.plain token, "")
+  (flush (formula.formula.toList.foldl step (Text.empty, ""))).1
+
 private def formulaLine (formula : FormulaView) : Text :=
-  Text.plain s!"{formula.cell} {formula.role} {formula.name}: {formula.formula}"
+  Text.styled s!"{formula.cell} {formula.role} " (Style.dim <+> Style.fg theme.comment) ++
+    Text.styled formula.name (Style.bold <+> Style.fg theme.cyan) ++
+    Text.styled ": " (Style.dim <+> Style.fg theme.comment) ++ semanticFormula formula
 
 private def symbolLine (symbol : Symbol) : Text :=
   let kind := match symbol.kind with
@@ -268,9 +339,9 @@ def prompt (width : Nat) (state : Repl.State) : Text :=
 private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
-  let hint := if app.stateOpen then "/state close"
-    else if app.historyOpen then "/history close"
-    else "/state context • /history"
+  let hint := if app.stateOpen then "/help /state close"
+    else if app.historyOpen then "/help /history close"
+    else "/help /state /history"
   let leftWidth := outer * 2 / 3
   let rightWidth := outer - leftWidth
   let left := Text.styled state (Style.bold <+> Style.fg (if app.busy then theme.yellow else theme.green)) ++
