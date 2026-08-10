@@ -35,6 +35,132 @@ inductive Submission where
   | source (value : String)
   deriving Repr
 
+structure RunRequest where
+  references : List String := []
+  endpoint : Option String := none
+  refresh : Bool := false
+  noCache : Bool := false
+  timeout : Nat := 30
+  maxOutput : Nat := 4 * 1024 * 1024
+  arguments : List String := []
+  deriving Repr
+
+structure LocalRequest where
+  executable : String
+  timeout : Nat := 30
+  maxOutput : Nat := 4 * 1024 * 1024
+  arguments : List String := []
+  deriving Repr
+
+structure OnlineRequest where
+  system : String
+  endpoint : Option String := none
+  timeout : Nat := 30
+  maxOutput : Nat := 4 * 1024 * 1024
+  deriving Repr
+
+structure SystemsRequest where
+  online : Bool := false
+  endpoint : Option String := none
+  refresh : Bool := false
+  noCache : Bool := false
+  deriving Repr
+
+private def parseNatOption (flag value : String) : Except String Nat :=
+  match value.toNat? with
+  | some number => pure number
+  | none => .error s!"{flag} expects a non-negative integer, got `{value}`"
+
+def parseRunRequest (args : List String) : Except String RunRequest :=
+  let rec loop (args : List String) (request : RunRequest) : Except String RunRequest :=
+    match args with
+    | [] => pure request
+    | "--prover" :: reference :: rest =>
+        loop rest { request with references := request.references ++ [reference] }
+    | "--prover" :: [] => .error "--prover expects a reference"
+    | "--endpoint" :: endpoint :: rest => loop rest { request with endpoint := some endpoint }
+    | "--endpoint" :: [] => .error "--endpoint expects a URL"
+    | "--refresh" :: rest => loop rest { request with refresh := true }
+    | "--no-cache" :: rest => loop rest { request with noCache := true }
+    | "--timeout" :: value :: rest => do
+        let timeout ← parseNatOption "--timeout" value
+        loop rest { request with timeout }
+    | "--timeout" :: [] => .error "--timeout expects a value"
+    | "--max-output" :: value :: rest => do
+        let maxOutput ← parseNatOption "--max-output" value
+        loop rest { request with maxOutput }
+    | "--max-output" :: [] => .error "--max-output expects a value"
+    | "--" :: rest => pure { request with arguments := rest }
+    | reference :: rest => loop rest { request with references := request.references ++ [reference] }
+  loop args {}
+
+def parseLocalRequest (args : List String) : Except String LocalRequest :=
+  let rec loop (args : List String) (request : Option LocalRequest)
+      (timeout maxOutput : Nat) : Except String LocalRequest :=
+    match args with
+    | [] =>
+        match request with
+        | some request => pure { request with timeout, maxOutput }
+        | none => .error "/local expects an executable"
+    | "--executable" :: executable :: rest =>
+        loop rest (some { executable }) timeout maxOutput
+    | "--executable" :: [] => .error "--executable expects a path"
+    | "--timeout" :: value :: rest => do
+        let timeout ← parseNatOption "--timeout" value
+        loop rest request timeout maxOutput
+    | "--timeout" :: [] => .error "--timeout expects a value"
+    | "--max-output" :: value :: rest => do
+        let maxOutput ← parseNatOption "--max-output" value
+        loop rest request timeout maxOutput
+    | "--max-output" :: [] => .error "--max-output expects a value"
+    | "--" :: rest =>
+        match request with
+        | some request => pure { request with timeout, maxOutput, arguments := rest }
+        | none => .error "/local expects an executable before --"
+    | value :: rest =>
+        match request with
+        | some request => pure { request with timeout, maxOutput, arguments := value :: rest }
+        | none => loop rest (some { executable := value }) timeout maxOutput
+  loop args none 30 (4 * 1024 * 1024)
+
+def parseOnlineRequest (args : List String) : Except String OnlineRequest :=
+  let rec loop (args : List String) (system endpoint : Option String)
+      (timeout maxOutput : Nat) : Except String OnlineRequest :=
+    match args with
+    | [] =>
+        match system with
+        | some system => pure { system, endpoint, timeout, maxOutput }
+        | none => .error "/online expects a system reference"
+    | "--system" :: value :: rest => loop rest (some value) endpoint timeout maxOutput
+    | "--system" :: [] => .error "--system expects a reference"
+    | "--endpoint" :: value :: rest => loop rest system (some value) timeout maxOutput
+    | "--endpoint" :: [] => .error "--endpoint expects a URL"
+    | "--timeout" :: value :: rest => do
+        let timeout ← parseNatOption "--timeout" value
+        loop rest system endpoint timeout maxOutput
+    | "--timeout" :: [] => .error "--timeout expects a value"
+    | "--max-output" :: value :: rest => do
+        let maxOutput ← parseNatOption "--max-output" value
+        loop rest system endpoint timeout maxOutput
+    | "--max-output" :: [] => .error "--max-output expects a value"
+    | value :: rest =>
+        match system with
+        | some _ => .error s!"unexpected online option `{value}`"
+        | none => loop rest (some value) endpoint timeout maxOutput
+  loop args none none 30 (4 * 1024 * 1024)
+
+def parseSystemsRequest (args : List String) : Except String SystemsRequest :=
+  let rec loop (args : List String) (request : SystemsRequest) : Except String SystemsRequest :=
+    match args with
+    | [] => pure request
+    | "--online" :: rest => loop rest { request with online := true }
+    | "--refresh" :: rest => loop rest { request with refresh := true }
+    | "--no-cache" :: rest => loop rest { request with noCache := true }
+    | "--endpoint" :: endpoint :: rest => loop rest { request with endpoint := some endpoint }
+    | "--endpoint" :: [] => .error "--endpoint expects a URL"
+    | value :: _ => .error s!"unexpected systems option `{value}`"
+  loop args {}
+
 inductive SymbolKind where
   | variable
   | constant

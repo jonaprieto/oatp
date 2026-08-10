@@ -51,35 +51,29 @@ private def currentProblem (app : App) : Option Problem :=
   app.translation.map (fun source => { name := "lean-goal", source }) |>.orElse
     (fun _ => OATP.Repl.problem app.session)
 
-private def numericOption (name : String) (args : List String) (default : Nat) : Nat :=
-  match args with
-  | flag :: value :: _ => if flag == name then value.toNat?.getD default else default
-  | _ => default
-
-private def runReferences (app : App) (references : List String) : IO (String × Bool) := do
+private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String × Bool) := do
   match currentProblem app with
   | none => pure ("no current problem; add a TPTP conjecture or translate a Lean goal", false)
   | some problem =>
-      let timeout := numericOption "--timeout" references 30
-      let maxOutput := numericOption "--max-output" references (4 * 1024 * 1024)
-      let references := references.filter (fun reference =>
-        !reference.startsWith "--" && reference != "" && reference.toNat?.isNone)
-      let references ← if references.isEmpty then
+      let references ← if request.references.isEmpty then
         pure (← OATP.Runtime.installedProvers).toList
-      else pure references
+      else pure request.references
       let localReferences := references.filter (!·.startsWith "online-")
       let onlineReferences := references.filter (·.startsWith "online-")
-      let limits : Limits := { wallSeconds := timeout, maxOutputBytes := maxOutput }
+      let limits : Limits := { wallSeconds := request.timeout, maxOutputBytes := request.maxOutput }
       let mut attempts : Array Portfolio.Attempt := #[]
       for reference in localReferences do
         attempts := attempts.push {
           name := reference
           limits
-          backend := .local { executable := reference }
+          backend := .local { executable := reference, arguments := request.arguments.toArray }
         }
       if !onlineReferences.isEmpty then
-        let endpoint := SystemOnTPTP.defaultEndpoint
-        match ← OATP.Runtime.loadCatalogue "oatp-repl" endpoint .normal with
+        let endpoint := request.endpoint.getD SystemOnTPTP.defaultEndpoint
+        let mode := if request.noCache then OATP.Runtime.CatalogueCache.noCache
+          else if request.refresh then OATP.Runtime.CatalogueCache.refresh
+          else OATP.Runtime.CatalogueCache.normal
+        match ← OATP.Runtime.loadCatalogue "oatp-repl" endpoint mode with
         | .error message => return (message, false)
         | .ok systems =>
             match OATP.Runtime.resolveOnline "oatp-repl" systems onlineReferences with
@@ -96,8 +90,8 @@ private def runReferences (app : App) (references : List String) : IO (String ×
                     systemLabel := labels.getD 0 ""
                     systemLabels := labels
                     systemCommands := commands.toArray
-                    timeLimit := timeout
-                    maxBodyBytes := maxOutput
+                    timeLimit := request.timeout
+                    maxBodyBytes := request.maxOutput
                   }
                 }
       if attempts.isEmpty then
@@ -107,14 +101,18 @@ private def runReferences (app : App) (references : List String) : IO (String ×
         let rendered := results.toList.map artifactText
         pure (String.intercalate "\n" (rendered.map Prod.fst), rendered.any Prod.snd)
 
-private def systemsText (online : Bool) : IO String := do
+private def systemsText (request : OATP.Repl.SystemsRequest) : IO String := do
   let installed ← OATP.Runtime.installedProvers
   let lines := if installed.isEmpty then ["LOCAL: none"] else
       ["LOCAL:"] ++ installed.toList.map (fun prover => "  " ++ prover)
-  if !online then
+  if !request.online then
     pure <| String.intercalate "\n" lines ++ "\nONLINE: opt-in with /systems --online"
   else
-    match ← OATP.Runtime.loadCatalogue "oatp-repl" SystemOnTPTP.defaultEndpoint .normal with
+    let endpoint := request.endpoint.getD SystemOnTPTP.defaultEndpoint
+    let mode := if request.noCache then OATP.Runtime.CatalogueCache.noCache
+      else if request.refresh then OATP.Runtime.CatalogueCache.refresh
+      else OATP.Runtime.CatalogueCache.normal
+    match ← OATP.Runtime.loadCatalogue "oatp-repl" endpoint mode with
     | .error message => pure <| String.intercalate "\n" lines ++ "\nONLINE: " ++ message
     | .ok systems =>
         pure <| String.intercalate "\n" (lines ++ ["ONLINE:"] ++
@@ -207,24 +205,46 @@ private def submit (app : App) (input : String) : IO App := do
     let session := OATP.Repl.note app.session input "state drawer toggled"
     return { (appendEntry { app with session, stateOpen := !app.stateOpen } cell input
         "state drawer toggled" true) with }
-  if input == "/systems" || input == "/systems --online" then
-    let output ← systemsText (input.endsWith "--online")
-    return note app cell input output true
+  if input == "/systems" || input.startsWith "/systems " then
+    match OATP.Repl.parseSystemsRequest (words input |>.drop 1) with
+    | .error message => return note app cell input message false
+    | .ok request =>
+        let output ← systemsText request
+        return note app cell input output true
   if input == "/doctor" then
     return note app cell input (← doctorText) true
   if input == "/run" || input.startsWith "/run " then
-    let args := words input |>.drop 1
-    let (output, ok) ← runReferences app args
-    return note app cell input output ok
+    match OATP.Repl.parseRunRequest (words input |>.drop 1) with
+    | .error message => return note app cell input message false
+    | .ok request =>
+        let (output, ok) ← runRequest app request
+        return note app cell input output ok
   if input == "/local" || input.startsWith "/local " then
-    let args := words input |>.drop 1
-    let (output, ok) ← runReferences app args
-    return note app cell input output ok
+    match OATP.Repl.parseLocalRequest (words input |>.drop 1) with
+    | .error message => return note app cell input message false
+    | .ok request =>
+        let request : OATP.Repl.RunRequest := {
+          references := [request.executable]
+          timeout := request.timeout
+          maxOutput := request.maxOutput
+          arguments := request.arguments
+        }
+        let (output, ok) ← runRequest app request
+        return note app cell input output ok
   if input == "/online" || input.startsWith "/online " then
-    let args := words input |>.drop 1
-    let args := args.map (fun reference => if reference.startsWith "online-" then reference else "online-" ++ reference)
-    let (output, ok) ← runReferences app args
-    return note app cell input output ok
+    match OATP.Repl.parseOnlineRequest (words input |>.drop 1) with
+    | .error message => return note app cell input message false
+    | .ok request =>
+        let reference := if request.system.startsWith "online-" then request.system
+          else "online-" ++ request.system
+        let request : OATP.Repl.RunRequest := {
+          references := [reference]
+          endpoint := request.endpoint
+          timeout := request.timeout
+          maxOutput := request.maxOutput
+        }
+        let (output, ok) ← runRequest app request
+        return note app cell input output ok
   match OATP.Repl.apply app.session input with
   | .ok session =>
       let output := lastHistory session

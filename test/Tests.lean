@@ -100,6 +100,18 @@ open OATP OATP.TPTP
 #guard match OATP.Repl.parseInput "/conjecture goal p" with
   | .command (.conjecture "goal" "p") => true
   | _ => false
+#guard match OATP.Repl.parseRunRequest
+    ["--prover", "eprover", "--timeout", "7", "--max-output", "99", "--no-cache", "--", "--foo"] with
+  | .ok request => request.references == ["eprover"] && request.timeout == 7 &&
+      request.maxOutput == 99 && request.noCache && request.arguments == ["--foo"]
+  | .error _ => false
+#guard match OATP.Repl.parseLocalRequest ["--executable", "eprover", "--timeout", "4", "--", "--foo"] with
+  | .ok request => request.executable == "eprover" && request.timeout == 4 &&
+      request.arguments == ["--foo"]
+  | .error _ => false
+#guard match OATP.Repl.parseOnlineRequest ["--system", "online-vampire", "--timeout", "5"] with
+  | .ok request => request.system == "online-vampire" && request.timeout == 5
+  | .error _ => false
 #guard match OATP.Repl.parseSource {} "fof(goal, conjecture, p(X))."
     "fof(goal, conjecture, p(X))." with
   | .ok session =>
