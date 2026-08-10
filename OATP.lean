@@ -8,6 +8,7 @@ import OATP.Core
 import OATP.Events
 import OATP.Http
 import OATP.Lean
+import OATP.Lean.Repl
 import OATP.Process
 import OATP.Proof
 import OATP.Portfolio

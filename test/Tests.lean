@@ -236,5 +236,25 @@ def main : IO UInt32 := do
         throw <| IO.userError "missing executable was not reported as a process error"
   | .error (.io _) => pure ()
   | .error _ => throw <| IO.userError "local process IO failure was misclassified"
+  let leanRuntime ← OATP.Lean.Repl.create
+  let (leanRuntime, goal) ← match ← OATP.Lean.Repl.goalFromFormula leanRuntime "p => p" with
+    | .ok value => pure value
+    | .error message => throw <| IO.userError s!"Lean REPL goal creation failed: {message}"
+  let (_, snapshot) ← OATP.Lean.Repl.snapshot leanRuntime goal
+  if snapshot.target.isEmpty || snapshot.context.isEmpty then
+    throw <| IO.userError "Lean REPL snapshot omitted target or local atom"
+  let (leanRuntime, translation) ← OATP.Lean.Repl.translateToTPTP leanRuntime goal
+  match translation with
+  | .ok value =>
+      if !value.problem.source.contains "fof(goal, conjecture" then
+        throw <| IO.userError "Lean REPL translation omitted conjecture"
+  | .error message => throw <| IO.userError s!"Lean REPL translation failed: {message}"
+  let (_, reconstructed) ← OATP.Lean.Repl.reconstruct leanRuntime goal
+      (.implicationIntro `h (.exact `h))
+  match reconstructed with
+  | .ok term =>
+      if !term.checked || !term.term.contains "fun" then
+        throw <| IO.userError "Lean REPL did not render a checked proof term"
+  | .error message => throw <| IO.userError s!"Lean REPL reconstruction failed: {message}"
   IO.println "OATP tests passed"
   return 0
