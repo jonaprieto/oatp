@@ -62,6 +62,9 @@ open OATP OATP.TPTP
       "\n<input name=\"System___E---3.5.1\">") with
   | systems => (OATP.SystemOnTPTP.Catalogue.resolve systems "online-vampire").isSome &&
       (OATP.SystemOnTPTP.Catalogue.resolve systems "online-E---3.5.1").isSome
+#guard match OATP.Runtime.resolveOnline "oatp" #[{ id := "Vampire---5.0.1" }] ["online-vampire"] with
+  | .ok #[system] => system.id == "Vampire---5.0.1"
+  | _ => false
 #guard match (OATP.SystemOnTPTP.Catalogue.parse
     ("<input NAME=\"System___Vampire---5.0.1\">\n" ++
       "<input name=\"Command___Vampire---5.0.1\" value=\"run_vampire %s %d THM\">\n" ++
