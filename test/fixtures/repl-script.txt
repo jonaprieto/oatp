@@ -12,3 +12,7 @@ fof(goal, conjecture, p).
 /to-lean $true
 /reconstruct true-intro
 /term
+/to-lean p => p
+/to-tptp
+fof(replaced, conjecture, q).
+/run cat

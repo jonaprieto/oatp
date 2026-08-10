@@ -36,6 +36,16 @@ private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : B
 private def note (app : App) (cell : Nat) (input output : String) (ok : Bool) : App :=
   appendEntry { app with session := OATP.Repl.note app.session input output } cell input output ok
 
+private def clearDerived (app : App) : App :=
+  { app with goal := none, translation := none, term := none, leanGoal := none }
+
+private def changesContext (input : String) : Bool :=
+  match OATP.Repl.parseInput input with
+  | .source _ => true
+  | .command command => match command with
+      | .parse _ | .axiom _ _ | .conjecture _ _ | .clear | .reset => true
+      | _ => false
+
 private def lastHistory (session : OATP.Repl.Session) : String :=
   session.history.toList.reverse.head?.map (·.result) |>.getD "ok"
 
@@ -270,7 +280,7 @@ private def submit (app : App) (input : String) : IO App := do
       let source ← IO.FS.readFile path
       match OATP.Repl.parseSource app.session input source with
       | .ok session =>
-          return appendEntry { app with session } cell input (lastHistory session) true
+          return appendEntry (clearDerived { app with session }) cell input (lastHistory session) true
       | .error message => return note app cell input message false
     catch error =>
       return note app cell input s!"could not read `{path}`: {error}" false
@@ -323,7 +333,9 @@ private def submit (app : App) (input : String) : IO App := do
   match OATP.Repl.apply app.session input with
   | .ok session =>
       let output := lastHistory session
-      pure <| appendEntry { app with session } cell input output true
+      let app := if changesContext input then clearDerived { app with session }
+        else { app with session }
+      pure <| appendEntry app cell input output true
   | .error message => pure (note app cell input message false)
 
 private def commandNames : List String :=
