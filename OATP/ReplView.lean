@@ -82,8 +82,13 @@ private def transcriptLine (entry : TranscriptEntry) : Text :=
   let input := Text.styled s!"[{entry.cell}] › {entry.input}" (Style.fg theme.cyan)
   let marker := if entry.ok then "=" else "!"
   let style := if entry.ok then Style.fg theme.green else Style.fg theme.red
-  input ++ Text.plain "\n" ++ Text.styled s!"    {marker} " (Style.bold <+> style) ++
-    Text.plain entry.output
+  let output := match entry.output.splitOn "\n" with
+    | [] => Text.empty
+    | line :: rest =>
+        let first := Text.styled s!"    {marker} " (Style.bold <+> style) ++ Text.plain line
+        rest.foldl (fun output line => output ++ Text.plain "\n      " ++ Text.plain line)
+          first
+  input ++ Text.plain "\n" ++ output
 
 private def transcript (entries : List TranscriptEntry) : Text :=
   let visible := entries.reverse.take 14
@@ -109,8 +114,7 @@ private def contextPanel (app : App) (width : Nat) : Text :=
   let problem := if app.session.problemSource.isEmpty then
       "(no problem)"
     else
-      app.session.problemSource.splitOn "\n" |>.take 3 |>.foldl (fun out line =>
-        if out.isEmpty then line else out ++ "\n" ++ line) ""
+      String.intercalate "\n" (app.session.problemSource.splitOn "\n" |>.take 3)
   let goal := match app.goal with
     | none => "(no Lean goal)"
     | some goal => s!"⊢ {goal.target}"
@@ -119,8 +123,7 @@ private def contextPanel (app : App) (width : Nat) : Text :=
     | some term => s!"{term.term} : {term.type}"
   let translation := match app.translation with
     | none => "(no Lean → TPTP translation)"
-    | some source => source.splitOn "\n" |>.take 3 |>.foldl (fun out line =>
-        if out.isEmpty then line else out ++ "\n" ++ line) ""
+    | some source => String.intercalate "\n" (source.splitOn "\n" |>.take 3)
   let body := joinLines <|
     [ Text.styled "CONJECTURES / FORMULAS" (Style.bold <+> Style.fg theme.purple) ] ++
     (if formulas.isEmpty then [Text.plain "(none)"] else formulas.map formulaLine) ++

@@ -147,7 +147,7 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
     | .error message =>
         pure { app with jobResult := some { cell := app.session.nextCell, input, output := message, ok := false } }
     | .ok request =>
-        -- ponytail: portfolio execution has no process-cancellation seam yet; keep the UI
+        -- partiality: portfolio execution has no process-cancellation seam yet; keep the UI
         -- responsive and add cancellation at Portfolio once process ownership is exposed.
         let (output, ok) ← runRequest app request
         pure { app with jobResult := some { cell := app.session.nextCell, input, output, ok } }
@@ -189,13 +189,19 @@ private def doctorText : IO String := do
 
 private partial def parseStepTokens : List String → Except String (OATP.Proof.Step × List String)
   | "true-intro" :: rest => pure (.trueIntro, rest)
+  | "exact" :: [] => .error "exact expects a hypothesis name"
   | "exact" :: name :: rest => pure (.exact (Name.mkSimple name), rest)
+  | "and-left" :: [] => .error "and-left expects a hypothesis name"
   | "and-left" :: name :: rest => pure (.andLeft (Name.mkSimple name), rest)
+  | "and-right" :: [] => .error "and-right expects a hypothesis name"
   | "and-right" :: name :: rest => pure (.andRight (Name.mkSimple name), rest)
   | "and-intro" :: rest => do
       let (left, rest) ← parseStepTokens rest
       let (right, rest) ← parseStepTokens rest
       pure (.andIntro left right, rest)
+  | "implication-intro" :: [] => .error "implication-intro expects a hypothesis name"
+  | "implication-intro" :: name :: [] =>
+      .error s!"implication-intro `{name}` expects a body step"
   | "implication-intro" :: name :: rest => do
       let (body, rest) ← parseStepTokens rest
       pure (.implicationIntro (Name.mkSimple name) body, rest)
@@ -335,7 +341,9 @@ private def submit (app : App) (input : String) : IO App := do
       let output := lastHistory session
       let app := if changesContext input then clearDerived { app with session }
         else { app with session }
-      pure <| appendEntry app cell input output true
+      let app := if input == "/reset" then { app with entries := [] } else app
+      let entryCell := if input == "/reset" then 1 else cell
+      pure <| appendEntry app entryCell input output true
   | .error message => pure (note app cell input message false)
 
 private def commandNames : List String :=
@@ -369,8 +377,9 @@ private def interactive (initial : App) : IO Unit := do
 private def runScript (app : App) (lines : List String) : IO App := do
   let mut app := app
   for line in lines do
-    unless line.trimAscii.toString.isEmpty do
-      app ← submit app line
+    if app.running then
+      unless line.trimAscii.toString.isEmpty do
+        app ← submit app line
   pure app
 
 private def staticOutput (app : App) : IO Unit := do
@@ -383,15 +392,31 @@ private def usage : String :=
   "usage:\n  lake exe oatp-repl\n  lake exe oatp-repl --script FILE\n\n" ++
   "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  /to-tptp\n  /reconstruct implication-intro h exact h\n  /term"
 
-def main (args : List String) : IO Unit := do
+private def scriptExitCode (app : App) : UInt32 :=
+  if app.entries.all (·.ok) then 0 else 1
+
+def main (args : List String) : IO UInt32 := do
   if args == ["--help"] || args == ["-h"] then
     IO.println usage
-    return
+    return 0
   let runtime ← OATP.Lean.Repl.create
   let initial : App := { leanRuntime := some runtime }
   let script? ← match args with
-    | ["--script", path] => pure (some (← IO.FS.readFile path))
-    | _ => pure none
+    | ["--script", path] =>
+        try pure (some (← IO.FS.readFile path))
+        catch error =>
+          IO.eprintln s!"could not read script `{path}`: {error}"
+          return 1
+    | ["--script"] =>
+        IO.eprintln usage
+        return 1
+    | [] => pure none
+    | values =>
+        if values.head?.map (·.startsWith "/") |>.getD false then
+          pure none
+        else
+          IO.eprintln s!"unknown option `{String.intercalate " " values}`\n\n{usage}"
+          return 1
   let interactiveTerminal ← do
     pure ((← stdoutIsTty) && (← stdinIsTty) && (← stdoutSupportsControl))
   let blocked := (← IO.getEnv "CI").isSome || (← IO.getEnv "OATP_NONINTERACTIVE").isSome
@@ -399,12 +424,16 @@ def main (args : List String) : IO Unit := do
   | some source =>
       let result ← runScript initial (source.splitOn "\n")
       staticOutput result
+      return scriptExitCode result
   | none =>
       if interactiveTerminal && !blocked && args.isEmpty then
-        interactive initial
+        let _ ← interactive initial
+        return 0
       else
         let lines := if args.isEmpty then
           ["/conjecture goal p => p", "/state", "/goal p => p", "/snapshot",
              "/to-lean p => p", "/to-tptp", "/reconstruct implication-intro h exact h", "/term"]
           else [String.intercalate " " args]
-        staticOutput (← runScript initial lines)
+        let result ← runScript initial lines
+        staticOutput result
+        return scriptExitCode result
