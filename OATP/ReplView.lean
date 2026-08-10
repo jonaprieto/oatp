@@ -40,6 +40,13 @@ structure TranscriptEntry where
   ok : Bool := true
   deriving Repr
 
+structure JobResult where
+  cell : Nat
+  input : String
+  output : String
+  ok : Bool
+  deriving Repr
+
 structure App where
   session : OATP.Repl.Session := {}
   entries : List TranscriptEntry := []
@@ -47,6 +54,8 @@ structure App where
   stateOpen : Bool := true
   running : Bool := true
   status : String := "ready"
+  busy : Bool := false
+  jobResult : Option JobResult := none
   goal : Option OATP.GoalSnapshot := none
   translation : Option String := none
   term : Option OATP.Lean.Repl.RenderedTerm := none
@@ -108,6 +117,10 @@ private def contextPanel (app : App) (width : Nat) : Text :=
   let term := match app.term with
     | none => "(no checked term)"
     | some term => s!"{term.term} : {term.type}"
+  let translation := match app.translation with
+    | none => "(no Lean → TPTP translation)"
+    | some source => source.splitOn "\n" |>.take 3 |>.foldl (fun out line =>
+        if out.isEmpty then line else out ++ "\n" ++ line) ""
   let body := joinLines <|
     [ Text.styled "CONJECTURES / FORMULAS" (Style.bold <+> Style.fg theme.purple) ] ++
     (if formulas.isEmpty then [Text.plain "(none)"] else formulas.map formulaLine) ++
@@ -117,6 +130,8 @@ private def contextPanel (app : App) (width : Nat) : Text :=
     , fitText (max 1 (width - 4)) problem
     , Text.styled "LEAN GOAL" (Style.bold <+> Style.fg theme.purple)
     , Text.plain goal
+    , Text.styled "TRANSLATED TPTP" (Style.bold <+> Style.fg theme.purple)
+    , fitText (max 1 (width - 4)) translation
     , Text.styled "TERM" (Style.bold <+> Style.fg theme.purple)
     , Text.plain term ]
   box body { title := some (Text.styled "state" (Style.bold <+> Style.fg theme.orange))
@@ -146,7 +161,8 @@ def screen (app : App) (size : Size) : Text :=
     Text.styled s!" oatp-repl v{version} " (Style.bold <+> Style.fg theme.orange) ++
       Text.styled (String.ofList (List.replicate (max 0 (width - version.length - 12)) '─'))
         (Style.fg theme.selection)
-  let footer := Text.styled s!"[{app.status}]  /help  /state  /history  /quit"
+  let state := if app.busy then "busy" else app.status
+  let footer := Text.styled s!"[{state}]  /help  /state  /history  /quit"
     (Style.dim <+> Style.fg theme.comment)
   let prompt := prompt width app.repl
   let body := joinLines [header, transcript app.entries, prompt, footer]

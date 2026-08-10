@@ -101,6 +101,57 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
         let rendered := results.toList.map artifactText
         pure (String.intercalate "\n" (rendered.map Prod.fst), rendered.any Prod.snd)
 
+private def backendLine (input : String) : Bool :=
+  input == "/run" || input.startsWith "/run " || input == "/local" || input.startsWith "/local " ||
+  input == "/online" || input.startsWith "/online "
+
+private def backendRequest (input : String) : Except String OATP.Repl.RunRequest :=
+  let args := words input |>.drop 1
+  if input == "/run" || input.startsWith "/run " then
+    OATP.Repl.parseRunRequest args
+  else if input == "/local" || input.startsWith "/local " then
+    match OATP.Repl.parseLocalRequest args with
+    | .error message => .error message
+    | .ok request => pure {
+        references := [request.executable]
+        timeout := request.timeout
+        maxOutput := request.maxOutput
+        arguments := request.arguments }
+  else
+    match OATP.Repl.parseOnlineRequest args with
+    | .error message => .error message
+    | .ok request => pure {
+        references := [if request.system.startsWith "online-" then request.system
+          else "online-" ++ request.system]
+        endpoint := request.endpoint
+        timeout := request.timeout
+        maxOutput := request.maxOutput }
+
+private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
+  shouldRun := fun _ input => backendLine input
+  start := fun app _ => { app with busy := true, jobResult := none, repl := {} }
+  run := fun cancellation app input => do
+    unless ← TermColor.Repl.Terminal.Cancellation.sleep cancellation 1 do
+      return app
+    match backendRequest input with
+    | .error message =>
+        pure { app with jobResult := some { cell := app.session.nextCell, input, output := message, ok := false } }
+    | .ok request =>
+        -- ponytail: portfolio execution has no process-cancellation seam yet; keep the UI
+        -- responsive and add cancellation at Portfolio once process ownership is exposed.
+        let (output, ok) ← runRequest app request
+        pure { app with jobResult := some { cell := app.session.nextCell, input, output, ok } }
+  finish := fun current completed =>
+    match completed.jobResult with
+    | some result =>
+        note { current with busy := false, jobResult := none }
+          result.cell result.input result.output result.ok
+    | none => { current with busy := false }
+  cancel := fun app => { app with busy := false, jobResult := none }
+  fail := fun app message =>
+    note { app with busy := false, jobResult := none } app.session.nextCell
+      "background prover" message false
+
 private def systemsText (request : OATP.Repl.SystemsRequest) : IO String := do
   let installed ← OATP.Runtime.installedProvers
   let lines := if installed.isEmpty then ["LOCAL: none"] else
@@ -126,15 +177,26 @@ private def doctorText : IO String := do
     "local: " ++ if installed.isEmpty then "none" else String.intercalate ", " installed.toList,
     "online: " ++ if transports.isEmpty then "unavailable" else "ready"]
 
-private def parseStep (source : String) : Except String OATP.Proof.Step :=
-  match words source with
-  | ["true-intro"] => pure .trueIntro
-  | ["exact", name] => pure (.exact (Name.mkSimple name))
-  | ["and-left", name] => pure (.andLeft (Name.mkSimple name))
-  | ["and-right", name] => pure (.andRight (Name.mkSimple name))
-  | ["implication-intro", name, "exact", body] =>
-      pure (.implicationIntro (Name.mkSimple name) (.exact (Name.mkSimple body)))
-  | _ => .error "proof steps: true-intro | exact NAME | implication-intro NAME exact NAME"
+private partial def parseStepTokens : List String → Except String (OATP.Proof.Step × List String)
+  | "true-intro" :: rest => pure (.trueIntro, rest)
+  | "exact" :: name :: rest => pure (.exact (Name.mkSimple name), rest)
+  | "and-left" :: name :: rest => pure (.andLeft (Name.mkSimple name), rest)
+  | "and-right" :: name :: rest => pure (.andRight (Name.mkSimple name), rest)
+  | "and-intro" :: rest => do
+      let (left, rest) ← parseStepTokens rest
+      let (right, rest) ← parseStepTokens rest
+      pure (.andIntro left right, rest)
+  | "implication-intro" :: name :: rest => do
+      let (body, rest) ← parseStepTokens rest
+      pure (.implicationIntro (Name.mkSimple name) body, rest)
+  | [] => .error "expected a proof step"
+  | token :: _ => .error s!"unknown proof step `{token}`"
+
+private def parseStep (source : String) : Except String OATP.Proof.Step := do
+  let (step, rest) ← parseStepTokens (words source)
+  match rest with
+  | [] => pure step
+  | token :: _ => .error s!"unexpected proof step token `{token}`"
 
 private def submitGoal (app : App) (cell : Nat) (input formula : String) : IO App := do
   let runtime ← match app.leanRuntime with
@@ -155,8 +217,9 @@ private def submitGoal (app : App) (cell : Nat) (input formula : String) : IO Ap
 
 private def submitLeanCommand (app : App) (cell : Nat) (input : String) : IO (Option App) := do
   let line := input.trimAscii.toString
-  if line.startsWith "/goal " then
-    return some (← submitGoal app cell input (line.drop "/goal ".length).trimAscii.toString)
+  let goalCommand := ["/goal ", "/to-lean ", "/translate-to-lean "].find? (line.startsWith ·)
+  if let some command := goalCommand then
+    return some (← submitGoal app cell input (line.drop command.length).trimAscii.toString)
   if line == "/snapshot" then
     match app.leanRuntime, app.leanGoal with
     | some runtime, some goal =>
@@ -253,7 +316,8 @@ private def submit (app : App) (input : String) : IO App := do
 
 private def commandNames : List String :=
   ["/help", "/history", "/state", "/clear", "/reset", "/axiom", "/conjecture", "/parse",
-   "/goal", "/snapshot", "/to-tptp", "/reconstruct", "/term", "/run", "/local", "/online",
+   "/goal", "/to-lean", "/translate-to-lean", "/snapshot", "/to-tptp", "/reconstruct", "/term",
+   "/run", "/local", "/online",
    "/systems", "/doctor", "/quit", "/exit"]
 
 private def complete (_app : App) (input : TextInputState) : IO (List Completion) := do
@@ -273,6 +337,7 @@ private def interactive (initial : App) : IO Unit := do
     getState := fun app => app.repl
     setState := fun app repl => { app with repl }
     submit := submit
+    jobs := some backgroundJobs
     isRunning := fun app => app.running
     quit := fun app => { app with running := false }
   }
@@ -315,7 +380,7 @@ def main (args : List String) : IO Unit := do
         interactive initial
       else
         let lines := if args.isEmpty then
-            ["/conjecture goal p => p", "/state", "/goal p => p", "/snapshot",
-             "/to-tptp", "/reconstruct implication-intro h exact h", "/term"]
+          ["/conjecture goal p => p", "/state", "/goal p => p", "/snapshot",
+             "/to-lean p => p", "/to-tptp", "/reconstruct implication-intro h exact h", "/term"]
           else [String.intercalate " " args]
         staticOutput (← runScript initial lines)
