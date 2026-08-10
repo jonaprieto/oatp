@@ -18,11 +18,11 @@ lake exe demo
 lake exe proof-demo
 lake exe oatp --help
 lake exe oatp systems
-lake exe oatp-repl
+lake exe oatp repl
 lake exe tests
 ```
 
-`oatp-repl` keeps the TPTP context, conjectures, formulas, variables, symbols, history, Lean
+`oatp repl` keeps the TPTP context, conjectures, formulas, variables, symbols, history, Lean
 goals, translated problems, prover artifacts, and kernel-checked terms in one session:
 
 ```text
@@ -72,7 +72,7 @@ require oatp from git
 ## Build
 
 ```sh
-lake build OATP OATP.Properties demo proof-demo oatp oatp-repl tests
+lake build OATP OATP.Properties demo proof-demo oatp tests
 lake exe tests
 ```
 

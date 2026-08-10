@@ -10,7 +10,7 @@ import TermColor.Repl.Terminal
 import TermColor.Terminal
 
 /-!
-# oatp-repl
+# oatp repl
 
 The interactive shell combines the pure TPTP session model with OATP's existing process, portfolio,
 catalogue, and Lean proof boundaries. Static script mode keeps the same command path testable in CI.
@@ -294,8 +294,12 @@ private def submit (app : App) (input : String) : IO App := do
     return result
   if input == "/state" then
     let session := OATP.Repl.note app.session input "state drawer toggled"
-    return { (appendEntry { app with session, stateOpen := !app.stateOpen } cell input
+    return { (appendEntry { app with session, stateOpen := !app.stateOpen, historyOpen := false } cell input
         "state drawer toggled" true) with }
+  if input == "/history" then
+    let session := OATP.Repl.note app.session input "history drawer toggled"
+    return appendEntry { app with session, historyOpen := !app.historyOpen, stateOpen := false }
+      cell input "history drawer toggled" true
   if input == "/systems" || input.startsWith "/systems " then
     match OATP.Repl.parseSystemsRequest (words input |>.drop 1) with
     | .error message => return note app cell input message false
@@ -388,14 +392,14 @@ private def staticOutput (app : App) : IO Unit := do
     IO.println s!"    {(if entry.ok then "=" else "!")} {entry.output}"
 
 private def usage : String :=
-  "oatp-repl — interactive TPTP/Lean ATP workbench\n\n" ++
-  "usage:\n  lake exe oatp-repl\n  lake exe oatp-repl --script FILE\n\n" ++
+  "oatp repl — interactive TPTP/Lean ATP workbench\n\n" ++
+  "usage:\n  lake exe oatp repl\n  lake exe oatp repl --script FILE\n\n" ++
   "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  /to-tptp\n  /reconstruct implication-intro h exact h\n  /term"
 
 private def scriptExitCode (app : App) : UInt32 :=
   if app.entries.all (·.ok) then 0 else 1
 
-def main (args : List String) : IO UInt32 := do
+def oatpReplMain (args : List String) : IO UInt32 := do
   if args == ["--help"] || args == ["-h"] then
     IO.println usage
     return 0

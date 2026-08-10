@@ -49,8 +49,8 @@ lean_exe «oatp» where
   root := `Cli
   srcDir := "examples"
 
-lean_exe «oatp-repl» where
-  root := `Repl
+lean_lib «OATP.ReplApp» where
+  roots := #[`Repl]
   srcDir := "examples"
 
 @[test_driver]

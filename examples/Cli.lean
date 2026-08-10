@@ -7,6 +7,7 @@ Authors: Jonathan Prieto-Cubides
 import Argus
 import Argus.Term
 import OATP
+import Repl
 import Std.Async.Process
 import TermColor.Diagnostics
 import TermColor.Terminal
@@ -80,6 +81,7 @@ inductive Action where
   | local (options : LocalOptions)
   | online (options : OnlineOptions)
   | systems (options : SystemsOptions)
+  | repl
   | doctor
 
 def cli (identity : CliIdentity) : Argus.Command Action :=
@@ -92,6 +94,8 @@ def cli (identity : CliIdentity) : Argus.Command Action :=
         (description := "Submit a problem to SystemOnTPTP")
     , Argus.cmd "systems" (Spec.map Action.systems SystemsOptions.spec)
         (description := "List installed local and available online provers")
+    , Argus.cmd "repl" (Spec.const Action.repl)
+        (description := "Open the interactive TPTP/Lean ATP workbench")
     , Argus.cmd "doctor" (Spec.const Action.doctor)
         (description := "Check local tools and online prover readiness") ]
     (version := some identity.version)
@@ -517,6 +521,8 @@ private def runOnline (identity : CliIdentity) (options : OnlineOptions) : IO UI
   catch error => printDiagnostic s!"could not read problem: {error}"
 
 def main (argv : List String) : IO UInt32 := do
+  if let "repl" :: replArgs := argv then
+    return ← oatpReplMain replArgs
   let identity ← cliIdentity
   let command := cli identity
   if argv.isEmpty then
@@ -529,4 +535,5 @@ def main (argv : List String) : IO UInt32 := do
       | .local options => runLocal identity.name options
       | .online options => runOnline identity options
       | .systems options => runSystems identity options
+      | .repl => pure 0
       | .doctor => runDoctor identity

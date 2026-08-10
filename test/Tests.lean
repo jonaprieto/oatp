@@ -120,11 +120,15 @@ open OATP OATP.TPTP
       session.symbols.any (fun symbol => symbol.kind == .variable && symbol.name == "X")
   | .error _ => false
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
-#guard (OATP.ReplView.screen { translation := some "fof(goal, conjecture, p)." }
-    { columns := 100, rows := 24 }).plainText.contains "TRANSLATED TPTP"
+#guard (OATP.ReplView.screen
+    { stateOpen := true, translation := some "fof(goal, conjecture, p)." }
+    { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
+#guard (OATP.ReplView.screen
+    { historyOpen := true, session := { history := #[{ cell := 1, input := "/help", result := "commands" }] } }
+    { columns := 100, rows := 24 }).plainText.contains "history"
 #guard (OATP.ReplView.screen
     { entries := [{ cell := 1, input := "/snapshot", output := "first\nsecond" }] }
-    { columns := 100, rows := 24 }).plainText.contains "      second"
+    { columns := 100, rows := 24 }).plainText.contains "second"
 #guard match OATP.Repl.apply {} "/help" with
   | .ok session => (session.history.toList.getLast?.map (·.result)).getD "" |>.contains "/to-lean"
   | .error _ => false
