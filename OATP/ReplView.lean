@@ -268,9 +268,9 @@ def prompt (width : Nat) (state : Repl.State) : Text :=
 private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
-  let hint := if app.stateOpen then "enter submit • /state close"
-    else if app.historyOpen then "enter submit • /history close"
-    else "/state context • /history drawer"
+  let hint := if app.stateOpen then "/state close"
+    else if app.historyOpen then "/history close"
+    else "/state context • /history"
   let leftWidth := outer * 2 / 3
   let rightWidth := outer - leftWidth
   let left := Text.styled state (Style.bold <+> Style.fg (if app.busy then theme.yellow else theme.green)) ++
