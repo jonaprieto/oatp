@@ -262,6 +262,18 @@ private def submit (app : App) (input : String) : IO App := do
   let cell := app.session.nextCell
   if input == "/quit" || input == "/exit" then
     return { app with running := false }
+  if input.startsWith "/load " then
+    let path := input.drop "/load ".length |>.trimAscii.toString
+    if path.isEmpty then
+      return note app cell input "/load expects a TPTP file path" false
+    try
+      let source ← IO.FS.readFile path
+      match OATP.Repl.parseSource app.session input source with
+      | .ok session =>
+          return appendEntry { app with session } cell input (lastHistory session) true
+      | .error message => return note app cell input message false
+    catch error =>
+      return note app cell input s!"could not read `{path}`: {error}" false
   if let some result ← submitLeanCommand app cell input then
     return result
   if input == "/state" then
@@ -315,7 +327,7 @@ private def submit (app : App) (input : String) : IO App := do
   | .error message => pure (note app cell input message false)
 
 private def commandNames : List String :=
-  ["/help", "/history", "/state", "/clear", "/reset", "/axiom", "/conjecture", "/parse",
+  ["/help", "/history", "/state", "/clear", "/reset", "/load", "/axiom", "/conjecture", "/parse",
    "/goal", "/to-lean", "/translate-to-lean", "/snapshot", "/to-tptp", "/reconstruct", "/term",
    "/run", "/local", "/online",
    "/systems", "/doctor", "/quit", "/exit"]
@@ -357,7 +369,7 @@ private def staticOutput (app : App) : IO Unit := do
 private def usage : String :=
   "oatp-repl — interactive TPTP/Lean ATP workbench\n\n" ++
   "usage:\n  lake exe oatp-repl\n  lake exe oatp-repl --script FILE\n\n" ++
-  "examples:\n  /conjecture goal p => p\n  /goal p => p\n  /to-tptp\n  /reconstruct implication-intro h exact h\n  /term"
+  "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  /to-tptp\n  /reconstruct implication-intro h exact h\n  /term"
 
 def main (args : List String) : IO Unit := do
   if args == ["--help"] || args == ["-h"] then

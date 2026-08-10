@@ -18,8 +18,29 @@ lake exe demo
 lake exe proof-demo
 lake exe oatp --help
 lake exe oatp systems
+lake exe oatp-repl
 lake exe tests
 ```
+
+`oatp-repl` keeps the TPTP context, conjectures, formulas, variables, symbols, history, Lean
+goals, translated problems, prover artifacts, and kernel-checked terms in one session:
+
+```text
+/to-lean p => p
+/load problem.p
+/snapshot
+/to-tptp
+/reconstruct implication-intro h exact h
+/term
+/run --prover eprover
+/local ./my-prover -- --arg
+/online --system online-vampire
+/systems
+/doctor
+```
+
+Use `/state` for the context drawer, `/history` for the transcript, and `--script FILE` for a
+non-interactive session.
 
 Run a local problem or select an online system explicitly:
 
@@ -49,7 +70,7 @@ require oatp from git
 ## Build
 
 ```sh
-lake build OATP OATP.Properties demo proof-demo oatp tests
+lake build OATP OATP.Properties demo proof-demo oatp oatp-repl tests
 lake exe tests
 ```
 
