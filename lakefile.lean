@@ -25,12 +25,13 @@ require «termcolor-widgets» from git
   "https://github.com/jonaprieto/lean-termcolor-widgets.git"
   @ "v0.1.9"
 
-require «termcolor-repl» from
-  "../lean-termcolor-repl"
+require «termcolor-repl» from git
+  "https://github.com/jonaprieto/lean-termcolor-repl.git"
+  @ "v0.8.0"
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
-  @ "v0.4.8"
+  @ "v0.5.0"
 
 @[default_target]
 lean_lib «OATP» where
