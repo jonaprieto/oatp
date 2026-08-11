@@ -89,6 +89,18 @@ structure JobResult where
   elapsedMs : Option Nat := none
   deriving Repr
 
+structure RunRow where
+  name : String
+  status : String := "queued"
+  detail : String := ""
+  elapsedMs : Option Nat := none
+  deriving Repr
+
+inductive PanelFocus where
+  | main
+  | drawer
+  deriving BEq, DecidableEq, Repr
+
 structure App where
   session : OATP.Repl.Session := {}
   entries : List TranscriptEntry := []
@@ -97,8 +109,14 @@ structure App where
   stateOpen : Bool := false
   historyOpen : Bool := false
   proversOpen : Bool := false
+  runOpen : Bool := false
+  panelFocus : PanelFocus := .main
   proverFocus : Nat := 0
   proverChoices : Array String := #[]
+  runFocus : Nat := 0
+  runRows : Array RunRow := #[]
+  runFrame : Nat := 0
+  runProgress : Option (IO.Ref (Array RunRow)) := none
   selectionStart : Option (Nat × Nat) := none
   selectionEnd : Option (Nat × Nat) := none
   copyPending : Option String := none
@@ -165,6 +183,10 @@ private def fillHeight (height : Nat) (text : Text) : Text :=
 private def withBackground (scheme : ColorScheme) (text : Text) : Text :=
   { segments := text.segments.map fun segment =>
       { segment with style := Style.bg scheme.background <+> segment.style } }
+
+private def dimText (text : Text) : Text :=
+  { segments := text.segments.map fun segment =>
+      { segment with style := Style.dim <+> segment.style } }
 
 private def base64Alphabet : String :=
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
@@ -469,6 +491,16 @@ def focusPreviousProver (app : App) : App :=
   focusProver app (if app.proverFocus == 0 then max 1 app.proverChoices.size - 1
     else app.proverFocus - 1)
 
+def focusRun (app : App) (index : Nat) : App :=
+  let focus := if app.runRows.isEmpty then 0 else min (app.runRows.size - 1) index
+  { app with runFocus := focus }
+
+def focusNextRun (app : App) : App :=
+  focusRun app ((app.runFocus + 1) % max 1 app.runRows.size)
+
+def focusPreviousRun (app : App) : App :=
+  focusRun app (if app.runFocus == 0 then max 1 app.runRows.size - 1 else app.runFocus - 1)
+
 def toggleFocusedProver (app : App) : App :=
   if app.proverChoices.isEmpty then app else
     let name := app.proverChoices[app.proverFocus]!
@@ -505,8 +537,11 @@ private def contextPanel (app : App) (width height : Nat) : Text :=
   let body := joinLines (contextTexts app width)
   let innerWidth := boxInnerWidth width
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
-  box body { title := some (Text.styled "state • H hide" (Style.bold <+> Style.fg app.theme.cyan))
-           , borderStyle := Style.fg app.theme.selection, maxWidth := some width }
+  let active := app.panelFocus == .drawer
+  let title := if active then "state • active • H main" else "state • inactive • Ctrl-] focus"
+  box body { title := some (Text.styled title (Style.bold <+> Style.fg app.theme.cyan))
+           , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
+           , maxWidth := some width }
 
 private def historyPanel (app : App) (width height : Nat) : Text :=
   let rows := app.session.history.toList.reverse.take 18
@@ -525,18 +560,58 @@ private def historyPanel (app : App) (width height : Nat) : Text :=
   box body { title := some (Text.styled "history • active" (Style.bold <+> Style.fg app.theme.cyan))
            , borderStyle := Style.fg app.theme.selection, maxWidth := some width }
 
+def proverVisibleStart (app : App) (height : Nat) : Nat :=
+  let visible := max 1 (height - 2)
+  if app.proverFocus >= visible then app.proverFocus - visible + 1 else 0
+
 private def proverPanel (app : App) (width height : Nat) : Text :=
+  let visible := max 1 (height - 2)
+  let start := proverVisibleStart app height
   let rows := if app.proverChoices.isEmpty then
-      [Text.styled "No installed provers." (Style.dim <+> Style.fg app.theme.comment)]
-    else app.proverChoices.toList.mapIdx fun index name =>
+      [Text.styled "No local or online provers." (Style.dim <+> Style.fg app.theme.comment)]
+    else app.proverChoices.toList.drop start |>.take visible |>.mapIdx fun offset name =>
+      let index := start + offset
       let checked := app.enabledProvers.any (· == name)
       let marker := if checked then "[x]" else "[ ]"
       let style := if index == app.proverFocus then Style.reverse else {}
-      Text.styled s!"{marker} {name}" style
+      let nameStyle := if name.startsWith "online-" then Style.fg app.theme.purple else {}
+      Text.styled s!"{marker} " style ++ Text.styled name (style <+> nameStyle)
   let body := padRight (boxInnerWidth width) (fillHeight (max 1 (height - 2)) (joinLines rows))
-  box body { title := some (Text.styled "provers • active"
-      (Style.bold <+> Style.fg app.theme.cyan))
-           , borderStyle := Style.fg app.theme.selection, maxWidth := some width }
+  let active := app.panelFocus == .drawer
+  let title := if active then "provers • active • H main" else "provers • inactive • Ctrl-] focus"
+  box body { title := some (Text.styled title (Style.bold <+> Style.fg app.theme.cyan))
+           , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
+           , maxWidth := some width }
+
+private def runStatusStyle (scheme : ColorScheme) (status : String) : Style :=
+  match status.toLower with
+  | "theorem" | "unsatisfiable" => Style.bold <+> Style.fg scheme.green
+  | "running" | "queued" => Style.fg scheme.yellow
+  | "error" | "failed" => Style.bold <+> Style.fg scheme.red
+  | _ => Style.fg scheme.comment
+
+private def runPanel (app : App) (width height : Nat) : Text :=
+  let innerWidth := boxInnerWidth width
+  let rows := if app.runRows.isEmpty then
+      [Text.styled "No active prover run." (Style.dim <+> Style.fg app.theme.comment)]
+    else app.runRows.toList.mapIdx fun index row =>
+      let focused := app.runFocus == index && app.panelFocus == .drawer
+      let status := if row.status == "running" then
+          shimmer { base := app.theme.comment, highlight := app.theme.foreground, band := 4 }
+            { frame := app.runFrame } (Text.plain "running")
+        else Text.styled row.status (runStatusStyle app.theme row.status)
+      let elapsed := row.elapsedMs.map (fun value => s!" {value}ms") |>.getD ""
+      let marker := if focused then "› " else "  "
+      let line := Text.plain marker ++ Text.styled row.name (if focused then Style.reverse else {}) ++
+        Text.plain "  " ++ status ++ Text.plain elapsed
+      if row.detail.isEmpty || !focused then line
+      else line ++ Text.plain "\n  " ++ fitText (max 1 (innerWidth - 2)) row.detail
+  let body := padRight innerWidth (fillHeight (max 1 (height - 2)) (joinLines rows))
+  let active := app.panelFocus == .drawer
+  let title := if active then "run • active • H main" else "run • inactive • Ctrl-R open"
+  box body { title := some (Text.styled title (Style.bold <+> Style.fg app.theme.cyan))
+           , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
+           , maxWidth := some width }
 
 private def mascot (scheme : ColorScheme) : Text :=
   joinLines [ Text.styled "  ◆  " (Style.fg scheme.yellow)
@@ -577,12 +652,12 @@ private def compactHeader (scheme : ColorScheme) (width : Nat) : Text :=
     Text.styled (String.ofList (List.replicate (if outer > used then outer - used else 0) '─'))
       (Style.fg scheme.selection)
 
-def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State) : Text :=
+def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State) (focused : Bool := true) : Text :=
   let outer := frameWidth width
   let input := box (Text.styled "› " (Style.bold <+> Style.fg scheme.orange) ++
       TermColor.Repl.renderMultilineTextInputBody
         { width := max 1 (boxInnerWidth outer - 2), textStyle := Style.fg scheme.foreground
-          cursorStyle := Style.reverse } state.input true)
+          cursorStyle := Style.reverse } state.input focused)
       { chars := { topLeft := '╭', topRight := '╮', bottomLeft := '╰', bottomRight := '╯' }
         , borderStyle := Style.fg scheme.selection, maxWidth := some outer }
   match state.completion with
@@ -596,10 +671,15 @@ def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State) : Text :=
 private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
-  let hint := if app.stateOpen then "H hide state • J/K focus • Enter toggle"
-    else if app.proversOpen then "H main • J/K prover • Space toggle"
-    else if app.historyOpen then "H main • /history close"
-    else "/help • PgUp/PgDn scroll • /state"
+  let hint := if app.panelFocus == .drawer && app.runOpen then
+      "H main • J/K prover • Enter details"
+    else if app.panelFocus == .drawer && app.stateOpen then "H main • J/K focus • Enter toggle"
+    else if app.panelFocus == .drawer && app.proversOpen then "H main • J/K prover • Space toggle"
+    else if app.panelFocus == .drawer && app.historyOpen then "H main • /history close"
+    else if app.busy then "Ctrl-R run drawer • input active"
+    else if app.stateOpen || app.proversOpen || app.historyOpen || app.runOpen then
+      "input active • Ctrl-] focus drawer"
+    else "/help • PgUp/PgDn scroll • Ctrl-R runs"
   let leftWidth := outer * 2 / 3
   let rightWidth := outer - leftWidth
   let notice := app.statusNotice.map (fun value => s!"  • {value}") |>.getD ""
@@ -614,7 +694,7 @@ private def footer (app : App) (width : Nat) : Text :=
 def selectedText (app : App) (size : Size) : String :=
   let width := frameWidth size.columns
   let head := if app.entries.isEmpty then banner app.theme width else compactHeader app.theme width
-  let foot := prompt app.theme width app.repl ++ Text.plain "\n" ++ footer app width
+  let foot := prompt app.theme width app.repl (app.panelFocus == .main) ++ Text.plain "\n" ++ footer app width
   let used := head.height + foot.height + 2
   let budget := if size.rows > used then size.rows - used else 1
   let bodyStart := head.height + 1
@@ -631,7 +711,7 @@ def selectedText (app : App) (size : Size) : String :=
 private def calcContent (app : App) (size : Size) : Text :=
   let width := frameWidth size.columns
   let head := if app.entries.isEmpty then banner app.theme width else compactHeader app.theme width
-  let foot := prompt app.theme width app.repl ++ Text.plain "\n" ++ footer app width
+  let foot := prompt app.theme width app.repl (app.panelFocus == .main) ++ Text.plain "\n" ++ footer app width
   let used := head.height + foot.height + 2
   let budget := if size.rows > used then size.rows - used else 1
   let body := transcript app width budget (head.height + 1)
@@ -640,13 +720,16 @@ private def calcContent (app : App) (size : Size) : Text :=
 def screen (app : App) (size : Size) : Text :=
   let width := frameWidth size.columns
   let size := { size with columns := width }
-  let drawerOpen := app.stateOpen || app.historyOpen || app.proversOpen
+  let drawerOpen := app.stateOpen || app.historyOpen || app.proversOpen || app.runOpen
   let content := match drawerOpen, stateDrawerWidths width with
     | true, some (leftWidth, rightWidth) =>
         let left := calcContent app { size with columns := leftWidth }
-        let right := if app.historyOpen then historyPanel app rightWidth size.rows
+        let left := if app.panelFocus == .main then left else dimText left
+        let right := if app.runOpen then runPanel app rightWidth size.rows
+          else if app.historyOpen then historyPanel app rightWidth size.rows
           else if app.proversOpen then proverPanel app rightWidth size.rows
           else contextPanel app rightWidth size.rows
+        let right := if app.panelFocus == .drawer then right else dimText right
         columns [leftWidth, rightWidth] 2 [left, right] []
           (Text.styled "│" (Style.fg app.theme.selection))
     | _, _ => calcContent app size
