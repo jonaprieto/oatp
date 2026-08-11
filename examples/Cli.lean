@@ -136,15 +136,13 @@ private def doctorOnlineAttempts (endpoint : String)
     }
   }
 
-private def doctorOnlineResult : Portfolio.Result → IO Bool
-  | .artifact attempt artifact => do
-      doctorRow attempt.name s!"responded: {artifact.status} ({artifact.elapsedMs}ms)" true
-      pure true
-  | .failed attempt message => do
-      let responded := message.startsWith "SystemOnTPTP returned unsupported SZS status"
-      let message := message.splitOn "\n" |>.headD "failed"
-      doctorRow attempt.name (if responded then "responded: " ++ message else message) responded
-      pure responded
+private def doctorOnlineResult : Portfolio.Result → Bool
+  | .artifact _ _ => true
+  | .failed _ message => message.startsWith "SystemOnTPTP returned unsupported SZS status"
+
+private def portfolioName : Portfolio.Result → String
+  | .artifact attempt _ => attempt.name
+  | .failed attempt _ => attempt.name
 
 private def printDiagnostic (message : String) : IO UInt32 := do
   let stderr ← IO.getStderr
@@ -238,43 +236,15 @@ private def showPortfolioResult : Portfolio.Result → IO Bool
       IO.eprintln s!"! {attempt.name}: {message}"
       pure false
 
-private def portfolioStatus : Portfolio.Result → Text
-  | .artifact _ artifact =>
-      let style := match artifact.status with
-        | .theorem => Style.fg doctorPalette.green
-        | .timeout => Style.fg doctorPalette.yellow
-        | .error => Style.fg doctorPalette.red
-        | _ => Style.fg doctorPalette.foreground
-      Text.styled (toString artifact.status) style
-  | .failed _ _ => Text.styled "failed" (Style.fg doctorPalette.red)
-
-private def portfolioElapsed : Portfolio.Result → String
-  | .artifact _ artifact => s!"{artifact.elapsedMs}ms"
-  | .failed _ _ => "-"
-
-private def portfolioName : Portfolio.Result → String
-  | .artifact attempt _ => attempt.name
-  | .failed attempt _ => attempt.name
-
-private def portfolioRows (results : List Portfolio.Result) : List (List Text) :=
-  [ [ Text.styled "prover" (Style.bold <+> Style.fg doctorPalette.purple)
-    , Text.styled "status" (Style.bold <+> Style.fg doctorPalette.purple)
-    , Text.styled "time" (Style.bold <+> Style.fg doctorPalette.purple) ] ] ++
-  results.map fun result =>
-    [ Text.plain (portfolioName result)
-    , portfolioStatus result
-    , Text.plain (portfolioElapsed result) ]
-
 private def portfolioView (total : Nat) (progress : Widgets.IndeterminateProgressState)
     (results : List Portfolio.Result) : Text :=
   let label := s!"running {total} prover(s) · {results.length}/{total} done"
-  let progress := Widgets.indeterminateProgressBar {
+  Widgets.indeterminateProgressBar {
     width := 28
     indeterminateWidth := 8
     filledStyle := Style.fg doctorPalette.cyan
     emptyStyle := Style.dim <+> Style.fg doctorPalette.comment
   } { progress with label := Text.styled label (Style.fg doctorPalette.foreground) }
-  progress ++ Text.plain "\n" ++ Widgets.renderTable [28, 16, 12] (portfolioRows results)
 
 -- partiality: this live UI loop runs until an external portfolio action sets finished.
 private partial def portfolioProgressLoop (finished : IO.Ref Bool)
@@ -341,10 +311,21 @@ private def runDoctorOnline (identity : CliIdentity) (transports : Array String)
         let results ← withPortfolioProgress systems.size fun onResult =>
           Portfolio.runWith doctorOnlineProblem
             (doctorOnlineAttempts identity.endpoint systems) onResult
-        let mut working := false
+        let mut responsive := 0
+        let mut failures : Array String := #[]
         for result in results do
-          working := (← doctorOnlineResult result) || working
-        pure working
+          if doctorOnlineResult result then
+            responsive := responsive + 1
+          else
+            failures := failures.push (portfolioName result)
+        doctorRow "probe" s!"{responsive}/{systems.size} systems responded" (responsive > 0)
+        unless failures.isEmpty do
+          let shown := failures.toList.take 4
+          let suffix := if failures.size > shown.length then
+              s!" … +{failures.size - shown.length} more"
+            else ""
+          doctorRow "issues" (String.intercalate ", " shown ++ suffix) false
+        pure (responsive > 0)
 
 private def runDoctor (identity : CliIdentity) : IO UInt32 := do
   let transports ← Http.availableTransports
