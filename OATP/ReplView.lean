@@ -223,12 +223,11 @@ private def symbolStyle (scheme : ColorScheme) (symbols : Array Symbol) (token :
   else if lower == "cnf" || lower == "fof" || lower == "tff" || lower == "thf" then
     Style.bold <+> Style.fg scheme.cyan
   else if lower == "axiom" || lower == "conjecture" || lower == "type" ||
-      lower == "definition" || lower == "theorem" then Style.fg scheme.purple
-  else if lower == "goal" || lower == "created" || lower == "checked" ||
-      lower == "parsed" || lower == "commands" || lower == "ready" then
-    Style.bold <+> Style.fg scheme.green
-  else if lower == "fun" || lower == "prop" || lower == "lean" || lower == "tptp" then
-    Style.fg scheme.pink
+      lower == "definition" || lower == "theorem" || lower == "hypothesis" ||
+      lower == "assumption" || lower == "lemma" || lower == "corollary" ||
+      lower == "negated_conjecture" || lower == "plain" || lower == "interpretation" ||
+      lower == "logic" || lower == "fi_domain" || lower == "fi_functors" ||
+      lower == "fi_predicates" then Style.fg scheme.purple
   else if lower == "error" || lower == "failed" || lower == "unknown" then
     Style.bold <+> Style.fg scheme.red
   else match symbols.find? (fun symbol => symbol.name == token) with
@@ -353,6 +352,9 @@ def scrollTranscriptPageUp (app : App) : App :=
 
 def scrollTranscriptPageDown (app : App) : App :=
   { app with transcriptScroll := app.transcriptScroll - min 10 app.transcriptScroll }
+
+def clearSelection (app : App) : App :=
+  { app with selectionStart := none, selectionEnd := none }
 
 private def symbolLine (scheme : ColorScheme) (symbol : Symbol) : Text :=
   let kind := match symbol.kind with
@@ -577,12 +579,19 @@ private def compactHeader (scheme : ColorScheme) (width : Nat) : Text :=
 
 def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State) : Text :=
   let outer := frameWidth width
-  box (Text.styled "› " (Style.bold <+> Style.fg scheme.orange) ++
-    TermColor.Repl.renderMultilineTextInputBody
-      { width := max 1 (boxInnerWidth outer - 2), textStyle := Style.fg scheme.foreground
-        cursorStyle := Style.reverse } state.input true)
-    { chars := { topLeft := '╭', topRight := '╮', bottomLeft := '╰', bottomRight := '╯' }
-      , borderStyle := Style.fg scheme.selection, maxWidth := some outer }
+  let input := box (Text.styled "› " (Style.bold <+> Style.fg scheme.orange) ++
+      TermColor.Repl.renderMultilineTextInputBody
+        { width := max 1 (boxInnerWidth outer - 2), textStyle := Style.fg scheme.foreground
+          cursorStyle := Style.reverse } state.input true)
+      { chars := { topLeft := '╭', topRight := '╮', bottomLeft := '╰', bottomRight := '╯' }
+        , borderStyle := Style.fg scheme.selection, maxWidth := some outer }
+  match state.completion with
+  | none => input
+  | some menu => input ++ Text.plain "\n" ++ TermColor.Repl.renderCompletionMenu
+      { width := max 1 (boxInnerWidth outer - 2)
+        selectedStyle := Style.bg scheme.selection <+> Style.fg scheme.foreground
+        textStyle := Style.fg scheme.foreground
+        kindStyle := Style.dim <+> Style.fg scheme.comment } menu
 
 private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width

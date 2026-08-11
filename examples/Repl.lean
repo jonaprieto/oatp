@@ -7,6 +7,7 @@ Authors: Jonathan Cubides
 import OATP
 import OATP.ReplView
 import TermColor.Diagnostics
+import TermColor.Repl.Command
 import TermColor.Repl.Terminal
 import TermColor.Terminal
 
@@ -113,7 +114,7 @@ private def selectedProvers (app : App) (all : Bool) : IO (Array String) := do
 
 private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String × Bool) := do
   match currentProblem app with
-  | none => pure ("no current problem; add a TPTP conjecture or translate a Lean goal", false)
+  | none => pure ("no current problem; try `/parse fof(goal, conjecture, p => p).` or `/load FILE`", false)
   | some problem =>
       let references ← if request.references.isEmpty then
         pure (← selectedProvers app request.all).toList
@@ -162,30 +163,28 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
         pure (String.intercalate "\n" (rendered.map Prod.fst), rendered.any Prod.snd)
 
 private def backendLine (input : String) : Bool :=
-  input == "/run" || input.startsWith "/run " || input == "/local" || input.startsWith "/local " ||
-  input == "/online" || input.startsWith "/online "
+  match OATP.Repl.parseCommandSpec input with
+  | .ok command => match command with
+      | .run _ | .local _ | .online _ => true
+      | _ => false
+  | .error _ => false
 
 private def backendRequest (input : String) : Except String OATP.Repl.RunRequest :=
-  let args := words input |>.drop 1
-  if input == "/run" || input.startsWith "/run " then
-    OATP.Repl.parseRunRequest args
-  else if input == "/local" || input.startsWith "/local " then
-    match OATP.Repl.parseLocalRequest args with
-    | .error message => .error message
-    | .ok request => pure {
-        references := [request.executable]
-        timeout := request.timeout
-        maxOutput := request.maxOutput
-        arguments := request.arguments }
-  else
-    match OATP.Repl.parseOnlineRequest args with
-    | .error message => .error message
-    | .ok request => pure {
-        references := [if request.system.startsWith "online-" then request.system
-          else "online-" ++ request.system]
-        endpoint := request.endpoint
-        timeout := request.timeout
-        maxOutput := request.maxOutput }
+  match OATP.Repl.parseCommandSpec input with
+  | .ok (.run request) => pure request
+  | .ok (.local request) => pure {
+      references := [request.executable]
+      timeout := request.timeout
+      maxOutput := request.maxOutput
+      arguments := request.arguments }
+  | .ok (.online request) => pure {
+      references := [if request.system.startsWith "online-" then request.system
+        else "online-" ++ request.system]
+      endpoint := request.endpoint
+      timeout := request.timeout
+      maxOutput := request.maxOutput }
+  | .ok _ => .error "not a prover command"
+  | .error message => .error message
 
 private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
   shouldRun := fun _ input => backendLine input
@@ -347,24 +346,24 @@ private def submitGoal (app : App) (cell : Nat) (input formula : String) : IO Ap
         translation := none
         term := none } cell input output true
 
-private def submitTheoryFormula (app : App) (cell : Nat) (input role : String) : IO (Option App) := do
-  let command := if role == "axiom" then "/axiom " else "/conjecture "
-  if !input.startsWith command then return none
-  match words (input.drop command.length |>.trimAscii.toString) with
-  | name :: formula =>
-      let source := s!"{app.theory}({name}, {role}, {String.intercalate " " formula})."
+private def submitTheoryFormula (app : App) (cell : Nat) (input : String)
+    (command : OATP.Repl.Command) : IO (Option App) := do
+  match command with
+  | .axiom name formula | .conjecture name formula =>
+      let role := match command with | .axiom _ _ => "axiom" | _ => "conjecture"
+      let source := s!"{app.theory}({name}, {role}, {formula})."
       match OATP.Repl.parseSource app.session input source with
-      | .ok session => return some (note { app with session } cell input
-          s!"parsed 1 statement using {app.theory}" true)
-      | .error message => return some (note app cell input message false)
-  | _ => return some (note app cell input s!"{command}NAME FORMULA" false)
+      | .ok session => pure (some (note { app with session } cell input
+          s!"parsed 1 statement using {app.theory}" true))
+      | .error message => pure (some (note app cell input message false))
+  | _ => pure none
 
-private def submitLeanCommand (app : App) (cell : Nat) (input : String) : IO (Option App) := do
-  let line := input.trimAscii.toString
-  let goalCommand := ["/goal ", "/to-lean ", "/translate-to-lean "].find? (line.startsWith ·)
-  if let some command := goalCommand then
-    return some (← submitGoal app cell input (line.drop command.length).trimAscii.toString)
-  if line == "/snapshot" then
+private def submitLeanCommand (app : App) (cell : Nat) (input : String)
+    (command : OATP.Repl.Command) : IO (Option App) := do
+  match command with
+  | .goal formula | .toLean formula => do
+      return some (← submitGoal app cell input formula)
+  | .snapshot => do
     match app.leanRuntime, app.leanGoal with
     | some runtime, some goal =>
         let (runtime, snapshot) ← OATP.Lean.Repl.snapshot runtime goal
@@ -372,7 +371,7 @@ private def submitLeanCommand (app : App) (cell : Nat) (input : String) : IO (Op
         return some <| note { app with leanRuntime := some runtime, goal := some snapshot }
           cell input output true
     | _, _ => return some (note app cell input "no Lean goal" false)
-  if line == "/to-tptp" then
+  | .toTptp => do
     match app.leanRuntime, app.leanGoal with
     | some runtime, some goal =>
         let (runtime, translation) ← OATP.Lean.Repl.translateToTPTP runtime goal
@@ -383,8 +382,8 @@ private def submitLeanCommand (app : App) (cell : Nat) (input : String) : IO (Op
               translation := some value.problem.source } cell input value.problem.source true
         | .error message => return some (note app cell input message false)
     | _, _ => return some (note app cell input "no Lean goal" false)
-  if line.startsWith "/reconstruct " then
-    match app.leanRuntime, app.leanGoal, parseStep (line.drop "/reconstruct ".length).toString with
+  | .reconstruct source => do
+    match app.leanRuntime, app.leanGoal, parseStep source with
     | some runtime, some goal, .ok step =>
         let (runtime, result) ← OATP.Lean.Repl.reconstruct runtime goal step
         match result with
@@ -395,118 +394,13 @@ private def submitLeanCommand (app : App) (cell : Nat) (input : String) : IO (Op
         | .error message => return some (note app cell input message false)
     | _, _, .error message => return some (note app cell input message false)
     | _, _, _ => return some (note app cell input "no Lean goal" false)
-  if line == "/term" then
+  | .term =>
     match app.term with
     | some term => return some (note app cell input s!"{term.term}\n: {term.type}" true)
     | none => return some (note app cell input "no rendered term" false)
-  pure none
+  | _ => pure none
 
-private def submitCore (app : App) (input : String) : IO App := do
-  let input := input.trimAscii.toString
-  let cell := app.session.nextCell
-  if input == "/quit" || input == "/exit" then
-    return { app with running := false }
-  if input.startsWith "/load " then
-    let path := input.drop "/load ".length |>.trimAscii.toString
-    if path.isEmpty then
-      return note app cell input "/load expects a TPTP file path" false
-    try
-      let source ← IO.FS.readFile path
-      match OATP.Repl.parseSource app.session input source with
-      | .ok session =>
-          return appendEntry (clearDerived { app with session }) cell input (lastHistory session) true
-      | .error message => return note app cell input message false
-    catch error =>
-      return note app cell input s!"could not read `{path}`: {error}" false
-  if let some result ← submitTheoryFormula app cell input "axiom" then
-    return result
-  if let some result ← submitTheoryFormula app cell input "conjecture" then
-    return result
-  if let some result ← submitLeanCommand app cell input then
-    return result
-  if input == "/state" then
-    let session := OATP.Repl.note app.session input "state drawer toggled"
-    let updated := { app with session, stateOpen := !app.stateOpen, historyOpen := false }
-    let updated := { updated with proversOpen := false }
-    return appendEntry updated cell input "state drawer toggled" true
-  if input.startsWith "/state " then
-    let target := input.drop "/state ".length |>.trimAscii.toString
-    match openContextTarget { app with historyOpen := false, proversOpen := false } target with
-    | some focused =>
-        return note focused cell input s!"state: {target}" true
-    | none =>
-        return note app cell input
-          s!"unknown state target `{target}`; try: {String.intercalate ", " contextTargetNames}" false
-  if input == "/history" then
-    let session := OATP.Repl.note app.session input "history drawer toggled"
-    return appendEntry { app with session, historyOpen := !app.historyOpen, stateOpen := false }
-      cell input "history drawer toggled" true
-  if input == "/version" then
-    return note app cell input s!"oatp {OATP.version}" true
-  if input == "/theme" then
-    return note app cell input s!"theme: {app.themeName}; available: {themeNames}" true
-  if input.startsWith "/theme " then
-    let name := input.drop "/theme ".length |>.trimAscii.toString
-    match themeByName name with
-    | some scheme =>
-        return note { app with theme := scheme, themeName := name } cell input
-          s!"theme changed to {name}" true
-    | none => return note app cell input s!"unknown theme `{name}`; try: {themeNames}" false
-  if input == "/theory" then
-    return note app cell input s!"theory: {app.theory}; available: fof, cnf, tff" true
-  if input.startsWith "/theory " then
-    let requested := input.drop "/theory ".length |>.trimAscii.toString.toLower
-    let theory := if requested == "tf1" then "tff" else requested
-    if theory == "fof" || theory == "cnf" || theory == "tff" then
-      return note { app with theory } cell input s!"theory set to {theory}" true
-    else return note app cell input "unknown theory; use fof, cnf, or tff" false
-  if input == "/prover" then
-    return note app cell input s!"default prover: {if app.defaultProver.isEmpty then "auto" else app.defaultProver}" true
-  if input.startsWith "/prover " then
-    let name := input.drop "/prover ".length |>.trimAscii.toString
-    let candidates ← OATP.Runtime.localProverCandidates
-    let found := candidates.filter (fuzzy name)
-    match found.toList with
-    | [resolved] =>
-        return note { app with defaultProver := resolved } cell input
-          s!"default prover set to {resolved}" true
-    | [] => return note app cell input s!"unknown prover `{name}`" false
-    | _ =>
-        let detail := String.intercalate ", " found.toList
-        return note app cell input (s!"ambiguous prover `{name}`: " ++ detail) false
-  if input == "/provers" then
-    let installed ← OATP.Runtime.installedProvers
-    let enabled := if !app.proverSelectionSet then installed else
-      app.enabledProvers.filter (fun name => installed.any (· == name))
-    let output := if installed.isEmpty then "no installed local provers"
-      else "use J/K and Space to toggle: " ++ String.intercalate ", " installed.toList
-    let updated := { app with proverChoices := installed }
-    let updated := { updated with enabledProvers := enabled }
-    let updated := { updated with proverSelectionSet := true }
-    let updated := { updated with proversOpen := !app.proversOpen }
-    let updated := { updated with stateOpen := false }
-    let updated := { updated with historyOpen := false }
-    return note updated cell input output true
-  if input == "/info" then
-    return note app cell input "usage: /info PROVER" false
-  if input.startsWith "/info " then
-    let query := input.drop "/info ".length |>.trimAscii.toString
-    let (output, ok) ← infoText app query
-    return note app cell input output ok
-  if input == "/systems" || input.startsWith "/systems " then
-    match OATP.Repl.parseSystemsRequest (words input |>.drop 1) with
-    | .error message => return note app cell input message false
-    | .ok request =>
-        let output ← systemsText request
-        return note app cell input output true
-  if input == "/doctor" then
-    return note app cell input (← doctorText) true
-  if backendLine input then
-    match backendRequest input with
-    | .error message => return note app cell input message false
-    | .ok request =>
-        let (output, ok) ← runRequest app request
-        return note app cell input output ok
+private def applyPureCommand (app : App) (cell : Nat) (input : String) : IO App := do
   match OATP.Repl.apply app.session input with
   | .ok session =>
       let output := lastHistory session
@@ -517,126 +411,206 @@ private def submitCore (app : App) (input : String) : IO App := do
       pure <| appendEntry app entryCell input output true
   | .error message => pure (note app cell input message false)
 
+private def submitCommand (app : App) (cell : Nat) (input : String)
+    (command : OATP.Repl.Command) : IO App := do
+  match command with
+  | .quit => pure { app with running := false }
+  | .load path => do
+      try
+        let source ← IO.FS.readFile path
+        match OATP.Repl.parseSource app.session input source with
+        | .ok session => pure (appendEntry (clearDerived { app with session }) cell input
+            (lastHistory session) true)
+        | .error message => pure (note app cell input message false)
+      catch error => pure (note app cell input s!"could not read `{path}`: {error}" false)
+  | .axiom _ _ | .conjecture _ _ => do
+      match ← submitTheoryFormula app cell input command with
+      | some app => pure app
+      | none => pure (note app cell input "invalid formula command" false)
+  | .goal _ | .toLean _ | .snapshot | .toTptp | .reconstruct _ | .term => do
+      match ← submitLeanCommand app cell input command with
+      | some app => pure app
+      | none => pure (note app cell input "invalid Lean command" false)
+  | .state =>
+      let session := OATP.Repl.note app.session input "state drawer toggled"
+      let updated := { app with
+        session := session
+        stateOpen := !app.stateOpen
+        historyOpen := false
+        proversOpen := false }
+      pure (appendEntry updated cell input "state drawer toggled" true)
+  | OATP.Repl.Command.stateTarget stateName =>
+      match openContextTarget { app with historyOpen := false, proversOpen := false } stateName with
+      | some focused => pure (note focused cell input s!"state: {stateName}" true)
+      | none => pure (note app cell input
+          s!"unknown state target `{stateName}`; try: {String.intercalate ", " contextTargetNames}" false)
+  | .history =>
+      let session := OATP.Repl.note app.session input "history drawer toggled"
+      pure (appendEntry { app with session, historyOpen := !app.historyOpen, stateOpen := false }
+        cell input "history drawer toggled" true)
+  | .theme none => pure (note app cell input
+      s!"theme: {app.themeName}; available: {themeNames}" true)
+  | .theme (some name) =>
+      match themeByName name with
+      | some scheme => pure (note { app with theme := scheme, themeName := name } cell input
+          s!"theme changed to {name}" true)
+      | none => pure (note app cell input s!"unknown theme `{name}`; try: {themeNames}" false)
+  | .theory none => pure (note app cell input "theory: current; available: fof, cnf, tff" true)
+  | .theory (some requested) =>
+      let requested := requested.toLower
+      let theory := if requested == "tf1" then "tff" else requested
+      if theory == "fof" || theory == "cnf" || theory == "tff" then
+        pure (note { app with theory } cell input s!"theory set to {theory}" true)
+      else pure (note app cell input "unknown theory; use fof, cnf, or tff" false)
+  | .prover none => pure (note app cell input
+      s!"default prover: {if app.defaultProver.isEmpty then "auto" else app.defaultProver}" true)
+  | .prover (some name) => do
+      let candidates ← OATP.Runtime.localProverCandidates
+      let found := candidates.filter (fuzzy name)
+      match found.toList with
+      | [resolved] => pure (note { app with defaultProver := resolved } cell input
+          s!"default prover set to {resolved}" true)
+      | [] => pure (note app cell input s!"unknown prover `{name}`" false)
+      | _ => pure (note app cell input (s!"ambiguous prover `{name}`: " ++
+          String.intercalate ", " found.toList) false)
+  | .provers => do
+      let installed ← OATP.Runtime.installedProvers
+      let enabled := if !app.proverSelectionSet then installed else
+        app.enabledProvers.filter (fun name => installed.any (· == name))
+      let output := if installed.isEmpty then "no installed local provers"
+        else "use J/K and Space to toggle: " ++ String.intercalate ", " installed.toList
+      let updated := { app with proverChoices := installed }
+      let updated := { updated with enabledProvers := enabled }
+      let updated := { updated with proverSelectionSet := true }
+      let updated := { updated with proversOpen := !app.proversOpen }
+      let updated := { updated with stateOpen := false }
+      let updated := { updated with historyOpen := false }
+      pure (note updated cell input output true)
+  | .info query => do
+      let (output, ok) ← infoText app query
+      pure (note app cell input output ok)
+  | .systems request => do
+      let output ← systemsText request
+      pure (note app cell input output true)
+  | .doctor => do
+      let output ← doctorText
+      pure (note app cell input output true)
+  | .run request => do
+      let (output, ok) ← runRequest app request
+      pure (note app cell input output ok)
+  | .local request => do
+      let run : OATP.Repl.RunRequest := {
+        references := [request.executable]
+        timeout := request.timeout
+        maxOutput := request.maxOutput
+        arguments := request.arguments }
+      let (output, ok) ← runRequest app run
+      pure (note app cell input output ok)
+  | .online request => do
+      let run : OATP.Repl.RunRequest := {
+        references := [if request.system.startsWith "online-" then request.system
+          else "online-" ++ request.system]
+        endpoint := request.endpoint
+        timeout := request.timeout
+        maxOutput := request.maxOutput }
+      let (output, ok) ← runRequest app run
+      pure (note app cell input output ok)
+  | _ => applyPureCommand app cell input
+
+private def submitCore (app : App) (input : String) : IO App := do
+  let input := input.trimAscii.toString
+  let cell := app.session.nextCell
+  if input.startsWith "/" then
+    match OATP.Repl.parseCommandSpec input with
+    | .ok command => return (← submitCommand app cell input command)
+    | .error message => return note app cell input message false
+  else
+    return (← applyPureCommand app cell input)
+
 private def submit (app : App) (input : String) : IO App := do
   let started ← IO.monoMsNow
   let updated ← submitCore app input
+  let updated := clearSelection updated
   let app ← savePreferences app updated
   let elapsedMs := (← IO.monoMsNow) - started
   match app.entries with
   | entry :: rest => pure { app with entries := { entry with elapsedMs := some elapsedMs } :: rest }
   | [] => pure app
 
-private def commandNames : List String :=
-  ["/help", "/history", "/state", "/grammar", "/roles", "/clear", "/reset", "/load",
-   "/axiom", "/conjecture", "/parse", "/goal", "/to-lean", "/translate-to-lean", "/snapshot",
-   "/to-tptp", "/reconstruct", "/term", "/run", "/local", "/online", "/theory", "/prover",
-   "/provers", "/info", "/theme", "/version", "/systems", "/doctor", "/quit", "/exit"]
+private def commandValues (typeName : String) : IO (List String) := do
+  match typeName with
+  | "TOPIC" => pure ["cnf", "fof", "tff", "lean", "run", "context", "grammar", "roles"]
+  | "FORMAT" => pure ["cnf", "fof", "tff"]
+  | "TARGET" => pure (contextTargetNames ++ ["all"])
+  | "THEORY" => pure ["fof", "cnf", "tff", "tf1"]
+  | "THEME" => pure (themes.map Prod.fst)
+  | "STEP" => pure ["true-intro", "exact", "and-left", "and-right", "and-intro",
+      "implication-intro"]
+  | "PROVER" | "SYSTEM" =>
+      pure (← OATP.Runtime.localProverCandidates).toList
+  | _ => pure []
 
-private def completions (base fragment : String) (values : List String) : List Completion :=
-  values.filter (·.startsWith fragment) |>.map
-    (fun value => { replacement := s!"{base}{value}" })
+private def complete (_app : App) (input : TextInputState) : IO (List Completion) :=
+  completeCommandWith OATP.Repl.commandSpec commandValues input
 
-private def completeLastToken (value : String) (values : List String) : List Completion :=
-  let fragment := (value.takeEndWhile (· != ' ')).toString
-  completions (value.dropEnd fragment.length).toString fragment values
+private inductive AppKeyAction
+  | closeProvers
+  | proverNext
+  | proverPrevious
+  | toggleProver
+  | closeState
+  | contextNext
+  | contextPrevious
+  | toggleContext
+  | expandContext
+  | collapseContext
+  | closeHistory
+  | transcriptPageUp
+  | transcriptPageDown
 
-private def completeRun (value : String) (localProvers : List String) : List Completion :=
-  if value.startsWith "/run --prover " then
-    let fragment := value.drop "/run --prover ".length |>.toString
-    if (fragment.splitOn " ").length == 1 then
-      completions "/run --prover " fragment localProvers
-    else
-      completeLastToken value
-        (localProvers ++ ["--prover", "--all", "--timeout", "--max-output", "--refresh", "--no-cache",
-          "--endpoint"])
-  else if value.startsWith "/run " then
-    completeLastToken value
-      (localProvers ++ ["--prover", "--all", "--timeout", "--max-output", "--refresh", "--no-cache",
-        "--endpoint"])
-  else []
-
-private def completeLocal (value : String) (localProvers : List String) : List Completion :=
-  if value.startsWith "/local " then
-    completeLastToken value
-      (localProvers ++ ["--executable", "--timeout", "--max-output"])
-  else []
-
-private def complete (_app : App) (input : TextInputState) : IO (List Completion) := do
-  let value := input.value
-  let localProvers ← OATP.Runtime.localProverCandidates
-  let localProvers := localProvers.toList
-  if value.startsWith "/help roles " then
-    let fragment := value.drop "/help roles ".length |>.toString
-    pure <| completions "/help roles " fragment ["cnf", "fof", "tff"]
-  else if value.startsWith "/help " then
-    let fragment := value.drop "/help ".length |>.toString
-    pure <| completions "/help " fragment
-      ["cnf", "fof", "tff", "lean", "run", "context", "grammar", "roles"]
-  else if value.startsWith "/state " then
-    let fragment := value.drop "/state ".length |>.toString
-    pure <| completions "/state " fragment (contextTargetNames ++ ["all"])
-  else if value.startsWith "/grammar roles " then
-    let fragment := value.drop "/grammar roles ".length |>.toString
-    pure <| completions "/grammar roles " fragment ["cnf", "fof", "tff"]
-  else if value.startsWith "/grammar " then
-    let fragment := value.drop "/grammar ".length |>.toString
-    pure <| completions "/grammar " fragment ["cnf", "fof", "tff", "lean", "roles"]
-  else if value.startsWith "/roles " then
-    let fragment := value.drop "/roles ".length |>.toString
-    pure <| completions "/roles " fragment ["cnf", "fof", "tff"]
-  else if value.startsWith "/theme " then
-    let fragment := value.drop "/theme ".length |>.toString
-    pure <| completions "/theme " fragment (themes.map Prod.fst)
-  else if value.startsWith "/theory " then
-    let fragment := value.drop "/theory ".length |>.toString
-    pure <| completions "/theory " fragment ["fof", "cnf", "tff", "tf1"]
-  else if value.startsWith "/prover " then
-    let fragment := value.drop "/prover ".length |>.toString
-    pure <| completions "/prover " fragment localProvers
-  else if value.startsWith "/info " then
-    let fragment := value.drop "/info ".length |>.toString
-    pure <| completions "/info " fragment localProvers
-  else if value.startsWith "/run " then
-    pure <| completeRun value localProvers
-  else if value.startsWith "/local " then
-    pure <| completeLocal value localProvers
-  else if value.startsWith "/online " then
-    pure <| completeLastToken value ["--system", "--endpoint", "--timeout", "--max-output"]
-  else if value.startsWith "/reconstruct " then
-    pure <| completeLastToken value
-      ["true-intro", "exact", "and-left", "and-right", "and-intro", "implication-intro"]
-  else if value.startsWith "/systems " then
-    pure <| completeLastToken value
-      ["--online", "--refresh", "--no-cache", "--endpoint"]
-  else
-    pure <| commandNames.filter (·.startsWith value) |>.map (fun replacement => { replacement })
-
-private def handleKey (app : App) (key : Key) : Option App :=
-  if app.proversOpen then
-    match key with
-    | .char 'H' | .escape => some { app with proversOpen := false }
-    | .char 'J' | .down => some (focusNextProver app)
-    | .char 'K' | .up => some (focusPreviousProver app)
-    | .enter | .char ' ' => some (toggleFocusedProver app)
-    | _ => none
-  else if app.stateOpen then
-    match key with
-    | .char 'H' => some { app with stateOpen := false }
-    | .char 'J' | .down => some (focusNextContext app)
-    | .char 'K' | .up => some (focusPreviousContext app)
-    | .enter | .char ' ' => some (toggleFocusedContext app)
-    | .right => some (expandFocusedContext app)
-    | .left | .escape => some (collapseFocusedContext app)
-    | _ => none
-  else if app.historyOpen then
-    match key with
-    | .char 'H' => some { app with historyOpen := false }
-    | _ => none
-  else
-    match key with
-    | .pageUp => some (scrollTranscriptPageUp app)
-    | .pageDown => some (scrollTranscriptPageDown app)
-    | _ => none
+private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
+  Action := AppKeyAction
+  keymap := { bindings :=
+    [ { key := .char 'H', action := .closeProvers, context := some "provers" }
+    , { key := .escape, action := .closeProvers, context := some "provers" }
+    , { key := .char 'J', action := .proverNext, context := some "provers" }
+    , { key := .down, action := .proverNext, context := some "provers" }
+    , { key := .char 'K', action := .proverPrevious, context := some "provers" }
+    , { key := .up, action := .proverPrevious, context := some "provers" }
+    , { key := .enter, action := .toggleProver, context := some "provers" }
+    , { key := .char ' ', action := .toggleProver, context := some "provers" }
+    , { key := .char 'H', action := .closeState, context := some "state" }
+    , { key := .char 'J', action := .contextNext, context := some "state" }
+    , { key := .down, action := .contextNext, context := some "state" }
+    , { key := .char 'K', action := .contextPrevious, context := some "state" }
+    , { key := .up, action := .contextPrevious, context := some "state" }
+    , { key := .enter, action := .toggleContext, context := some "state" }
+    , { key := .char ' ', action := .toggleContext, context := some "state" }
+    , { key := .right, action := .expandContext, context := some "state" }
+    , { key := .left, action := .collapseContext, context := some "state" }
+    , { key := .escape, action := .collapseContext, context := some "state" }
+    , { key := .char 'H', action := .closeHistory, context := some "history" }
+    , { key := .pageUp, action := .transcriptPageUp, context := some "default" }
+    , { key := .pageDown, action := .transcriptPageDown, context := some "default" } ] }
+  contexts := fun app =>
+    if app.proversOpen then ["provers"]
+    else if app.stateOpen then ["state"]
+    else if app.historyOpen then ["history"]
+    else ["default"]
+  handle := fun app action => some (clearSelection (match action with
+    | .closeProvers => { app with proversOpen := false }
+    | .proverNext => focusNextProver app
+    | .proverPrevious => focusPreviousProver app
+    | .toggleProver => toggleFocusedProver app
+    | .closeState => { app with stateOpen := false }
+    | .contextNext => focusNextContext app
+    | .contextPrevious => focusPreviousContext app
+    | .toggleContext => toggleFocusedContext app
+    | .expandContext => expandFocusedContext app
+    | .collapseContext => collapseFocusedContext app
+    | .closeHistory => { app with historyOpen := false }
+    | .transcriptPageUp => scrollTranscriptPageUp app
+    | .transcriptPageDown => scrollTranscriptPageDown app))
 
 private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option App :=
   if app.proversOpen then
@@ -659,8 +633,8 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
         | _ => none
   else if !app.stateOpen then
     match mouse.action with
-    | .scrollUp => some (scrollTranscriptUp app)
-    | .scrollDown => some (scrollTranscriptDown app)
+    | .scrollUp => some (clearSelection (scrollTranscriptUp app))
+    | .scrollDown => some (clearSelection (scrollTranscriptDown app))
     | .press =>
         if mouse.button != .left then none
         else
@@ -712,10 +686,10 @@ private def interactive (initial : App) : IO Unit := do
     mouse := true
     view := fun app size => screen app size
     complete := complete
-    handleKey := handleKey
+    keymap := some appKeymap
     handleMouse := handleMouse
     getState := fun app => app.repl
-    setState := fun app repl => { app with repl }
+    setState := fun app repl => { (clearSelection app) with repl }
     submit := submit
     jobs := some backgroundJobs
     isRunning := fun app => app.running

@@ -6,6 +6,7 @@ Authors: Jonathan Cubides
 
 import OATP.TPTP
 import OATP.Version
+import Argus
 
 /-!
 # OATP.Repl: pure interactive session state
@@ -18,27 +19,7 @@ namespace OATP.Repl
 
 open OATP
 open OATP.TPTP
-
-inductive Command where
-  | help (topic : Option String)
-  | history
-  | state
-  | stateTarget (target : String)
-  | grammar (topic : String)
-  | roles (topic : Option String)
-  | version
-  | clear
-  | reset
-  | parse (source : String)
-  | axiom (name formula : String)
-  | conjecture (name formula : String)
-  | unknown (source : String)
-  deriving Repr
-
-inductive Submission where
-  | command (value : Command)
-  | source (value : String)
-  deriving Repr
+open Argus
 
 structure RunRequest where
   references : List String := []
@@ -72,101 +53,278 @@ structure SystemsRequest where
   noCache : Bool := false
   deriving Repr
 
-private def parseNatOption (flag value : String) : Except String Nat :=
-  match value.toNat? with
-  | some number => pure number
-  | none => .error s!"{flag} expects a non-negative integer, got `{value}`"
+inductive Command where
+  | help (topic : Option String)
+  | history
+  | state
+  | stateTarget (target : String)
+  | grammar (topic : String)
+  | roles (topic : Option String)
+  | version
+  | clear
+  | reset
+  | parse (source : String)
+  | axiom (name formula : String)
+  | conjecture (name formula : String)
+  | load (path : String)
+  | goal (formula : String)
+  | toLean (formula : String)
+  | snapshot
+  | toTptp
+  | reconstruct (step : String)
+  | term
+  | run (request : RunRequest)
+  | local (request : LocalRequest)
+  | online (request : OnlineRequest)
+  | theory (value : Option String)
+  | prover (value : Option String)
+  | provers
+  | info (query : String)
+  | theme (value : Option String)
+  | systems (request : SystemsRequest)
+  | doctor
+  | quit
+  | unknown (source : String)
+  deriving Repr
+
+inductive Submission where
+  | command (value : Command)
+  | source (value : String)
+  deriving Repr
+
+argus_opts RunOptions where
+  references : List String := Spec.many (Spec.arg "REFERENCE" "Prover reference" Param.str);
+  provers : List String := Spec.many (Spec.flag "prover" (some 'p')
+    "Prover reference; repeat for a portfolio" (Param.named "PROVER" Param.str));
+  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none "SystemOnTPTP endpoint" Param.str);
+  refresh : Bool := Spec.switch "refresh" none "Refresh the online prover catalogue";
+  noCache : Bool := Spec.switch "no-cache" none "Do not read or write the catalogue cache";
+  all : Bool := Spec.switch "all" (some 'a') "Use all installed provers";
+  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
+    "Wall-clock limit" Param.nat);
+  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
+    "Maximum captured output" Param.nat)
+
+argus_opts LocalOptions where
+  executable : String := Spec.alt
+    (Spec.flag "executable" (some 'x') "Local prover executable" Param.path)
+    (Spec.arg "EXECUTABLE" "Local prover executable" Param.path);
+  arguments : List String := Spec.many (Spec.arg "ARG" "Argument passed to the prover" Param.str);
+  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
+    "Wall-clock limit" Param.nat);
+  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
+    "Maximum captured output" Param.nat)
+
+argus_opts OnlineOptions where
+  system : String := Spec.alt
+    (Spec.flag "system" (some 's') "SystemOnTPTP system label"
+      (Param.named "SYSTEM" Param.str))
+    (Spec.arg "SYSTEM" "SystemOnTPTP system label" (Param.named "SYSTEM" Param.str));
+  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none "SystemOnTPTP endpoint" Param.str);
+  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
+    "Remote time limit" Param.nat);
+  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
+    "Maximum captured response" Param.nat)
+
+argus_opts SystemsOptions where
+  online : Bool := Spec.switch "online" (some 'o') "Also fetch online provers";
+  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none "SystemOnTPTP endpoint" Param.str);
+  refresh : Bool := Spec.switch "refresh" none "Refresh the online prover catalogue";
+  noCache : Bool := Spec.switch "no-cache" none "Do not read or write the catalogue cache"
+
+private def parseSpec {α : Type} {g : Grade} (spec : Argus.Spec g α)
+    (args : List String) : Except String α :=
+  match Argus.run spec args with
+  | .ok value => .ok value
+  | .error errors => .error (String.intercalate "\n" (errors.map Argus.Err.message))
+
+private def splitArguments : List String → List String × List String
+  | [] => ([], [])
+  | "__OATP_ARGS__" :: rest => ([], rest)
+  | value :: rest =>
+      let (before, after) := splitArguments rest
+      (value :: before, after)
+
+private def splitTerminator : List String → List String × Option (List String)
+  | [] => ([], none)
+  | "--" :: rest => ([], some rest)
+  | value :: rest =>
+      let (before, after) := splitTerminator rest
+      (value :: before, after)
+
+private def runRequestOf (options : RunOptions) : RunRequest :=
+  let (references, arguments) := splitArguments options.references
+  { references := references ++ options.provers
+    all := options.all
+    endpoint := options.endpoint
+    refresh := options.refresh
+    noCache := options.noCache
+    timeout := options.timeout.getD 30
+    maxOutput := options.maxOutput.getD (4 * 1024 * 1024)
+    arguments }
+
+private def localRequestOf (options : LocalOptions) : LocalRequest :=
+  let (_, arguments) := splitArguments options.arguments
+  { executable := options.executable
+    timeout := options.timeout.getD 30
+    maxOutput := options.maxOutput.getD (4 * 1024 * 1024)
+    arguments := if arguments.isEmpty then options.arguments else arguments }
+
+private def onlineRequestOf (options : OnlineOptions) : OnlineRequest :=
+  { system := options.system
+    endpoint := options.endpoint
+    timeout := options.timeout.getD 30
+    maxOutput := options.maxOutput.getD (4 * 1024 * 1024) }
+
+private def systemsRequestOf (options : SystemsOptions) : SystemsRequest :=
+  { online := options.online, endpoint := options.endpoint, refresh := options.refresh,
+    noCache := options.noCache }
 
 def parseRunRequest (args : List String) : Except String RunRequest :=
-  let rec loop (args : List String) (request : RunRequest) : Except String RunRequest :=
-    match args with
-    | [] => pure request
-    | "--prover" :: reference :: rest =>
-        loop rest { request with references := request.references ++ [reference] }
-    | "--prover" :: [] => .error "--prover expects a reference"
-    | "--endpoint" :: endpoint :: rest => loop rest { request with endpoint := some endpoint }
-    | "--endpoint" :: [] => .error "--endpoint expects a URL"
-    | "--refresh" :: rest => loop rest { request with refresh := true }
-    | "--no-cache" :: rest => loop rest { request with noCache := true }
-    | "--all" :: rest => loop rest { request with all := true }
-    | "--timeout" :: value :: rest => do
-        let timeout ← parseNatOption "--timeout" value
-        loop rest { request with timeout }
-    | "--timeout" :: [] => .error "--timeout expects a value"
-    | "--max-output" :: value :: rest => do
-        let maxOutput ← parseNatOption "--max-output" value
-        loop rest { request with maxOutput }
-    | "--max-output" :: [] => .error "--max-output expects a value"
-    | "--" :: rest => pure { request with arguments := rest }
-    | reference :: rest => loop rest { request with references := request.references ++ [reference] }
-  loop args {}
+  let (args, tail) := splitTerminator args
+  parseSpec RunOptions.spec args |>.map fun request =>
+    { runRequestOf request with arguments := tail.getD (runRequestOf request).arguments }
 
 def parseLocalRequest (args : List String) : Except String LocalRequest :=
-  let rec loop (args : List String) (request : Option LocalRequest)
-      (timeout maxOutput : Nat) : Except String LocalRequest :=
-    match args with
-    | [] =>
-        match request with
-        | some request => pure { request with timeout, maxOutput }
-        | none => .error "/local expects an executable"
-    | "--executable" :: executable :: rest =>
-        loop rest (some { executable }) timeout maxOutput
-    | "--executable" :: [] => .error "--executable expects a path"
-    | "--timeout" :: value :: rest => do
-        let timeout ← parseNatOption "--timeout" value
-        loop rest request timeout maxOutput
-    | "--timeout" :: [] => .error "--timeout expects a value"
-    | "--max-output" :: value :: rest => do
-        let maxOutput ← parseNatOption "--max-output" value
-        loop rest request timeout maxOutput
-    | "--max-output" :: [] => .error "--max-output expects a value"
-    | "--" :: rest =>
-        match request with
-        | some request => pure { request with timeout, maxOutput, arguments := rest }
-        | none => .error "/local expects an executable before --"
-    | value :: rest =>
-        match request with
-        | some request => pure { request with timeout, maxOutput, arguments := value :: rest }
-        | none => loop rest (some { executable := value }) timeout maxOutput
-  loop args none 30 (4 * 1024 * 1024)
+  let (args, tail) := splitTerminator args
+  parseSpec LocalOptions.spec args |>.map fun request =>
+    { localRequestOf request with arguments := tail.getD (localRequestOf request).arguments }
 
 def parseOnlineRequest (args : List String) : Except String OnlineRequest :=
-  let rec loop (args : List String) (system endpoint : Option String)
-      (timeout maxOutput : Nat) : Except String OnlineRequest :=
-    match args with
-    | [] =>
-        match system with
-        | some system => pure { system, endpoint, timeout, maxOutput }
-        | none => .error "/online expects a system reference"
-    | "--system" :: value :: rest => loop rest (some value) endpoint timeout maxOutput
-    | "--system" :: [] => .error "--system expects a reference"
-    | "--endpoint" :: value :: rest => loop rest system (some value) timeout maxOutput
-    | "--endpoint" :: [] => .error "--endpoint expects a URL"
-    | "--timeout" :: value :: rest => do
-        let timeout ← parseNatOption "--timeout" value
-        loop rest system endpoint timeout maxOutput
-    | "--timeout" :: [] => .error "--timeout expects a value"
-    | "--max-output" :: value :: rest => do
-        let maxOutput ← parseNatOption "--max-output" value
-        loop rest system endpoint timeout maxOutput
-    | "--max-output" :: [] => .error "--max-output expects a value"
-    | value :: rest =>
-        match system with
-        | some _ => .error s!"unexpected online option `{value}`"
-        | none => loop rest (some value) endpoint timeout maxOutput
-  loop args none none 30 (4 * 1024 * 1024)
+  let (args, tail) := splitTerminator args
+  match tail with
+  | some (_ :: _) => .error "online commands do not accept arguments after --"
+  | _ => parseSpec OnlineOptions.spec args |>.map onlineRequestOf
 
 def parseSystemsRequest (args : List String) : Except String SystemsRequest :=
-  let rec loop (args : List String) (request : SystemsRequest) : Except String SystemsRequest :=
-    match args with
-    | [] => pure request
-    | "--online" :: rest => loop rest { request with online := true }
-    | "--refresh" :: rest => loop rest { request with refresh := true }
-    | "--no-cache" :: rest => loop rest { request with noCache := true }
-    | "--endpoint" :: endpoint :: rest => loop rest { request with endpoint := some endpoint }
-    | "--endpoint" :: [] => .error "--endpoint expects a URL"
-    | value :: _ => .error s!"unexpected systems option `{value}`"
-  loop args {}
+  let (args, tail) := splitTerminator args
+  match tail with
+  | some (_ :: _) => .error "systems does not accept arguments after --"
+  | _ => parseSpec SystemsOptions.spec args |>.map systemsRequestOf
+
+private def words (source : String) : List String :=
+  source.splitOn " " |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty)
+
+private def textSpec (name help : String) : Spec (1 * (1 * conditional * flexible)) String :=
+  Spec.map (fun values : List String => String.intercalate " " values)
+    (Spec.map2 (fun value values => value :: values)
+      (Spec.arg name help (Param.named name Param.str))
+      (Spec.many (Spec.arg name help (Param.named name Param.str))))
+
+def commandSpec : Argus.Command Command :=
+  Argus.group "oatp"
+    [ Argus.cmd "help" (Spec.map Command.help (Spec.opt (Spec.arg "TOPIC" "Help topic"
+        (Param.named "TOPIC" Param.str))))
+        (description := "Show REPL help")
+    , Argus.cmd "history" (Spec.const .history) (description := "Show command history")
+    , Argus.cmd "state" (Spec.map (fun target => match target with
+          | none => .state
+          | some target => .stateTarget target)
+        (Spec.opt (Spec.arg "TARGET" "Context target" (Param.named "TARGET" Param.str))))
+        (description := "Open or focus the state drawer")
+    , Argus.cmd "grammar" (Spec.map Command.grammar
+        (Spec.arg "TOPIC" "Grammar topic" (Param.named "TOPIC" Param.str)))
+        (description := "Show grammar help")
+    , Argus.cmd "roles" (Spec.map Command.roles
+        (Spec.opt (Spec.arg "FORMAT" "TPTP format" (Param.named "FORMAT" Param.str))))
+        (description := "Show role help")
+    , Argus.cmd "version" (Spec.const .version) (description := "Show the OATP version")
+    , Argus.cmd "clear" (Spec.const .clear) (description := "Clear the session context")
+    , Argus.cmd "reset" (Spec.const .reset) (description := "Reset the complete session")
+    , Argus.cmd "parse" (Spec.map Command.parse (textSpec "SOURCE" "TPTP source"))
+        (description := "Parse TPTP source")
+    , Argus.cmd "axiom" (Spec.map2 Command.axiom
+        (Spec.arg "NAME" "Statement name" Param.str) (textSpec "FORMULA" "Formula"))
+        (description := "Add an axiom")
+    , Argus.cmd "conjecture" (Spec.map2 Command.conjecture
+        (Spec.arg "NAME" "Statement name" Param.str) (textSpec "FORMULA" "Formula"))
+        (description := "Add a conjecture")
+    , Argus.cmd "load" (Spec.map Command.load (Spec.arg "PATH" "TPTP file" Param.path))
+        (description := "Load a TPTP file")
+    , Argus.cmd "goal" (Spec.map Command.goal (textSpec "FORMULA" "Lean formula"))
+        (description := "Create a Lean goal")
+    , Argus.cmd "to-lean" (Spec.map Command.toLean (textSpec "FORMULA" "Lean formula"))
+        (description := "Create a Lean goal")
+    , Argus.cmd "translate-to-lean"
+        (Spec.map Command.toLean (textSpec "FORMULA" "Lean formula"))
+        (description := "Create a Lean goal")
+    , Argus.cmd "snapshot" (Spec.const .snapshot) (description := "Show the current Lean goal")
+    , Argus.cmd "to-tptp" (Spec.const .toTptp) (description := "Translate the Lean goal to TPTP")
+    , Argus.cmd "reconstruct" (Spec.map Command.reconstruct (textSpec "STEP" "Proof step"))
+        (description := "Reconstruct and check a proof step")
+    , Argus.cmd "term" (Spec.const .term) (description := "Show the checked term")
+    , Argus.cmd "run" (Spec.map (fun options => .run (runRequestOf options)) RunOptions.spec)
+        (description := "Run selected provers")
+    , Argus.cmd "local" (Spec.map (fun options => .local (localRequestOf options)) LocalOptions.spec)
+        (description := "Run a local prover")
+    , Argus.cmd "online"
+        (Spec.map (fun options => .online (onlineRequestOf options)) OnlineOptions.spec)
+        (description := "Run an online prover")
+    , Argus.cmd "theory" (Spec.map Command.theory
+        (Spec.opt (Spec.arg "THEORY" "Theory" (Param.named "THEORY" Param.str))))
+        (description := "Show or select the TPTP theory")
+    , Argus.cmd "prover" (Spec.map Command.prover
+        (Spec.opt (Spec.arg "PROVER" "Default prover" (Param.named "PROVER" Param.str))))
+        (description := "Show or select the default prover")
+    , Argus.cmd "provers" (Spec.const .provers) (description := "Select enabled provers")
+    , Argus.cmd "info" (Spec.map Command.info
+        (Spec.arg "PROVER" "Prover name" (Param.named "PROVER" Param.str)))
+        (description := "Show prover information")
+    , Argus.cmd "theme" (Spec.map Command.theme
+        (Spec.opt (Spec.arg "THEME" "Color theme" (Param.named "THEME" Param.str))))
+        (description := "Show or select the color theme")
+    , Argus.cmd "systems"
+        (Spec.map (fun options => .systems (systemsRequestOf options)) SystemsOptions.spec)
+        (description := "List available provers")
+    , Argus.cmd "doctor" (Spec.const .doctor) (description := "Check runtime readiness")
+    , Argus.cmd "quit" (Spec.const .quit) (description := "Leave the REPL")
+    , Argus.cmd "exit" (Spec.const .quit) (description := "Leave the REPL") ]
+
+private def commandArgv (source : String) : List String × Option (List String) :=
+  match words source.trimAscii.toString with
+  | command :: args =>
+      let command := (command.drop 1).toString
+      let (args, tail) := splitTerminator args
+      (command :: args, tail)
+  | [] => ([], none)
+
+private def appendCommandArguments (command : Command) (tail : Option (List String)) :
+    Except String Command :=
+  match tail with
+  | none => .ok command
+  | some arguments =>
+      match command with
+      | .run request => .ok (.run { request with arguments })
+      | .local request => .ok (.local { request with arguments })
+      | .online _ =>
+          if arguments.isEmpty then .ok command
+          else .error "online commands do not accept arguments after --"
+      | _ =>
+          if arguments.isEmpty then .ok command
+          else .error "command does not accept arguments after --"
+
+def parseCommandSpec (source : String) : Except String Command :=
+  let line := source.trimAscii.toString
+  if !line.startsWith "/" then .error "input is not a slash command"
+  else
+    let (argv, tail) := commandArgv line
+    match commandSpec.run argv with
+    | .ok command => appendCommandArguments command tail
+    | .error errors => .error (String.intercalate "\n" (errors.map Argus.Err.message))
+
+private def commandChildren : List (Argus.Command Command) :=
+  match commandSpec.body with
+  | .subs children => children
+  | .opts _ => []
+
+private def friendlyUsage (usage : String) : String :=
+  let usage := usage.replace " <SOURCE> <SOURCE>..." " <SOURCE>..."
+  let usage := usage.replace " <FORMULA> <FORMULA>..." " <FORMULA>..."
+  usage.replace " <STEP> <STEP>..." " <STEP>..."
+
+def commandHelpText : String :=
+  String.intercalate "\n" <| ["OATP REPL commands"] ++ commandChildren.map fun command =>
+    "  /" ++ friendlyUsage command.usageLine ++ "  " ++ command.description
 
 inductive SymbolKind where
   | variable
@@ -205,40 +363,11 @@ structure Session where
   history : Array HistoryEntry := #[]
   deriving Repr
 
-private def words (source : String) : List String :=
-  source.splitOn " " |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty)
-
-private def restAfter (marker source : String) : String :=
-  (source.drop marker.length).trimAscii.toString
-
-private def nameAndFormula (source : String) : Option (String × String) :=
-  match words source with
-  | name :: formula => some (name, String.intercalate " " formula)
-  | _ => none
-
 def parseCommand (source : String) : Command :=
   let line := source.trimAscii.toString
-  if line == "/help" then .help none
-  else if line.startsWith "/help " then .help (some (restAfter "/help " line))
-  else if line == "/history" then .history
-  else if line == "/state" then .state
-  else if line.startsWith "/state " then .stateTarget (restAfter "/state " line)
-  else if line.startsWith "/grammar " then .grammar (restAfter "/grammar " line)
-  else if line == "/roles" then .roles none
-  else if line.startsWith "/roles " then .roles (some (restAfter "/roles " line))
-  else if line == "/version" then .version
-  else if line == "/clear" then .clear
-  else if line == "/reset" then .reset
-  else if line.startsWith "/parse " then .parse (restAfter "/parse " line)
-  else if line.startsWith "/axiom " then
-    match nameAndFormula (restAfter "/axiom " line) with
-    | some (name, formula) => .axiom name formula
-    | none => .unknown line
-  else if line.startsWith "/conjecture " then
-    match nameAndFormula (restAfter "/conjecture " line) with
-    | some (name, formula) => .conjecture name formula
-    | none => .unknown line
-  else .unknown line
+  match parseCommandSpec line with
+  | .ok command => command
+  | .error _ => .unknown line
 
 def parseInput (source : String) : Submission :=
   if source.trimAscii.toString.startsWith "/" then
@@ -323,17 +452,8 @@ def addDocument (session : Session) (input : String) (document : _root_.TPTP.Doc
   record session input s!"parsed {views.size} statement(s)"
 
 def helpText : String :=
-  String.intercalate "\n" [
-    "OATP REPL help",
-    "  /load FILE       load a TPTP problem",
-    "  /parse SOURCE    parse TPTP text",
-    "  /axiom N F       add an axiom; /conjecture N F",
-    "  /goal F          create a Lean goal; /to-lean F",
-    "  /snapshot /to-tptp /reconstruct S /term",
-    "  /run OPTIONS     test with provers; /local; /online",
-    "  /state [TARGET] /history /clear /reset /systems /doctor /version /quit",
-    "  /grammar TOPIC /roles [FORMAT] /theory /prover /provers /info /theme",
-    "  TAB completes finite command arguments and prover/options names",
+  commandHelpText ++ "\n" ++ String.intercalate "\n" [
+    "  TAB completes command names, options, and paths",
     "topics: /help cnf   /help fof   /help tff   /help lean",
     "        /help run   /help context   /help grammar   /help roles",
     "grammar: ~p  p & q  p | q  p => q  p <=> q  ![X] : p(X)"
@@ -353,8 +473,10 @@ private def cnfHelp : String :=
     "",
     "example: cnf(c1, axiom, p(a) | ~q(a)).",
     "example: cnf(goal, conjecture, mortal(socrates)).",
-    "try: /parse cnf(c1, axiom, p(a) | ~q(a)).",
-    "then: /state formulas   /roles cnf   /run --prover eprover"
+    "workflow:",
+    "  /parse cnf(ax, axiom, p(a)).",
+    "  /parse cnf(goal, conjecture, p(a)).",
+    "  /state formulas   /roles cnf   /run --prover eprover"
   ]
 
 private def fofHelp : String :=
@@ -367,7 +489,11 @@ private def fofHelp : String :=
     "",
     "example: fof(ax, axiom, ![X] : (human(X) => mortal(X))).",
     "example: fof(goal, conjecture, mortal(socrates)).",
-    "try: /parse fof(ax, axiom, ![X] : (human(X) => mortal(X))).",
+    "workflow:",
+    "  /parse fof(ax, axiom, ![X] : (human(X) => mortal(X))).",
+    "  /parse fof(fact, axiom, human(socrates)).",
+    "  /parse fof(goal, conjecture, mortal(socrates)).",
+    "  /run --prover eprover",
     "use FOF when the problem needs implication, conjunction, or quantifiers"
   ]
 
@@ -443,8 +569,10 @@ private def runHelp : String :=
     "/systems [--online] [--refresh] [--no-cache] [--endpoint URL]",
     "/doctor                  check transports and local provers",
     "",
-    "examples: /run --prover eprover",
-    "          /local vampire -- --mode casc"
+    "workflow (a problem is required):",
+    "  /parse fof(goal, conjecture, p => p).",
+    "  /run --prover eprover",
+    "  /local vampire -- --mode casc"
   ]
 
 private def contextHelp : String :=
@@ -507,6 +635,24 @@ def apply (session : Session) (input : String) : Except String Session :=
       | .parse source => parseSource session input source
       | .axiom name formula => addFormulaCommand session input name "axiom" formula
       | .conjecture name formula => addFormulaCommand session input name "conjecture" formula
+      | .load path => pure (record session input s!"load requested: {path}")
+      | .goal _ | .toLean _ => pure (record session input "Lean goal requested")
+      | .snapshot => pure (record session input "Lean snapshot requested")
+      | .toTptp => pure (record session input "TPTP translation requested")
+      | .reconstruct _ => pure (record session input "proof reconstruction requested")
+      | .term => pure (record session input "checked term requested")
+      | .run _ | .local _ | .online _ => pure (record session input "prover run requested")
+      | .theory none => pure (record session input "theory requested")
+      | .theory (some value) => pure (record session input s!"theory requested: {value}")
+      | .prover none => pure (record session input "prover requested")
+      | .prover (some value) => pure (record session input s!"prover requested: {value}")
+      | .provers => pure (record session input "prover selection requested")
+      | .info query => pure (record session input s!"prover info requested: {query}")
+      | .theme none => pure (record session input "theme requested")
+      | .theme (some value) => pure (record session input s!"theme requested: {value}")
+      | .systems _ => pure (record session input "systems requested")
+      | .doctor => pure (record session input "doctor requested")
+      | .quit => pure (record session input "quit requested")
       | .unknown source => .error s!"unknown REPL command `{source}`"
 
 def problem (session : Session) : Option Problem :=

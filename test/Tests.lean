@@ -8,6 +8,7 @@ import OATP
 import OATP.TPTP
 import OATP.SystemOnTPTP
 import OATP.Term
+import TermColor.Repl.Command
 
 open OATP OATP.TPTP
 
@@ -125,6 +126,9 @@ open OATP OATP.TPTP
 #guard match OATP.Repl.parseRunRequest ["--all"] with
   | .ok request => request.all
   | .error _ => false
+#guard match OATP.Repl.parseCommandSpec "/run --all -- --foo" with
+  | .ok (.run request) => request.all && request.arguments == ["--foo"]
+  | _ => false
 #guard match OATP.Repl.parseLocalRequest ["--executable", "eprover", "--timeout", "4", "--", "--foo"] with
   | .ok request => request.executable == "eprover" && request.timeout == 4 &&
       request.arguments == ["--foo"]
@@ -141,6 +145,10 @@ open OATP OATP.TPTP
   | .error _ => false
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "/help"
+def completionApp : OATP.ReplView.App :=
+  { repl := { input := { value := "/st", cursor := 3 }
+              completion := some { candidates := #[{ replacement := "/state" }] } } }
+#guard (OATP.ReplView.screen completionApp { columns := 100, rows := 24 }).plainText.contains "/state"
 #guard OATP.ReplView.formatElapsed 1_500 == "1.5 s"
 #guard (OATP.ReplView.screen
     { entries := [({ cell := 1, input := "/to-lean p => p", output := "goal created", elapsedMs := some 12 } : OATP.ReplView.TranscriptEntry)] }
@@ -180,9 +188,21 @@ open OATP OATP.TPTP
 #guard match OATP.Repl.apply {} "/help" with
   | .ok session =>
       let help := (session.history.toList.getLast?.map (·.result)).getD ""
-      help.contains "/help cnf" && help.contains "/goal F" && help.contains "grammar"
+      help.contains "/help <TOPIC>" && help.contains "/goal <FORMULA>" &&
+        help.contains "/axiom <NAME> <FORMULA>..." && help.contains "grammar"
   | .error _ => false
+#guard (OATP.ReplView.clearSelection
+    { selectionStart := some (1, 2), selectionEnd := some (3, 4) }).selectionStart.isNone
 def main : IO UInt32 := do
+  let commandCompletions ← TermColor.Repl.completeCommand
+    OATP.Repl.commandSpec { value := "/st", cursor := 3 }
+  if !(commandCompletions.any (·.replacement == "/state")) then
+    throw <| IO.userError "REPL command completion omitted /state"
+  let topicCompletions ← TermColor.Repl.completeCommandWith OATP.Repl.commandSpec
+    (fun typeName => pure <| if typeName == "TOPIC" then ["cnf", "fof"] else [])
+    { value := "/help ", cursor := 6 }
+  if !(topicCompletions.any (·.replacement == "cnf")) then
+    throw <| IO.userError "REPL topic completion omitted cnf"
   let x := _root_.TPTP.Formula.Term.function "f" #[
     .constant "a", .var "X"
   ]
