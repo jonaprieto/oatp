@@ -70,7 +70,7 @@ The standalone CLI is available in release archives. The Lean library can be ins
 
 ```lean
 require oatp from git
-  "https://github.com/jonaprieto/oatp.git" @ "v0.5.1"
+  "https://github.com/jonaprieto/oatp.git" @ "v0.6.0"
 ```
 
 ## Build
@@ -88,7 +88,7 @@ views. [`argus`](https://github.com/jonaprieto/lean-argus) provides typed CLI pa
 The CLI and REPL share `OATP.Argus` resource, catalogue, and online-service option specs; their
 different problem/session positionals remain frontend-specific.
 
-For the `v0.5` migration, `RunRequest.references` is now typed as
+For the `v0.6` migration, `RunRequest.references` is now typed as
 `List OATP.ProverReference`; option records expose shared groups under `resources`, `catalogue`,
 and `remote`. Legacy persisted prover names remain accepted and are rewritten with `local:` or
 `online:` prefixes.
