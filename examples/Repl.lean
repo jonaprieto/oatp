@@ -817,7 +817,11 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
         let contextLeft := leftWidth + 3
         let contextRight := contextLeft + rightWidth - 1
         let inContext := mouse.column >= contextLeft && mouse.column <= contextRight
-        if !inContext then some { app with panelFocus := .main }
+        if !inContext then
+          match mouse.action with
+          | .scrollUp => some (clearSelection (scrollTranscriptUp { app with panelFocus := .main }))
+          | .scrollDown => some (clearSelection (scrollTranscriptDown { app with panelFocus := .main }))
+          | _ => some { app with panelFocus := .main }
         else match mouse.action with
         | .scrollUp => some (focusPreviousContext { app with panelFocus := .drawer })
         | .scrollDown => some (focusNextContext { app with panelFocus := .drawer })
@@ -829,6 +833,11 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
                 let app := focusContext { app with panelFocus := .drawer } index
                 some (if header then toggleFocusedContext app else app)
         | _ => none
+
+#guard match handleMouse ({ stateOpen := true } : App) { columns := 110, rows := 28 }
+    { button := .none, action := .scrollUp, column := 1, row := 3 } with
+  | some app => app.transcriptScroll == 3 && app.panelFocus == .main
+  | none => false
 
 private def interactive (initial : App) : IO Unit := do
   clearScreen
