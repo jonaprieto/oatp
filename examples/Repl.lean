@@ -695,27 +695,37 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
   Action := AppKeyAction
   keymap := { bindings :=
     [ { key := .ctrl 'R', action := .openRun }
+    , { key := .ctrl 'r', action := .openRun }
     , { key := .ctrl ']', action := .focusDrawer }
     , { key := .char 'H', action := .closeRun, context := some "run" }
+    , { key := .char 'h', action := .closeRun, context := some "run" }
     , { key := .escape, action := .closeRun, context := some "run" }
     , { key := .char 'J', action := .runNext, context := some "run" }
+    , { key := .char 'j', action := .runNext, context := some "run" }
     , { key := .down, action := .runNext, context := some "run" }
     , { key := .char 'K', action := .runPrevious, context := some "run" }
+    , { key := .char 'k', action := .runPrevious, context := some "run" }
     , { key := .up, action := .runPrevious, context := some "run" }
     , { key := .enter, action := .runInspect, context := some "run" }
     , { key := .char ' ', action := .runInspect, context := some "run" }
     , { key := .char 'H', action := .closeProvers, context := some "provers" }
+    , { key := .char 'h', action := .closeProvers, context := some "provers" }
     , { key := .escape, action := .closeProvers, context := some "provers" }
     , { key := .char 'J', action := .proverNext, context := some "provers" }
+    , { key := .char 'j', action := .proverNext, context := some "provers" }
     , { key := .down, action := .proverNext, context := some "provers" }
     , { key := .char 'K', action := .proverPrevious, context := some "provers" }
+    , { key := .char 'k', action := .proverPrevious, context := some "provers" }
     , { key := .up, action := .proverPrevious, context := some "provers" }
     , { key := .enter, action := .toggleProver, context := some "provers" }
     , { key := .char ' ', action := .toggleProver, context := some "provers" }
     , { key := .char 'H', action := .closeState, context := some "state" }
+    , { key := .char 'h', action := .closeState, context := some "state" }
     , { key := .char 'J', action := .contextNext, context := some "state" }
+    , { key := .char 'j', action := .contextNext, context := some "state" }
     , { key := .down, action := .contextNext, context := some "state" }
     , { key := .char 'K', action := .contextPrevious, context := some "state" }
+    , { key := .char 'k', action := .contextPrevious, context := some "state" }
     , { key := .up, action := .contextPrevious, context := some "state" }
     , { key := .enter, action := .toggleContext, context := some "state" }
     , { key := .char ' ', action := .toggleContext, context := some "state" }
@@ -723,6 +733,7 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
     , { key := .left, action := .collapseContext, context := some "state" }
     , { key := .escape, action := .collapseContext, context := some "state" }
     , { key := .char 'H', action := .closeHistory, context := some "history" }
+    , { key := .char 'h', action := .closeHistory, context := some "history" }
     , { key := .pageUp, action := .transcriptPageUp, context := some "default" }
     , { key := .pageDown, action := .transcriptPageDown, context := some "default" } ] }
   contexts := fun app =>

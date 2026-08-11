@@ -172,7 +172,7 @@ def completionApp : OATP.ReplView.App :=
 #guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
   "state • inactive • Ctrl-] focus"
 #guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
-  "input active"
+  "input • Ctrl-]"
 #guard (OATP.ReplView.screen
     { runOpen := true, panelFocus := .drawer,
       runRows := #[({ name := "eprover", status := "running" } : OATP.ReplView.RunRow)] }

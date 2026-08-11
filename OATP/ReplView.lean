@@ -672,20 +672,24 @@ private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
   let hint := if app.panelFocus == .drawer && app.runOpen then
-      "H main • J/K prover • Enter details"
-    else if app.panelFocus == .drawer && app.stateOpen then "H main • J/K focus • Enter toggle"
-    else if app.panelFocus == .drawer && app.proversOpen then "H main • J/K prover • Space toggle"
-    else if app.panelFocus == .drawer && app.historyOpen then "H main • /history close"
-    else if app.busy then "Ctrl-R run drawer • input active"
+      if outer < 70 then "H main • J/K" else "H main • J/K prover • Enter details"
+    else if app.panelFocus == .drawer && app.stateOpen then
+      if outer < 70 then "H main • J/K" else "H main • J/K focus • Enter toggle"
+    else if app.panelFocus == .drawer && app.proversOpen then
+      if outer < 70 then "H main • J/K" else "H main • J/K prover • Space toggle"
+    else if app.panelFocus == .drawer && app.historyOpen then "H main"
+    else if app.busy then "Ctrl-R run • input"
     else if app.stateOpen || app.proversOpen || app.historyOpen || app.runOpen then
-      "input active • Ctrl-] focus drawer"
+      if outer < 70 then "input • Ctrl-]" else "input active • Ctrl-] focus drawer"
     else "/help • PgUp/PgDn scroll • Ctrl-R runs"
   let leftWidth := outer * 2 / 3
   let rightWidth := outer - leftWidth
   let notice := app.statusNotice.map (fun value => s!"  • {value}") |>.getD ""
   let prover := if app.defaultProver.isEmpty then "auto" else app.defaultProver
+  let metadata := if outer < 70 then s!"  theory={app.theory}{notice}"
+    else s!"  theory={app.theory} • prover={prover}{notice}"
   let left := Text.styled state (Style.bold <+> Style.fg (if app.busy then app.theme.yellow else app.theme.green)) ++
-    Text.styled s!"  theory={app.theory} • prover={prover}{notice}"
+    Text.styled metadata
       (Style.dim <+> Style.fg app.theme.comment)
   columns [leftWidth, rightWidth] 0
     [ truncate leftWidth left
