@@ -34,6 +34,7 @@ private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : B
     (diagnostic : Option Diagnostic := none) : App :=
   { app with
     entries := { cell, input, output, ok, elapsedMs, sources, diagnostic } :: app.entries
+    transcriptScroll := 0
     repl := {} 
     status := if ok then "ready" else "error" }
 
@@ -631,7 +632,11 @@ private def handleKey (app : App) (key : Key) : Option App :=
     match key with
     | .char 'H' => some { app with historyOpen := false }
     | _ => none
-  else none
+  else
+    match key with
+    | .pageUp => some (scrollTranscriptPageUp app)
+    | .pageDown => some (scrollTranscriptPageDown app)
+    | _ => none
 
 private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option App :=
   if app.proversOpen then
@@ -654,6 +659,8 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
         | _ => none
   else if !app.stateOpen then
     match mouse.action with
+    | .scrollUp => some (scrollTranscriptUp app)
+    | .scrollDown => some (scrollTranscriptDown app)
     | .press =>
         if mouse.button != .left then none
         else
@@ -674,7 +681,6 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
               let updated := { app with selectionEnd := some (mouse.column, mouse.row) }
               let updated := { updated with copyPending := some selected }
               some { updated with statusNotice := some s!"copied {selected.length} chars" }
-    | _ => none
   else
     match drawerWidths size.columns with
     | none => none

@@ -150,6 +150,13 @@ open OATP OATP.TPTP
     { columns := 100, rows := 24 }).segments.any
       (fun segment => segment.text == "=>" && !segment.style.settings.isEmpty)
 #guard (OATP.ReplView.screen
+    { transcriptScroll := 10
+      entries := [
+        ({ cell := 3, input := "/help tff", output := "latest" } : OATP.ReplView.TranscriptEntry),
+        ({ cell := 2, input := "/help fof", output := "middle" } : OATP.ReplView.TranscriptEntry),
+        ({ cell := 1, input := "/help cnf", output := "old" } : OATP.ReplView.TranscriptEntry)] }
+    { columns := 100, rows := 10 }).plainText.contains "old"
+#guard (OATP.ReplView.screen
     { stateOpen := true, translation := some "fof(goal, conjecture, p)." }
     { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
 #guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains

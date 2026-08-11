@@ -92,6 +92,7 @@ structure JobResult where
 structure App where
   session : OATP.Repl.Session := {}
   entries : List TranscriptEntry := []
+  transcriptScroll : Nat := 0
   repl : Repl.State := {}
   stateOpen : Bool := false
   historyOpen : Bool := false
@@ -303,34 +304,35 @@ private def transcriptLine (scheme : ColorScheme) (symbols : Array Symbol) (widt
         (Style.dim <+> Style.fg scheme.comment)) |>.getD Text.empty
   input ++ Text.plain "\n" ++ output ++ timing
 
-private def fitEntries (scheme : ColorScheme) (symbols : Array Symbol) (width budget : Nat)
-    (entries : List TranscriptEntry) : List Text :=
-  let rec keep (remaining : Nat) (kept : List Text) : List TranscriptEntry → List Text
-    | [] => kept
-    | entry :: older =>
-        let view := transcriptLine scheme symbols width entry
-        if view.height > remaining then
-          if kept.isEmpty then
-            [joinLines ((splitLines view).drop (view.height - remaining))]
-          else kept
-        else keep (remaining - view.height) (view :: kept) older
-  keep budget [] entries
-
 private def spacedEntries : List Text → List Text
   | [] => []
   | [entry] => [entry]
   | entry :: rest => entry :: Text.empty :: spacedEntries rest
 
-private def transcript (app : App) (width budget : Nat) (entries : List TranscriptEntry) : Text :=
-  let views := fitEntries app.theme app.session.symbols width budget entries
-  if views.isEmpty then
+private def transcriptLines (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
+    (entries : List TranscriptEntry) : List Text :=
+  let views := entries.reverse.map (transcriptLine scheme symbols width)
+  (spacedEntries views).flatMap splitLines
+
+private def visibleTranscriptLines (app : App) (width budget : Nat) : List Text :=
+  let lines := transcriptLines app.theme app.session.symbols width app.entries
+  let scroll := min app.transcriptScroll (lines.length - budget)
+  let visibleEnd := lines.length - scroll
+  let start := visibleEnd - min budget visibleEnd
+  (lines.drop start).take (visibleEnd - start)
+
+private def transcript (app : App) (width budget bodyStart : Nat) : Text :=
+  let lines := visibleTranscriptLines app width budget
+  if lines.isEmpty then
     Text.styled "Type a TPTP statement or /help." (Style.dim <+> Style.fg app.theme.comment)
   else
-    let body := joinLines (spacedEntries views)
+    let body := joinLines lines
     match app.selectionStart, app.selectionEnd with
     | some (_, start), some (_, finish) =>
         let low := min start finish
         let high := max start finish
+        let low := if low > bodyStart then low - bodyStart else 0
+        let high := if high > bodyStart then high - bodyStart else 0
         joinLines <| (splitLines body).mapIdx fun index line =>
           if low ≤ index && index ≤ high then
             Text.styled line.plainText (Style.bg app.theme.selection)
@@ -338,8 +340,19 @@ private def transcript (app : App) (width budget : Nat) (entries : List Transcri
     | _, _ => body
 
 private def selectionLines (app : App) (width budget : Nat) : List String :=
-  let views := fitEntries app.theme app.session.symbols width budget app.entries
-  (spacedEntries views).flatMap (fun view => (splitLines view).map (·.plainText))
+  (visibleTranscriptLines app width budget).map (·.plainText)
+
+def scrollTranscriptUp (app : App) : App :=
+  { app with transcriptScroll := app.transcriptScroll + 3 }
+
+def scrollTranscriptDown (app : App) : App :=
+  { app with transcriptScroll := app.transcriptScroll - min 3 app.transcriptScroll }
+
+def scrollTranscriptPageUp (app : App) : App :=
+  { app with transcriptScroll := app.transcriptScroll + 10 }
+
+def scrollTranscriptPageDown (app : App) : App :=
+  { app with transcriptScroll := app.transcriptScroll - min 10 app.transcriptScroll }
 
 private def symbolLine (scheme : ColorScheme) (symbol : Symbol) : Text :=
   let kind := match symbol.kind with
@@ -577,7 +590,7 @@ private def footer (app : App) (width : Nat) : Text :=
   let hint := if app.stateOpen then "H main • J/K focus • Enter open"
     else if app.proversOpen then "H main • J/K prover • Space toggle"
     else if app.historyOpen then "H main • /history close"
-    else "/help /state /history"
+    else "/help • PgUp/PgDn scroll • /state"
   let leftWidth := outer * 2 / 3
   let rightWidth := outer - leftWidth
   let notice := app.statusNotice.map (fun value => s!"  • {value}") |>.getD ""
@@ -612,7 +625,7 @@ private def calcContent (app : App) (size : Size) : Text :=
   let foot := prompt app.theme width app.repl ++ Text.plain "\n" ++ footer app width
   let used := head.height + foot.height + 2
   let budget := if size.rows > used then size.rows - used else 1
-  let body := transcript app width budget app.entries
+  let body := transcript app width budget (head.height + 1)
   head ++ Text.plain "\n" ++ fillHeight budget body ++ Text.plain "\n" ++ foot
 
 def screen (app : App) (size : Size) : Text :=
