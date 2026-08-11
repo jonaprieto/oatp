@@ -333,6 +333,7 @@ def helpText : String :=
     "  /run OPTIONS     test with provers; /local; /online",
     "  /state [TARGET] /history /clear /reset /systems /doctor /version /quit",
     "  /grammar TOPIC /roles [FORMAT] /theory /prover /provers /info /theme",
+    "  TAB completes finite command arguments and prover/options names",
     "topics: /help cnf   /help fof   /help tff   /help lean",
     "        /help run   /help context   /help grammar   /help roles",
     "grammar: ~p  p & q  p | q  p => q  p <=> q  ![X] : p(X)"
@@ -434,11 +435,12 @@ private def leanHelp : String :=
 private def runHelp : String :=
   String.intercalate "\n" [
     "Provers",
-    "/run [--prover NAME] [--timeout SEC] [--max-output BYTES]",
+    "/run [--prover NAME] [--all] [--timeout SEC] [--max-output BYTES]",
+    "     [--refresh] [--no-cache] [--endpoint URL]",
     "/run --all              run every installed local prover",
-    "/local EXECUTABLE [--timeout SEC] [-- ARGUMENTS...]",
-    "/online SYSTEM [--endpoint URL] [--timeout SEC]",
-    "/systems                 list installed and online systems",
+    "/local EXECUTABLE [--timeout SEC] [--max-output BYTES] [-- ARGUMENTS...]",
+    "/online SYSTEM [--endpoint URL] [--timeout SEC] [--max-output BYTES]",
+    "/systems [--online] [--refresh] [--no-cache] [--endpoint URL]",
     "/doctor                  check transports and local provers",
     "",
     "examples: /run --prover eprover",
@@ -449,14 +451,14 @@ private def contextHelp : String :=
   String.intercalate "\n" [
     "Context drawer",
     "/state [TARGET]            open context or focus a box",
-    "/state goal|formulas|symbols|problem|translation|term",
+    "/state goal|formulas|symbols|problem|translation|term|all",
     "J/K or ↑/↓                  move between boxes",
     "Enter/Space                open or close the focused box",
     "→ / ←                      expand or collapse",
     "H                          return to the main panel",
     "mouse click                focus/toggle a box; scroll changes focus",
     "boxes: formulas, symbols, problem, Lean goal, Lean → TPTP, checked term",
-    "theory: /theory fof|cnf|tff; provers: /provers; theme: /theme NAME"
+    "theory: /theory fof|cnf|tff (tf1 alias); provers: /provers; theme: /theme NAME"
   ]
 
 def helpFor : Option String → String

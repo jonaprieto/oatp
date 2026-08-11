@@ -93,10 +93,13 @@ private def preferences (app : App) : OATP.Config.Preferences := {
   theme := app.themeName
 }
 
-private def savePreferences (app : App) : IO App := do
-  match ← OATP.Config.save (preferences app) with
-  | none => pure app
-  | some message => pure { app with statusNotice := some message }
+private def savePreferences (before after : App) : IO App := do
+  if preferences before == preferences after then
+    pure after
+  else
+    match ← OATP.Config.save (preferences after) with
+    | none => pure after
+    | some message => pure { after with statusNotice := some message }
 
 private def selectedProvers (app : App) (all : Bool) : IO (Array String) := do
   let installed ← OATP.Runtime.installedProvers
@@ -445,8 +448,8 @@ private def submitCore (app : App) (input : String) : IO App := do
     let name := input.drop "/theme ".length |>.trimAscii.toString
     match themeByName name with
     | some scheme =>
-        let updated ← savePreferences { app with theme := scheme, themeName := name }
-        return note updated cell input s!"theme changed to {name}" true
+        return note { app with theme := scheme, themeName := name } cell input
+          s!"theme changed to {name}" true
     | none => return note app cell input s!"unknown theme `{name}`; try: {themeNames}" false
   if input == "/theory" then
     return note app cell input s!"theory: {app.theory}; available: fof, cnf, tff" true
@@ -454,8 +457,7 @@ private def submitCore (app : App) (input : String) : IO App := do
     let requested := input.drop "/theory ".length |>.trimAscii.toString.toLower
     let theory := if requested == "tf1" then "tff" else requested
     if theory == "fof" || theory == "cnf" || theory == "tff" then
-      let updated ← savePreferences { app with theory }
-      return note updated cell input s!"theory set to {theory}" true
+      return note { app with theory } cell input s!"theory set to {theory}" true
     else return note app cell input "unknown theory; use fof, cnf, or tff" false
   if input == "/prover" then
     return note app cell input s!"default prover: {if app.defaultProver.isEmpty then "auto" else app.defaultProver}" true
@@ -465,8 +467,8 @@ private def submitCore (app : App) (input : String) : IO App := do
     let found := candidates.filter (fuzzy name)
     match found.toList with
     | [resolved] =>
-        let updated ← savePreferences { app with defaultProver := resolved }
-        return note updated cell input s!"default prover set to {resolved}" true
+        return note { app with defaultProver := resolved } cell input
+          s!"default prover set to {resolved}" true
     | [] => return note app cell input s!"unknown prover `{name}`" false
     | _ =>
         let detail := String.intercalate ", " found.toList
@@ -498,36 +500,10 @@ private def submitCore (app : App) (input : String) : IO App := do
         return note app cell input output true
   if input == "/doctor" then
     return note app cell input (← doctorText) true
-  if input == "/run" || input.startsWith "/run " then
-    match OATP.Repl.parseRunRequest (words input |>.drop 1) with
+  if backendLine input then
+    match backendRequest input with
     | .error message => return note app cell input message false
     | .ok request =>
-        let (output, ok) ← runRequest app request
-        return note app cell input output ok
-  if input == "/local" || input.startsWith "/local " then
-    match OATP.Repl.parseLocalRequest (words input |>.drop 1) with
-    | .error message => return note app cell input message false
-    | .ok request =>
-        let request : OATP.Repl.RunRequest := {
-          references := [request.executable]
-          timeout := request.timeout
-          maxOutput := request.maxOutput
-          arguments := request.arguments
-        }
-        let (output, ok) ← runRequest app request
-        return note app cell input output ok
-  if input == "/online" || input.startsWith "/online " then
-    match OATP.Repl.parseOnlineRequest (words input |>.drop 1) with
-    | .error message => return note app cell input message false
-    | .ok request =>
-        let reference := if request.system.startsWith "online-" then request.system
-          else "online-" ++ request.system
-        let request : OATP.Repl.RunRequest := {
-          references := [reference]
-          endpoint := request.endpoint
-          timeout := request.timeout
-          maxOutput := request.maxOutput
-        }
         let (output, ok) ← runRequest app request
         return note app cell input output ok
   match OATP.Repl.apply app.session input with
@@ -542,42 +518,95 @@ private def submitCore (app : App) (input : String) : IO App := do
 
 private def submit (app : App) (input : String) : IO App := do
   let started ← IO.monoMsNow
-  let app ← submitCore app input
-  let app ← savePreferences app
+  let updated ← submitCore app input
+  let app ← savePreferences app updated
   let elapsedMs := (← IO.monoMsNow) - started
   match app.entries with
   | entry :: rest => pure { app with entries := { entry with elapsedMs := some elapsedMs } :: rest }
   | [] => pure app
 
 private def commandNames : List String :=
-  ["/help", "/help cnf", "/help fof", "/help tff", "/help lean", "/help run", "/help context",
-   "/help grammar", "/history", "/state", "/state formulas", "/state symbols", "/state problem",
-   "/state goal", "/state translation", "/state term", "/state all", "/grammar", "/grammar cnf",
-   "/grammar fof", "/grammar tff", "/roles", "/roles cnf", "/clear", "/reset", "/load",
-   "/axiom", "/conjecture", "/parse",
-   "/goal", "/to-lean", "/translate-to-lean", "/snapshot", "/to-tptp", "/reconstruct", "/term",
-   "/run", "/local", "/online", "/theory", "/prover", "/provers", "/info", "/theme", "/version",
-   "/systems", "/doctor", "/quit", "/exit"]
+  ["/help", "/history", "/state", "/grammar", "/roles", "/clear", "/reset", "/load",
+   "/axiom", "/conjecture", "/parse", "/goal", "/to-lean", "/translate-to-lean", "/snapshot",
+   "/to-tptp", "/reconstruct", "/term", "/run", "/local", "/online", "/theory", "/prover",
+   "/provers", "/info", "/theme", "/version", "/systems", "/doctor", "/quit", "/exit"]
+
+private def completions (base fragment : String) (values : List String) : List Completion :=
+  values.filter (·.startsWith fragment) |>.map
+    (fun value => { replacement := s!"{base}{value}" })
+
+private def completeLastToken (value : String) (values : List String) : List Completion :=
+  let fragment := (value.takeEndWhile (· != ' ')).toString
+  completions (value.dropEnd fragment.length).toString fragment values
+
+private def completeRun (value : String) (localProvers : List String) : List Completion :=
+  if value.startsWith "/run --prover " then
+    let fragment := value.drop "/run --prover ".length |>.toString
+    if (fragment.splitOn " ").length == 1 then
+      completions "/run --prover " fragment localProvers
+    else
+      completeLastToken value
+        (localProvers ++ ["--prover", "--all", "--timeout", "--max-output", "--refresh", "--no-cache",
+          "--endpoint"])
+  else if value.startsWith "/run " then
+    completeLastToken value
+      (localProvers ++ ["--prover", "--all", "--timeout", "--max-output", "--refresh", "--no-cache",
+        "--endpoint"])
+  else []
+
+private def completeLocal (value : String) (localProvers : List String) : List Completion :=
+  if value.startsWith "/local " then
+    completeLastToken value
+      (localProvers ++ ["--executable", "--timeout", "--max-output"])
+  else []
 
 private def complete (_app : App) (input : TextInputState) : IO (List Completion) := do
   let value := input.value
-  if value.startsWith "/state " then
+  let localProvers ← OATP.Runtime.localProverCandidates
+  let localProvers := localProvers.toList
+  if value.startsWith "/help roles " then
+    let fragment := value.drop "/help roles ".length |>.toString
+    pure <| completions "/help roles " fragment ["cnf", "fof", "tff"]
+  else if value.startsWith "/help " then
+    let fragment := value.drop "/help ".length |>.toString
+    pure <| completions "/help " fragment
+      ["cnf", "fof", "tff", "lean", "run", "context", "grammar", "roles"]
+  else if value.startsWith "/state " then
     let fragment := value.drop "/state ".length |>.toString
-    pure <| contextTargetNames.filter (·.startsWith fragment) |>.map
-      (fun target => { replacement := s!"/state {target}" })
-  else if value.startsWith "/theme " then
-    let fragment := value.drop "/theme ".length |>.toString
-    pure <| themes.map Prod.fst |>.filter (·.startsWith fragment) |>.map
-      (fun name => { replacement := s!"/theme {name}" })
+    pure <| completions "/state " fragment (contextTargetNames ++ ["all"])
+  else if value.startsWith "/grammar roles " then
+    let fragment := value.drop "/grammar roles ".length |>.toString
+    pure <| completions "/grammar roles " fragment ["cnf", "fof", "tff"]
   else if value.startsWith "/grammar " then
     let fragment := value.drop "/grammar ".length |>.toString
-    if fragment.startsWith "roles " then
-      let roleFormat := fragment.drop "roles ".length |>.toString
-      pure <| ["cnf", "fof", "tff"].filter (·.startsWith roleFormat) |>.map
-        (fun format => { replacement := s!"/grammar roles {format}" })
-    else
-      pure <| ["cnf", "fof", "tff", "lean", "roles"].filter (·.startsWith fragment) |>.map
-        (fun topic => { replacement := s!"/grammar {topic}" })
+    pure <| completions "/grammar " fragment ["cnf", "fof", "tff", "lean", "roles"]
+  else if value.startsWith "/roles " then
+    let fragment := value.drop "/roles ".length |>.toString
+    pure <| completions "/roles " fragment ["cnf", "fof", "tff"]
+  else if value.startsWith "/theme " then
+    let fragment := value.drop "/theme ".length |>.toString
+    pure <| completions "/theme " fragment (themes.map Prod.fst)
+  else if value.startsWith "/theory " then
+    let fragment := value.drop "/theory ".length |>.toString
+    pure <| completions "/theory " fragment ["fof", "cnf", "tff", "tf1"]
+  else if value.startsWith "/prover " then
+    let fragment := value.drop "/prover ".length |>.toString
+    pure <| completions "/prover " fragment localProvers
+  else if value.startsWith "/info " then
+    let fragment := value.drop "/info ".length |>.toString
+    pure <| completions "/info " fragment localProvers
+  else if value.startsWith "/run " then
+    pure <| completeRun value localProvers
+  else if value.startsWith "/local " then
+    pure <| completeLocal value localProvers
+  else if value.startsWith "/online " then
+    pure <| completeLastToken value ["--system", "--endpoint", "--timeout", "--max-output"]
+  else if value.startsWith "/reconstruct " then
+    pure <| completeLastToken value
+      ["true-intro", "exact", "and-left", "and-right", "and-intro", "implication-intro"]
+  else if value.startsWith "/systems " then
+    pure <| completeLastToken value
+      ["--online", "--refresh", "--no-cache", "--endpoint"]
   else
     pure <| commandNames.filter (·.startsWith value) |>.map (fun replacement => { replacement })
 
