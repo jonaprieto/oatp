@@ -136,13 +136,66 @@ private def doctorOnlineAttempts (endpoint : String)
     }
   }
 
-private def doctorOnlineResult : Portfolio.Result → Bool
-  | .artifact _ _ => true
-  | .failed _ message => message.startsWith "SystemOnTPTP returned unsupported SZS status"
+inductive DoctorIssueKind where
+  | noSZSStatus
+  | transportTimeout
+  | transportFailure
+  | httpError
+  | requestFailure
+  deriving BEq, DecidableEq, Repr
+
+structure DoctorIssue where
+  prover : String
+  kind : DoctorIssueKind
+  detail : String
+
+private def doctorIssueKindLabel : DoctorIssueKind → String
+  | .noSZSStatus => "no SZS status"
+  | .transportTimeout => "transport timeout"
+  | .transportFailure => "transport failure"
+  | .httpError => "HTTP error"
+  | .requestFailure => "request failed"
+
+private def doctorIssueKind : Portfolio.Failure → DoctorIssueKind
+  | .process _ => .requestFailure
+  | .http (.transport message) =>
+      if message.contains "timed out" then .transportTimeout else .transportFailure
+  | .http _ => .requestFailure
+  | .response .missingStatus _ => .noSZSStatus
+  | .response (.httpStatus _) _ => .httpError
+  | .response (.unsupportedStatus _) _ => .requestFailure
+
+private def doctorIssue : Portfolio.Result → Option DoctorIssue
+  | .artifact _ _ => none
+  | .failed attempt failure =>
+      match failure with
+      | .response (.unsupportedStatus _) _ => none
+      | _ =>
+          let detail := if failure.output.isEmpty then failure.message else
+            failure.message ++ "\n\n" ++ failure.output
+          some { prover := attempt.name, kind := doctorIssueKind failure, detail }
 
 private def portfolioName : Portfolio.Result → String
   | .artifact attempt _ => attempt.name
   | .failed attempt _ => attempt.name
+
+private def doctorIssueSummary (issues : List DoctorIssue) : String :=
+  let kinds : List DoctorIssueKind :=
+    [.noSZSStatus, .transportTimeout, .transportFailure, .httpError, .requestFailure]
+  String.intercalate " · " <| kinds.filterMap fun kind =>
+    let count := List.countP (fun issue : DoctorIssue => issue.kind == kind) issues
+    if count == 0 then none else some s!"{count} {doctorIssueKindLabel kind}"
+
+private def doctorIssueFile : String := "oatp-doctor-issues.txt"
+
+private def writeDoctorIssues (issues : List DoctorIssue) : IO (Option String) := do
+  let entries := issues.map fun issue =>
+    s!"[{doctorIssueKindLabel issue.kind}] {issue.prover}\n{issue.detail}"
+  try
+    IO.FS.writeFile doctorIssueFile <|
+      "OATP online probe issues\n\n" ++ String.intercalate "\n\n" entries ++ "\n"
+    pure (some doctorIssueFile)
+  catch _ => pure none
 
 private def printDiagnostic (message : String) : IO UInt32 := do
   let stderr ← IO.getStderr
@@ -232,8 +285,8 @@ private def showPortfolioResult : Portfolio.Result → IO Bool
         IO.print artifact.stdout
       unless artifact.stderr.isEmpty do IO.eprint artifact.stderr
       pure (SZSStatus.isSuccess artifact.status)
-  | .failed attempt message => do
-      IO.eprintln s!"! {attempt.name}: {message}"
+  | .failed attempt failure => do
+      IO.eprintln s!"! {attempt.name}: {failure.message}"
       pure false
 
 private def portfolioView (total : Nat) (progress : Widgets.IndeterminateProgressState)
@@ -293,9 +346,7 @@ private def withPortfolioProgress {α : Type} (total : Nat)
       let _ ← IO.ofExcept tick.get
       let next ← do
         let live ← region.get
-        let currentProgress ← progress.get
-        let currentResults ← results.get
-        live.updateText (portfolioView total currentProgress currentResults)
+        live.updateText Text.empty
       let _ ← next.finish
     pure value
 
@@ -315,15 +366,19 @@ private def runDoctorOnline (identity : CliIdentity) (transports : Array String)
           Portfolio.runWith doctorOnlineProblem
             (doctorOnlineAttempts identity.endpoint systems) onResult
         let mut responsive := 0
-        let mut failures : Array String := #[]
+        let mut failures : Array DoctorIssue := #[]
         for result in results do
-          if doctorOnlineResult result then
-            responsive := responsive + 1
-          else
-            failures := failures.push (portfolioName result)
+          match doctorIssue result with
+          | some issue => failures := failures.push issue
+          | none => responsive := responsive + 1
         doctorRow "probe" s!"{responsive}/{systems.size} systems responded" (responsive > 0)
-        for failure in failures do
-          doctorRow "issue" failure false
+        let issues := failures.toList
+        unless issues.isEmpty do
+          doctorRow "issues" s!"{issues.length} systems need attention · {
+            doctorIssueSummary issues}" false
+          match ← writeDoctorIssues issues with
+          | some path => doctorRow "details" path true
+          | none => doctorRow "details" "could not write issue report" false
         pure (responsive > 0)
 
 private def runDoctor (identity : CliIdentity) : IO UInt32 := do

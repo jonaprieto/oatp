@@ -207,7 +207,7 @@ private def requestWithWgetUnsafe (request : Request) : IO (Except Error Respons
   let base : Array String := #[
     "--quiet", "--server-response", "--max-redirect=0", "--tries=1",
     "--timeout=" ++ toString request.maxSeconds,
-    "--max-filesize=" ++ toString request.maxBodyBytes,
+    "--quota=" ++ toString request.maxBodyBytes,
     "--output-document=-"
   ]
   let withHeaders := request.headers.foldl (fun args header =>

@@ -95,7 +95,7 @@ private def artifactText : Portfolio.Result → (String × Bool)
       let stderr := if artifact.stderr.isEmpty then ""
         else "\nstderr: " ++ artifact.stderr.trimAscii.toString
       (head ++ stdout ++ stderr, SZSStatus.isSuccess artifact.status)
-  | .failed attempt message => (s!"{attempt.name}: failed: {message}", false)
+  | .failed attempt failure => (s!"{attempt.name}: failed: {failure.message}", false)
 
 private def runRow : Portfolio.Result → RunRow
   | .artifact attempt artifact =>
@@ -104,8 +104,8 @@ private def runRow : Portfolio.Result → RunRow
         detail := if !artifact.stderr.isEmpty then artifact.stderr.trimAscii.toString
           else artifact.stdout.trimAscii.toString
         elapsedMs := some artifact.elapsedMs }
-  | .failed attempt message =>
-      { name := attempt.name, status := .failed, detail := message }
+  | .failed attempt failure =>
+      { name := attempt.name, status := .failed, detail := failure.message }
 
 private def runRowsFor (attempts : Array Portfolio.Attempt) : Array RunRow :=
   attempts.map fun attempt => { name := attempt.name, status := .running }

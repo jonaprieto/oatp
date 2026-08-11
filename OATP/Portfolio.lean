@@ -29,9 +29,15 @@ structure Attempt where
   limits : Limits := {}
   deriving Repr
 
+inductive Failure where
+  | process (message : String)
+  | http (error : Http.Error)
+  | response (error : SystemOnTPTP.ResponseError) (output : String)
+  deriving Repr
+
 inductive Result where
   | artifact (attempt : Attempt) (value : Artifact)
-  | failed (attempt : Attempt) (message : String)
+  | failed (attempt : Attempt) (failure : Failure)
   deriving Repr
 
 private def responseErrorMessage : SystemOnTPTP.ResponseError → String
@@ -47,23 +53,37 @@ private def httpErrorMessage : Http.Error → String
   | .requestBodyTooLarge actual limit => s!"HTTP request exceeded {limit} bytes ({actual} captured)"
   | .bodyTooLarge actual limit => s!"HTTP response exceeded {limit} bytes ({actual} captured)"
 
+def Failure.message : Failure → String
+  | .process message => message
+  | .http error => httpErrorMessage error
+  | .response error _ => responseErrorMessage error
+
+def Failure.output : Failure → String
+  | .http (.malformedStatus output) => output
+  | .process _ | .http _ => ""
+  | .response _ output => output
+
 def execute (problem : Problem) (attempt : Attempt) : IO Result := do
   match attempt.backend with
   | .local command =>
       match ← Process.run { name := attempt.name } problem attempt.limits command with
       | .ok artifact => pure (.artifact attempt artifact)
-      | .error (.io message) => pure (.failed attempt message)
+      | .error (.io message) => pure (.failed attempt (.process message))
       | .error (.outputTooLarge actual limit) =>
-          pure (.failed attempt s!"local prover output exceeded {limit} bytes ({actual} captured)")
+          pure <| .failed attempt <| .process
+            s!"local prover output exceeded {limit} bytes ({actual} captured)"
   | .online config =>
       let started ← IO.monoMsNow
       match ← SystemOnTPTP.submit config problem with
-      | .error error => pure (.failed attempt (httpErrorMessage error))
+      | .error error => pure (.failed attempt (.http error))
       | .ok response =>
           match SystemOnTPTP.parseResponse config problem response with
           | .ok artifact =>
               pure (.artifact attempt { artifact with elapsedMs := (← IO.monoMsNow) - started })
-          | .error error => pure (.failed attempt (responseErrorMessage error))
+          | .error error =>
+              let output := if response.stderr.isEmpty then response.body else
+                response.body ++ "\n\nstderr:\n" ++ response.stderr
+              pure (.failed attempt (.response error output))
 
 -- partiality: task completion is external and waitAny' controls progress through the pending set.
 private partial def collect (pending : List (Task (Except IO.Error Result)))
