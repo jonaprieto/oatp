@@ -1,0 +1,18 @@
+fof(goal, conjecture, p).
+/run cat
+/local cat
+/systems
+/doctor
+/load test/fixtures/repl-problem.p
+/state
+/to-lean p => q => p & q
+/reconstruct implication-intro hp implication-intro hq and-intro exact hp exact hq
+/to-lean p & q => p
+/reconstruct implication-intro h and-left h
+/to-lean $true
+/reconstruct true-intro
+/term
+/to-lean p => p
+/to-tptp
+fof(replaced, conjecture, q).
+/run cat

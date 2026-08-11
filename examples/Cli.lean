@@ -7,12 +7,14 @@ Authors: Jonathan Prieto-Cubides
 import Argus
 import Argus.Term
 import OATP
+import Repl
 import Std.Async.Process
 import TermColor.Diagnostics
 import TermColor.Terminal
 
 open Argus
 open OATP
+open OATP.Runtime
 open TermColor
 open TermColor.Diagnostics
 open TermColor.Terminal
@@ -28,17 +30,14 @@ private def cliIdentity : IO CliIdentity := do
   let executableName := executable.fileName.getD "tool"
   pure {
     name := (← IO.getEnv "OATP_NAME").getD executableName
-    version := (← IO.getEnv "OATP_VERSION").getD "development"
+    version := (← IO.getEnv "OATP_VERSION").getD OATP.version
     endpoint := (← IO.getEnv "OATP_SYSTEM_ENDPOINT").getD SystemOnTPTP.defaultEndpoint
   }
 
 argus_opts LocalOptions where
   executable : String := Spec.flag "executable" (some 'x') "Local prover executable" Param.path;
   problem : String := Spec.arg "PROBLEM" "TPTP problem file" Param.path;
-  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
-    "Wall-clock limit" Param.duration);
-  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
-    "Maximum captured output" Param.bytes);
+  resources : OATP.Argus.ResourceOptions := OATP.Argus.ResourceOptions.spec;
   arguments : List String := Spec.many
     (Spec.arg "ARG" "Argument passed to the prover after --" Param.str)
 
@@ -46,42 +45,29 @@ argus_opts RunOptions where
   problem : String := Spec.arg "PROBLEM" "TPTP problem file" Param.path;
   provers : List String := Spec.many (Spec.flag "prover" (some 'p')
     "Prover reference; repeat for a portfolio (online-* opts into network use)" Param.str);
-  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none
-    "SystemOnTPTP endpoint for online-* provers" Param.str);
-  refresh : Bool := Spec.switch "refresh" none "Refresh the online prover catalogue";
-  noCache : Bool := Spec.switch "no-cache" none "Do not read or write the online catalogue cache";
-  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
-    "Wall-clock limit" Param.duration);
-  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
-    "Maximum captured output" Param.bytes);
+  catalogue : OATP.Argus.CatalogueOptions := OATP.Argus.CatalogueOptions.spec;
+  resources : OATP.Argus.ResourceOptions := OATP.Argus.ResourceOptions.spec;
   arguments : List String := Spec.many
     (Spec.arg "ARG" "Argument passed to the prover after --" Param.str)
 
 argus_opts OnlineOptions where
   system : String := Spec.flag "system" (some 's') "SystemOnTPTP system label" Param.str;
   problem : String := Spec.arg "PROBLEM" "TPTP problem file" Param.path;
-  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none
-    "SystemOnTPTP endpoint" Param.str);
-  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
-    "Remote time limit" Param.duration);
-  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
-    "Maximum captured response" Param.bytes)
+  remote : OATP.Argus.RemoteOptions := OATP.Argus.RemoteOptions.spec
 
 argus_opts SystemsOptions where
   online : Bool := Spec.switch "online" (some 'o') "Also fetch online provers";
-  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none
-    "SystemOnTPTP endpoint" Param.str);
-  refresh : Bool := Spec.switch "refresh" none "Refresh the online prover catalogue";
-  noCache : Bool := Spec.switch "no-cache" none "Do not read or write the online catalogue cache"
+  catalogue : OATP.Argus.CatalogueOptions := OATP.Argus.CatalogueOptions.spec
 
 inductive Action where
   | run (options : RunOptions)
   | local (options : LocalOptions)
   | online (options : OnlineOptions)
   | systems (options : SystemsOptions)
+  | repl
   | doctor
 
-def cli (identity : CliIdentity) : Command Action :=
+def cli (identity : CliIdentity) : Argus.Command Action :=
   Argus.group identity.name
     [ Argus.cmd "run" (Spec.map Action.run RunOptions.spec)
         (description := "Run a local or explicitly selected online portfolio")
@@ -91,16 +77,12 @@ def cli (identity : CliIdentity) : Command Action :=
         (description := "Submit a problem to SystemOnTPTP")
     , Argus.cmd "systems" (Spec.map Action.systems SystemsOptions.spec)
         (description := "List installed local and available online provers")
+    , Argus.cmd "repl" (Spec.const Action.repl)
+        (description := "Open the interactive TPTP/Lean ATP workbench")
     , Argus.cmd "doctor" (Spec.const Action.doctor)
         (description := "Check local tools and online prover readiness") ]
     (version := some identity.version)
     (description := "Run TPTP problems with local and explicitly selected online provers")
-
-private def localProverCandidates : IO (Array String) := do
-  match ← IO.getEnv "OATP_LOCAL_PROVERS" with
-  | some value =>
-      pure <| value.splitOn "," |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty) |>.toArray
-  | none => pure #["eprover", "vampire", "metis"]
 
 private def doctorPalette : ColorScheme := ColorScheme.catppuccin
 
@@ -140,15 +122,17 @@ private def doctorOnlineProblem : Problem := {
 
 private def doctorOnlineAttempts (endpoint : String)
     (systems : Array SystemOnTPTP.Catalogue.SystemInfo) : Array Portfolio.Attempt :=
+  let timeout := OATP.Runtime.doctorTimeoutSeconds
+  let outputLimit := OATP.Runtime.doctorMaxOutputBytes
   systems.map fun system => {
     name := system.id
-    limits := { wallSeconds := 5, maxOutputBytes := 1024 * 1024 }
+    limits := { wallSeconds := timeout, maxOutputBytes := outputLimit }
     backend := .online {
       endpoint
       systemLabel := system.id
       systemCommands := if system.command.isEmpty then #[] else #[(system.id, system.command)]
-      timeLimit := 5
-      maxBodyBytes := 1024 * 1024
+      timeLimit := timeout
+      maxBodyBytes := outputLimit
     }
   }
 
@@ -170,6 +154,7 @@ private def printDiagnostic (message : String) : IO UInt32 := do
   stderr.putStr "\n"
   pure 1
 
+-- partiality: this live UI loop runs until an external IO action sets finished.
 private partial def progressLoop (finished : IO.Ref Bool)
     (config : Widgets.ProgressConfig) (state : Widgets.IndeterminateProgressState)
     (region : LiveRegion) : IO Unit := do
@@ -199,76 +184,6 @@ private def withProgress {α : Type} (label : String) (action : IO α) : IO α :
       let _ ← IO.ofExcept progress.get
     pure result
 
-private def httpErrorMessage : OATP.Http.Error → String
-  | .io message => s!"HTTP IO failed: {message}"
-  | .invalidRequest message => s!"invalid HTTP request: {message}"
-  | .transport message => s!"HTTP transport failed: {message}"
-  | .malformedStatus output => s!"HTTP response had no usable status: {output}"
-  | .requestBodyTooLarge actual limit =>
-      s!"HTTP request exceeded {limit} bytes ({actual} captured)"
-  | .bodyTooLarge actual limit => s!"HTTP response exceeded {limit} bytes ({actual} captured)"
-
-private def readProblem (path : String) : IO Problem := do
-  pure { name := path, source := ← IO.FS.readFile path }
-
-inductive CatalogueCache where
-  | normal
-  | refresh
-  | noCache
-
-private def catalogueLocation (cacheNamespace endpoint : String) :
-    IO (Option (System.FilePath × System.FilePath)) := do
-  let root ← match ← IO.getEnv "XDG_CACHE_HOME" with
-    | some path => pure (some (⟨path⟩ : System.FilePath))
-    | none => match ← IO.getEnv "HOME" with
-      | some path => pure (some (System.FilePath.join (⟨path⟩ : System.FilePath) ".cache"))
-      | none => pure none
-  let safeNamespace := String.ofList (cacheNamespace.toList.map fun character =>
-    if character.isAlphanum || character == '-' || character == '_' then character else '_')
-  pure <| root.map fun root =>
-    let cacheName := if safeNamespace.isEmpty then "tool" else safeNamespace
-    let normalizedEndpoint := endpoint.trimAscii.toString
-    let directory := System.FilePath.join root cacheName
-    (directory, System.FilePath.join directory s!"systems-{hash normalizedEndpoint}.html")
-
-private def fetchCatalogue (endpoint : String)
-    (location : Option (System.FilePath × System.FilePath))
-    (writeCache : Bool) : IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo)) := do
-  match ← SystemOnTPTP.fetchCatalogue endpoint with
-  | .error error => pure (.error (httpErrorMessage error))
-  | .ok response =>
-      if response.statusCode < 200 || response.statusCode ≥ 300 then
-        pure (.error s!"SystemOnTPTP catalogue returned HTTP {response.statusCode}")
-      else
-        let systems := SystemOnTPTP.Catalogue.parse response.body
-        if systems.isEmpty then
-          pure (.error "SystemOnTPTP catalogue contained no prover systems")
-        else
-          if writeCache then
-            for (directory, path) in location do
-              try
-                IO.FS.createDirAll directory
-                IO.FS.writeFile path response.body
-              catch _ => pure ()
-          pure (.ok systems)
-
-private def loadCatalogue (cacheNamespace endpoint : String) (mode : CatalogueCache) :
-    IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo)) := do
-  let location ← catalogueLocation cacheNamespace endpoint
-  match mode with
-  | .normal =>
-      match location with
-      | some (_, path) =>
-          try
-            let systems := SystemOnTPTP.Catalogue.parse (← IO.FS.readFile path)
-            if systems.isEmpty then
-              fetchCatalogue endpoint location true
-            else pure (.ok systems)
-          catch _ => fetchCatalogue endpoint location true
-      | none => fetchCatalogue endpoint none false
-  | .refresh => fetchCatalogue endpoint location true
-  | .noCache => fetchCatalogue endpoint none false
-
 private def showArtifact (artifact : Artifact) : IO UInt32 := do
   let marker := if artifact.status == .theorem then "✓" else "!"
   IO.eprintln s!"{marker} {artifact.prover.label}: {artifact.status} ({artifact.elapsedMs}ms)"
@@ -288,8 +203,8 @@ private def runLocal (toolName : String) (options : LocalOptions) : IO UInt32 :=
   try
     let problem ← readProblem options.problem
     let limits : Limits := {
-      wallSeconds := options.timeout.getD 30
-      maxOutputBytes := options.maxOutput.getD (4 * 1024 * 1024)
+      wallSeconds := options.resources.timeout.getD OATP.defaultTimeoutSeconds
+      maxOutputBytes := options.resources.maxOutput.getD OATP.defaultMaxOutputBytes
     }
     let result ← withProgress s!"local {options.executable}" <| Process.run
       { name := options.executable }
@@ -300,13 +215,6 @@ private def runLocal (toolName : String) (options : LocalOptions) : IO UInt32 :=
     | .ok artifact => showArtifact artifact
     | .error error => printDiagnostic (processErrorMessage toolName options.executable error)
   catch error => printDiagnostic s!"could not read problem: {error}"
-
-private def installedProvers : IO (Array String) := do
-  let mut found := #[]
-  for executable in ← localProverCandidates do
-    if (← Http.commandVersion executable).isSome then
-      found := found.push executable
-  pure found
 
 private def noLocalProverMessage : IO String := do
   let candidates ← localProverCandidates
@@ -368,6 +276,7 @@ private def portfolioView (total : Nat) (progress : Widgets.IndeterminateProgres
   } { progress with label := Text.styled label (Style.fg doctorPalette.foreground) }
   progress ++ Text.plain "\n" ++ Widgets.renderTable [28, 16, 12] (portfolioRows results)
 
+-- partiality: this live UI loop runs until an external portfolio action sets finished.
 private partial def portfolioProgressLoop (finished : IO.Ref Bool)
     (progress : IO.Ref Widgets.IndeterminateProgressState)
     (results : IO.Ref (List Portfolio.Result)) (region : IO.Ref LiveRegion)
@@ -474,26 +383,24 @@ private def runPortfolio (problem : Problem) (attempts : Array Portfolio.Attempt
     success := (← showPortfolioResult result) || success
   pure <| if success then 0 else 1
 
-private def resolveOnline (toolName : String) (systems : Array SystemOnTPTP.Catalogue.SystemInfo)
-    (references : List String) : Except String (Array SystemOnTPTP.Catalogue.SystemInfo) := do
-  let resolved ← references.mapM fun reference =>
-    match SystemOnTPTP.Catalogue.resolve systems reference with
-    | some system => pure system
-    | none => Except.error (s!"online prover `{reference}` is not in the catalogue; " ++
-          s!"run `{toolName} systems --online --refresh`")
-  pure resolved.toArray
-
 private def runDefault (identity : CliIdentity) (options : RunOptions) : IO UInt32 := do
   try
     let problem ← readProblem options.problem
-    let references ← if options.provers.isEmpty then
-      pure (← installedProvers).toList
+    let rawReferences ← if options.provers.isEmpty then
+      pure (OATP.Runtime.defaultLocalProver (← installedProvers)).toList
     else pure options.provers
-    let localReferences := references.filter (!·.startsWith "online-")
-    let onlineReferences := references.filter (·.startsWith "online-")
+    let references := rawReferences.map OATP.ProverReference.ofString
+    let localReferences := references.filterMap fun reference =>
+      match reference.kind with
+      | .local => some reference.name
+      | .online => none
+    let onlineReferences := references.filterMap fun reference =>
+      match reference.kind with
+      | .local => none
+      | .online => some reference.name
     let limits : Limits := {
-      wallSeconds := options.timeout.getD 30
-      maxOutputBytes := options.maxOutput.getD (4 * 1024 * 1024)
+      wallSeconds := options.resources.timeout.getD OATP.defaultTimeoutSeconds
+      maxOutputBytes := options.resources.maxOutput.getD OATP.defaultMaxOutputBytes
     }
     let mut attempts : Array Portfolio.Attempt := #[]
     for reference in localReferences do
@@ -506,9 +413,9 @@ private def runDefault (identity : CliIdentity) (options : RunOptions) : IO UInt
         }
       }
     if !onlineReferences.isEmpty then
-      let endpoint := options.endpoint.getD identity.endpoint
-      let mode := if options.noCache then CatalogueCache.noCache
-        else if options.refresh then CatalogueCache.refresh else CatalogueCache.normal
+      let endpoint := options.catalogue.endpoint.getD identity.endpoint
+      let mode := if options.catalogue.noCache then CatalogueCache.noCache
+        else if options.catalogue.refresh then CatalogueCache.refresh else CatalogueCache.normal
       match ← loadCatalogue identity.name endpoint mode with
       | .error message => printDiagnostic message
       | .ok systems =>
@@ -552,9 +459,9 @@ private def runSystems (identity : CliIdentity) (options : SystemsOptions) : IO 
       let version := (← Http.commandVersion executable).getD "installed"
       writeTextLine (Text.plain s!"  {executable}  {version}")
   if options.online then
-    let endpoint := options.endpoint.getD identity.endpoint
-    let mode := if options.noCache then CatalogueCache.noCache
-      else if options.refresh then CatalogueCache.refresh else CatalogueCache.normal
+    let endpoint := options.catalogue.endpoint.getD identity.endpoint
+    let mode := if options.catalogue.noCache then CatalogueCache.noCache
+      else if options.catalogue.refresh then CatalogueCache.refresh else CatalogueCache.normal
     writeTextLine Text.empty
     writeTextLine (Text.styled s!"ONLINE  {endpoint}"
       (Style.bold <+> Style.fg doctorPalette.cyan))
@@ -563,7 +470,7 @@ private def runSystems (identity : CliIdentity) (options : SystemsOptions) : IO 
     | .ok systems =>
         for system in systems do
           let name := SystemOnTPTP.Catalogue.baseName system.id
-          writeTextLine (Text.plain s!"  online-{system.id}  ({name})")
+          writeTextLine (Text.plain s!"  {SystemOnTPTP.onlineReference system.id}  ({name})")
         pure 0
   else
     writeTextLine Text.empty
@@ -577,9 +484,9 @@ private def submitOnline (options : OnlineOptions) (problem : Problem) (endpoint
   let config : SystemOnTPTP.Config := {
     systemLabel := system.id
     systemCommands := if system.command.isEmpty then #[] else #[(system.id, system.command)]
-    endpoint
-    timeLimit := options.timeout.getD 30
-    maxBodyBytes := options.maxOutput.getD (4 * 1024 * 1024)
+    endpoint,
+    timeLimit := options.remote.resources.timeout.getD OATP.defaultTimeoutSeconds
+    maxBodyBytes := options.remote.resources.maxOutput.getD OATP.defaultMaxOutputBytes
   }
   let started ← IO.monoMsNow
   let response ← withProgress s!"online {system.id}" <| SystemOnTPTP.submit config problem
@@ -593,7 +500,7 @@ private def submitOnline (options : OnlineOptions) (problem : Problem) (endpoint
 private def runOnline (identity : CliIdentity) (options : OnlineOptions) : IO UInt32 := do
   try
     let problem ← readProblem options.problem
-    let endpoint := options.endpoint.getD identity.endpoint
+    let endpoint := options.remote.endpoint.getD identity.endpoint
     match ← loadCatalogue identity.name endpoint CatalogueCache.normal with
     | .error message => printDiagnostic message
     | .ok systems =>
@@ -606,6 +513,8 @@ private def runOnline (identity : CliIdentity) (options : OnlineOptions) : IO UI
   catch error => printDiagnostic s!"could not read problem: {error}"
 
 def main (argv : List String) : IO UInt32 := do
+  if let "repl" :: replArgs := argv then
+    return ← oatpReplMain replArgs
   let identity ← cliIdentity
   let command := cli identity
   if argv.isEmpty then
@@ -614,8 +523,9 @@ def main (argv : List String) : IO UInt32 := do
   else
     Argus.Term.main command argv fun action =>
       match action with
-      | .run options => runDefault identity options
+      | Action.run options => runDefault identity options
       | .local options => runLocal identity.name options
       | .online options => runOnline identity options
       | .systems options => runSystems identity options
+      | .repl => pure 0
       | .doctor => runDoctor identity

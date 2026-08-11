@@ -42,6 +42,8 @@ private def unsupported (expression : Expr) : MetaM (Except String TPTP.Formula.
   pure <| Except.error (s!"unsupported Lean proposition `{rendered}`; supported fragment is " ++
     "propositional logic over named atoms")
 
+-- partiality: Lean Expr stores recursive applications in arrays; this private MetaM traversal
+-- is conservative and tested at the translation trust boundary.
 private partial def translateProp (expression : Expr) :
     MetaM (Except String TPTP.Formula.Expr) := do
   let expression ← instantiateMVars expression

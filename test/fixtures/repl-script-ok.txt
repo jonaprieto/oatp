@@ -1,0 +1,5 @@
+/to-lean p => p
+/reconstruct implication-intro h exact h
+/term
+/quit
+/to-lean $false

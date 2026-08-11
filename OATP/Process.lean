@@ -27,6 +27,8 @@ inductive Error where
   | outputTooLarge (actual limit : Nat)
   deriving Repr
 
+-- partiality: process completion and the monotonic clock are external; the deadline bounds
+-- polling behavior, not kernel recursion.
 private partial def waitForExit {cfg : IO.Process.StdioConfig}
     (child : IO.Process.Child cfg) (deadline : Nat) : IO (Bool × UInt32) := do
   match ← child.tryWait with

@@ -24,13 +24,32 @@ def defaultCatalogueEndpoint : String := "https://tptp.org/cgi-bin/SystemOnTPTP"
 
 def defaultEndpoint : String := "https://tptp.org/cgi-bin/SystemOnTPTPFormReply"
 
+def defaultCatalogueTimeoutSeconds : Nat := OATP.defaultTimeoutSeconds
+
+def defaultCatalogueMaxBodyBytes : Nat := 8 * 1024 * 1024
+
+def defaultSystemTimeLimit : Nat := 60
+
+def requestOverheadSeconds : Nat := 10
+
+def onlineReferencePrefix : String := "online-"
+
+def isOnlineReference (reference : String) : Bool := reference.startsWith onlineReferencePrefix
+
+def onlineReference (systemId : String) : String := onlineReferencePrefix ++ systemId
+
+def onlineSystemId (reference : String) : String :=
+  if isOnlineReference reference then
+    (reference.drop onlineReferencePrefix.length).toString
+  else reference
+
 structure Config where
   endpoint : String := defaultEndpoint
   systemLabel : String
   systemLabels : Array String := #[]
   systemCommands : Array (String × String) := #[]
-  timeLimit : Nat := 30
-  maxBodyBytes : Nat := 4 * 1024 * 1024
+  timeLimit : Nat := OATP.defaultTimeoutSeconds
+  maxBodyBytes : Nat := OATP.defaultMaxOutputBytes
   deriving BEq, DecidableEq, Repr
 
 namespace Catalogue
@@ -38,7 +57,7 @@ namespace Catalogue
 structure SystemInfo where
   id : String
   command : String := ""
-  timeLimit : Nat := 60
+  timeLimit : Nat := defaultSystemTimeLimit
   deriving BEq, DecidableEq, Repr
 
 private def quotedAfter (marker line : String) : Option String :=
@@ -73,9 +92,7 @@ def parse (html : String) : Array SystemInfo :=
 def baseName (id : String) : String := id.splitOn "---" |>.headD id
 
 def matchesReference (reference : String) (system : SystemInfo) : Bool :=
-  let reference := if reference.startsWith "online-" then
-      (reference.drop "online-".length).toString
-    else reference
+  let reference := onlineSystemId reference
   let wanted := reference.toLower
   let id := system.id.toLower
   id == wanted || (baseName system.id).toLower == wanted ||
@@ -120,7 +137,7 @@ def request (config : Config) (problem : Problem) : Http.Request where
   url := config.endpoint
   body := encodeUrlEncoded (fields config problem)
   headers := #["Content-Type: application/x-www-form-urlencoded"]
-  maxSeconds := config.timeLimit + 10
+  maxSeconds := config.timeLimit + requestOverheadSeconds
   maxBodyBytes := config.maxBodyBytes
   maxRequestBodyBytes := config.maxBodyBytes
 
@@ -131,9 +148,9 @@ def submit (config : Config) (problem : Problem) :
 def catalogueRequest (endpoint : String) : Http.Request where
   method := .get
   url := if endpoint == defaultEndpoint then defaultCatalogueEndpoint else endpoint
-  maxSeconds := 30
-  maxBodyBytes := 8 * 1024 * 1024
-  maxRequestBodyBytes := 8 * 1024 * 1024
+  maxSeconds := defaultCatalogueTimeoutSeconds
+  maxBodyBytes := defaultCatalogueMaxBodyBytes
+  maxRequestBodyBytes := defaultCatalogueMaxBodyBytes
 
 def fetchCatalogue (endpoint : String) : IO (Except Http.Error Http.Response) :=
   Http.requestWithTransport (catalogueRequest endpoint)

@@ -18,8 +18,31 @@ lake exe demo
 lake exe proof-demo
 lake exe oatp --help
 lake exe oatp systems
+lake exe oatp repl
 lake exe tests
 ```
+
+`oatp repl` keeps the TPTP context, conjectures, formulas, variables, symbols, history, Lean
+goals, translated problems, prover artifacts, and kernel-checked terms in one session:
+
+```text
+/to-lean p => p
+/load problem.p
+/snapshot
+/to-tptp
+/reconstruct implication-intro h exact h
+/term
+/run --prover eprover
+/local ./my-prover -- --arg
+/online --system online-vampire
+/systems
+/doctor
+```
+
+Use `/state` for the context drawer, `/history` for the transcript, and `--script FILE` for a
+non-interactive session. `/to-lean` currently accepts the propositional TPTP fragment; terms and
+quantifiers remain available for `/parse` and prover execution and return an explicit diagnostic
+when a Lean signature is required.
 
 Run a local problem or select an online system explicitly:
 
@@ -29,6 +52,9 @@ lake exe oatp run --prover eprover problem.p
 lake exe oatp run --prover online-vampire problem.p
 ```
 
+Without `--prover`, `run` uses the first installed local prover. Set
+`OATP_LOCAL_PROVERS` to control the local candidate order; online systems are opt-in.
+
 ## Provides
 
 - pure prover, artifact, outcome, limit, and search-event models;
@@ -36,6 +62,7 @@ lake exe oatp run --prover online-vampire problem.p
 - bounded local process and HTTP transport;
 - concurrent local-prover portfolios;
 - SystemOnTPTP catalogue and cache;
+- shared Argus option specs for the batch CLI and REPL;
 - proposition-to-TPTP translation and small kernel-checked reconstruction;
 - plain and ANSI terminal rendering through the TermColor stack.
 
@@ -43,7 +70,7 @@ The standalone CLI is available in release archives. The Lean library can be ins
 
 ```lean
 require oatp from git
-  "https://github.com/jonaprieto/oatp.git" @ "v0.3.1"
+  "https://github.com/jonaprieto/oatp.git" @ "v0.6.0"
 ```
 
 ## Build
@@ -57,6 +84,14 @@ lake exe tests
 
 [`oatp-proofwidgets`](https://github.com/jonaprieto/oatp-proofwidgets) provides optional Infoview
 views. [`argus`](https://github.com/jonaprieto/lean-argus) provides typed CLI parsing.
+
+The CLI and REPL share `OATP.Argus` resource, catalogue, and online-service option specs; their
+different problem/session positionals remain frontend-specific.
+
+For the `v0.6` migration, `RunRequest.references` is now typed as
+`List OATP.ProverReference`; option records expose shared groups under `resources`, `catalogue`,
+and `remote`. Legacy persisted prover names remain accepted and are rewritten with `local:` or
+`online:` prefixes.
 
 ## License
 

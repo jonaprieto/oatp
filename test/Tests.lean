@@ -8,6 +8,7 @@ import OATP
 import OATP.TPTP
 import OATP.SystemOnTPTP
 import OATP.Term
+import TermColor.Repl.Command
 
 open OATP OATP.TPTP
 
@@ -62,6 +63,10 @@ open OATP OATP.TPTP
       "\n<input name=\"System___E---3.5.1\">") with
   | systems => (OATP.SystemOnTPTP.Catalogue.resolve systems "online-vampire").isSome &&
       (OATP.SystemOnTPTP.Catalogue.resolve systems "online-E---3.5.1").isSome
+#guard match OATP.Runtime.resolveOnline "oatp" #[{ id := "Vampire---5.0.1" }]
+    ["online-vampire"] with
+  | .ok #[system] => system.id == "Vampire---5.0.1"
+  | _ => false
 #guard match (OATP.SystemOnTPTP.Catalogue.parse
     ("<input NAME=\"System___Vampire---5.0.1\">\n" ++
       "<input name=\"Command___Vampire---5.0.1\" value=\"run_vampire %s %d THM\">\n" ++
@@ -94,7 +99,185 @@ open OATP OATP.TPTP
   context := #["h : p"]
   target := "p"
 }] == "goal: demo\n  h : p\n⊢ p"
+#guard match OATP.Repl.parseInput "/conjecture goal p" with
+  | .command (.conjecture "goal" "p") => true
+  | _ => false
+#guard match OATP.Repl.parseInput "/help cnf" with
+  | .command (.help (some "cnf")) => true
+  | _ => false
+#guard match OATP.Repl.parseInput "/state goal" with
+  | .command (.stateTarget "goal") => true
+  | _ => false
+#guard match OATP.Repl.parseInput "/grammar cnf" with
+  | .command (.grammar "cnf") => true
+  | _ => false
+#guard match OATP.Repl.parseInput "/roles tff" with
+  | .command (.roles (some "tff")) => true
+  | _ => false
+#guard match OATP.Repl.apply {} "/help cnf" with
+  | .ok session =>
+      let help := (session.history.toList.getLast?.map (·.result)).getD ""
+      help.contains "CNF" && help.contains "cnf(c1, axiom" && help.contains "implicitly universal"
+  | .error _ => false
+#guard match OATP.Repl.parseRunRequest
+    ["--prover", "eprover", "--timeout", "7", "--max-output", "99", "--no-cache",
+      "--", "--foo"] with
+  | .ok request => request.references == [OATP.Repl.ProverReference.fromLocal "eprover"] &&
+      request.timeout == 7 &&
+      request.maxOutput == 99 && request.noCache && request.arguments == ["--foo"]
+  | .error _ => false
+#guard match OATP.Repl.parseRunRequest ["--all"] with
+  | .ok request => request.all
+  | .error _ => false
+#guard OATP.Argus.ResourceOptions.spec.toMeta.flags.map (·.long) == ["timeout", "max-output"]
+#guard OATP.Argus.CatalogueOptions.spec.toMeta.flags.map (·.long) ==
+  ["endpoint", "refresh", "no-cache"]
+#guard match OATP.Repl.parseRunRequest ["--timeout", "2m", "--max-output", "2Mi"] with
+  | .ok request => request.timeout == 120 && request.maxOutput == 2 * 1024 * 1024
+  | .error _ => false
+#guard match OATP.Repl.parseCommandSpec "/run --all -- --foo" with
+  | .ok (.run request) => request.all && request.arguments == ["--foo"]
+  | _ => false
+#guard match OATP.Repl.parseLocalRequest
+    ["--executable", "eprover", "--timeout", "4", "--", "--foo"] with
+  | .ok request => request.executable == "eprover" && request.timeout == 4 &&
+      request.arguments == ["--foo"]
+  | .error _ => false
+#guard match OATP.Repl.parseOnlineRequest ["--system", "online-vampire", "--timeout", "5"] with
+  | .ok request => request.system == "online-vampire" && request.timeout == 5
+  | .error _ => false
+#guard match OATP.Repl.parseSource {} "fof(goal, conjecture, p(X))."
+    "fof(goal, conjecture, p(X))." with
+  | .ok session =>
+      session.formulas.size == 1 &&
+      session.symbols.any (fun symbol => symbol.kind == .predicate && symbol.name == "p") &&
+      session.symbols.any (fun symbol => symbol.kind == .variable && symbol.name == "X")
+  | .error _ => false
+#guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
+#guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "/help"
+#guard ({} : OATP.ReplView.App).stateOpen && ({} : OATP.ReplView.App).panelFocus == .main
+def completionApp : OATP.ReplView.App :=
+  { repl := { input := { value := "/st", cursor := 3 }
+              completion := some { candidates := #[{ replacement := "/state" }] } } }
+#guard (OATP.ReplView.screen completionApp { columns := 100, rows := 24 }).plainText.contains
+  "/state"
+#guard OATP.ReplView.formatElapsed 1_500 == "1.5 s"
+private def timedEntry : OATP.ReplView.TranscriptEntry :=
+  { cell := 1
+    input := "/to-lean p => p"
+    output := "goal created"
+    elapsedMs := some 12 }
+#guard (OATP.ReplView.screen
+    { entries := [timedEntry] }
+    { columns := 100, rows := 24 }).plainText.contains "(12 ms)"
+private def plainEntry : OATP.ReplView.TranscriptEntry :=
+  { cell := 1
+    input := "/to-lean p => p"
+    output := "goal created" }
+#guard (OATP.ReplView.screen
+    { entries := [plainEntry] }
+    { columns := 100, rows := 24 }).segments.any
+      (fun segment => segment.text == "=>" && !segment.style.settings.isEmpty)
+#guard (OATP.ReplView.screen
+    { transcriptScroll := 10
+      entries := [
+        ({ cell := 3, input := "/help tff", output := "latest" } : OATP.ReplView.TranscriptEntry),
+        ({ cell := 2, input := "/help fof", output := "middle" } : OATP.ReplView.TranscriptEntry),
+        ({ cell := 1, input := "/help cnf", output := "old" } : OATP.ReplView.TranscriptEntry)] }
+    { columns := 100, rows := 10 }).plainText.contains "old"
+#guard (OATP.ReplView.screen
+    { stateOpen := true, translation := some "fof(goal, conjecture, p)." }
+    { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
+#guard
+  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
+  "▸ FORMULAS (0)"
+#guard
+  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
+  "state • inactive • Ctrl-] focus"
+#guard
+  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
+  "input • Ctrl-]"
+#guard (OATP.ReplView.screen
+    { runOpen := true, panelFocus := .drawer,
+      runRows := #[({ name := "eprover", status := .running } : OATP.ReplView.RunRow)] }
+    { columns := 110, rows := 24 }).plainText.contains "running"
+#guard match OATP.Repl.apply {} "/help context" with
+  | .ok session =>
+      (session.history.toList.getLast?.map (·.result)).getD "" |>.contains "Ctrl-]"
+  | .error _ => false
+#guard match OATP.Repl.apply {} "/help /to-lean" with
+  | .ok session =>
+      let help := (session.history.toList.getLast?.map (·.result)).getD ""
+      help.contains "/to-lean" && help.contains "1. /goal"
+  | .error _ => false
+#guard OATP.Repl.commandNames.all (fun command =>
+  !(OATP.Repl.helpFor (some command)).contains "unknown help topic")
+#guard match OATP.Repl.apply {} "/help local" with
+  | .ok session =>
+      (session.history.toList.getLast?.map (·.result)).getD "" |>.contains "/local"
+  | .error _ => false
+#guard match OATP.Repl.parseCommandSpec "/local" with
+  | .error message => message.contains "missing required argument" && message.contains "/help local"
+  | .ok _ => false
+#guard match OATP.Repl.parseCommandSpec "/run" with
+  | .ok (.run request) => request.references.isEmpty && !request.all
+  | _ => false
+#guard match OATP.Repl.parseCommandSpec "local" with
+  | .error message => message.contains "commands start with"
+  | .ok _ => false
+#guard match OATP.Repl.parseCommandSpec "/help\tcnf" with
+  | .ok (.help (some "cnf")) => true
+  | _ => false
+#guard OATP.Runtime.defaultLocalProver #[] == none
+#guard OATP.Runtime.defaultLocalProver #["eprover", "vampire"] == some "eprover"
+#guard (OATP.ReplView.toggleFocusedContext {}).contextExpanded.getD 0 false
+#guard OATP.ReplView.contextTargetOfString "form" == some 0
+#guard OATP.ReplView.contextTargetOfString "tptp" == some 4
+#guard (OATP.ReplView.openContextTarget {} "goal").map
+    (fun app => app.stateOpen && app.contextFocus == 3 && app.contextExpanded.getD 3 false) ==
+      some true
+#guard OATP.ReplView.themeByName "dracula" |>.isSome
+#guard "to-lean" ∈ OATP.Repl.commandNames
+#guard OATP.Repl.ProverReference.fromPersisted "local:online-local" ==
+  some (OATP.Repl.ProverReference.fromLocal "online-local")
+#guard OATP.Repl.ProverReference.fromPersisted "online:vampire" ==
+  some (OATP.Repl.ProverReference.fromOnline "vampire")
+#guard OATP.ProverReference.fromPersisted "local:" == none
+#guard OATP.ProverReference.fromPersisted "online:" == none
+#guard (OATP.ReplView.focusNextContext {}).contextFocus == 1
+#guard (OATP.ReplView.focusPreviousContext {}).contextFocus == 5
+#guard OATP.ReplView.contextHitAtRow {} 40 2 == some (0, true)
+#guard (OATP.ReplView.screen
+    { historyOpen := true
+      session := { history := #[{ cell := 1, input := "/help", result := "commands" }] } }
+    { columns := 100, rows := 24 }).plainText.contains "history • active"
+#guard (OATP.ReplView.screen { historyOpen := true } { columns := 100, rows := 24 }).height == 24
+#guard (OATP.ReplView.screen
+    { entries := [{ cell := 1, input := "/snapshot", output := "first\nsecond" }] }
+    { columns := 100, rows := 24 }).plainText.contains "second"
+#guard match OATP.Repl.apply {} "/help" with
+  | .ok session =>
+      let help := (session.history.toList.getLast?.map (·.result)).getD ""
+      help.contains "/help [<TOPIC>]" && help.contains "/goal <FORMULA> [<FORMULA>...]" &&
+        help.contains "/axiom <NAME> <FORMULA> [<FORMULA>...]" && help.contains "grammar"
+  | .error _ => false
+#guard (OATP.ReplView.clearSelection
+    { selectionStart := some (1, 2), selectionEnd := some (3, 4) }).selectionStart.isNone
 def main : IO UInt32 := do
+  let commandCompletions ← TermColor.Repl.completeCommand
+    OATP.Repl.commandSpec { value := "/st", cursor := 3 }
+  if !(commandCompletions.any (·.replacement == "/state")) then
+    throw <| IO.userError "REPL command completion omitted /state"
+  let topicCompletions ← TermColor.Repl.completeCommandWith OATP.Repl.commandSpec
+    (fun typeName => pure <| if typeName == "TOPIC" then ["cnf", "fof"] else [])
+    { value := "/help ", cursor := 6 }
+  if !(topicCompletions.any (·.replacement == "cnf")) then
+    throw <| IO.userError "REPL topic completion omitted cnf"
+  let slashTopicCompletions ← TermColor.Repl.completeCommandWith OATP.Repl.commandSpec
+    (fun typeName => pure <| if typeName == "TOPIC" then ["to-lean"] else [])
+    { value := "/help /to", cursor := 9 }
+  if !(slashTopicCompletions.any (·.replacement == "/to-lean")) then
+    throw <| IO.userError "REPL slash-topic completion omitted /to-lean"
   let x := _root_.TPTP.Formula.Term.function "f" #[
     .constant "a", .var "X"
   ]
@@ -223,5 +406,25 @@ def main : IO UInt32 := do
         throw <| IO.userError "missing executable was not reported as a process error"
   | .error (.io _) => pure ()
   | .error _ => throw <| IO.userError "local process IO failure was misclassified"
+  let leanRuntime ← OATP.Lean.Repl.create
+  let (leanRuntime, goal) ← match ← OATP.Lean.Repl.goalFromFormula leanRuntime "p => p" with
+    | .ok value => pure value
+    | .error message => throw <| IO.userError s!"Lean REPL goal creation failed: {message}"
+  let (_, snapshot) ← OATP.Lean.Repl.snapshot leanRuntime goal
+  if snapshot.target.isEmpty || snapshot.context.isEmpty then
+    throw <| IO.userError "Lean REPL snapshot omitted target or local atom"
+  let (leanRuntime, translation) ← OATP.Lean.Repl.translateToTPTP leanRuntime goal
+  match translation with
+  | .ok value =>
+      if !value.problem.source.contains "fof(goal, conjecture" then
+        throw <| IO.userError "Lean REPL translation omitted conjecture"
+  | .error message => throw <| IO.userError s!"Lean REPL translation failed: {message}"
+  let (_, reconstructed) ← OATP.Lean.Repl.reconstruct leanRuntime goal
+      (.implicationIntro `h (.exact `h))
+  match reconstructed with
+  | .ok term =>
+      if !term.checked || !term.term.contains "fun" then
+        throw <| IO.userError "Lean REPL did not render a checked proof term"
+  | .error message => throw <| IO.userError s!"Lean REPL reconstruction failed: {message}"
   IO.println "OATP tests passed"
   return 0

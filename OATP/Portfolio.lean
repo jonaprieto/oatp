@@ -65,6 +65,7 @@ def execute (problem : Problem) (attempt : Attempt) : IO Result := do
               pure (.artifact attempt { artifact with elapsedMs := (← IO.monoMsNow) - started })
           | .error error => pure (.failed attempt (responseErrorMessage error))
 
+-- partiality: task completion is external and waitAny' controls progress through the pending set.
 private partial def collect (pending : List (Task (Except IO.Error Result)))
     (results : Array Result) (onResult : Result → IO Unit) : IO (Array Result) := do
   match pending with
