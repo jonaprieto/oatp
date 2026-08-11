@@ -185,12 +185,12 @@ private def withProgress {α : Type} (label : String) (action : IO α) : IO α :
     pure result
 
 private def showArtifact (artifact : Artifact) : IO UInt32 := do
-  let marker := if artifact.status == .theorem then "✓" else "!"
+  let marker := if SZSStatus.isSuccess artifact.status then "✓" else "!"
   IO.eprintln s!"{marker} {artifact.prover.label}: {artifact.status} ({artifact.elapsedMs}ms)"
   unless artifact.stdout.isEmpty || artifact.stdout.trimAscii.toString.startsWith "<!DOCTYPE" do
     IO.print artifact.stdout
   unless artifact.stderr.isEmpty do IO.eprint artifact.stderr
-  pure <| if artifact.status == .theorem then 0 else 1
+  pure <| if SZSStatus.isSuccess artifact.status then 0 else 1
 
 private def processErrorMessage (toolName executable : String) : OATP.Process.Error → String
   | .io message =>
@@ -228,12 +228,12 @@ private def responseErrorMessage : SystemOnTPTP.ResponseError → String
 
 private def showPortfolioResult : Portfolio.Result → IO Bool
   | .artifact _ artifact => do
-      let marker := if artifact.status == .theorem then "✓" else "!"
+      let marker := if SZSStatus.isSuccess artifact.status then "✓" else "!"
       IO.eprintln s!"{marker} {artifact.prover.label}: {artifact.status} ({artifact.elapsedMs}ms)"
       unless artifact.stdout.isEmpty || artifact.stdout.trimAscii.toString.startsWith "<!DOCTYPE" do
         IO.print artifact.stdout
       unless artifact.stderr.isEmpty do IO.eprint artifact.stderr
-      pure (artifact.status == .theorem)
+      pure (SZSStatus.isSuccess artifact.status)
   | .failed attempt message => do
       IO.eprintln s!"! {attempt.name}: {message}"
       pure false

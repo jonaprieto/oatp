@@ -94,7 +94,7 @@ private def artifactText : Portfolio.Result → (String × Bool)
         else "\n" ++ artifact.stdout.trimAscii.toString
       let stderr := if artifact.stderr.isEmpty then ""
         else "\nstderr: " ++ artifact.stderr.trimAscii.toString
-      (head ++ stdout ++ stderr, artifact.status == .theorem)
+      (head ++ stdout ++ stderr, SZSStatus.isSuccess artifact.status)
   | .failed attempt message => (s!"{attempt.name}: failed: {message}", false)
 
 private def runRow : Portfolio.Result → RunRow

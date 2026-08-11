@@ -521,13 +521,13 @@ private def cnfHelp : String :=
     "terms:     constant | variable | function(term, ...)",
     "variables are implicitly universal; CNF uses only | and ~",
     "roles: axiom, hypothesis, definition, assumption, lemma, theorem,",
-    "       corollary, conjecture, negated_conjecture, plain",
+    "       corollary, negated_conjecture, plain",
     "",
     "example: cnf(c1, axiom, p(a) | ~q(a)).",
-    "example: cnf(goal, conjecture, mortal(socrates)).",
+    "example: cnf(goal, negated_conjecture, ~mortal(socrates)).",
     "workflow:",
     "  /parse cnf(ax, axiom, p(a)).",
-    "  /parse cnf(goal, conjecture, p(a)).",
+    "  /parse cnf(goal, negated_conjecture, ~p(a)).",
     "  /state formulas   /roles cnf   /run --prover eprover"
   ]
 
@@ -593,7 +593,7 @@ private def roleHelp (topic : Option String) : String :=
     "type           TFF type declaration",
     "interpretation / logic / unknown / fi_domain / fi_functors / fi_predicates",
     "",
-    "roles are shared by CNF and FOF; TFF additionally uses `type`.",
+    "CNF uses `negated_conjecture` for refutation clauses; FOF uses `conjecture`.",
     s!"Use /grammar {format} for the syntax."
   ]
 
@@ -689,9 +689,23 @@ def helpFor : Option String → String
                   "/help run, /help context"
               ]
 
+private def validateStatement (statement : _root_.TPTP.Statement) : Except String Unit :=
+  match statement.kind, statement.role with
+  | .cnf, .conjecture =>
+      .error ("CNF does not support the `conjecture` role; use " ++
+        "`negated_conjecture` with a negated clause")
+  | _, _ => pure ()
+
+private def validateDocument (document : _root_.TPTP.Document) : Except String Unit :=
+  document.items.toList.mapM (fun item => match item with
+    | _root_.TPTP.Item.statement statement => validateStatement statement
+    | _root_.TPTP.Item.include _ => pure ()) |>.map (fun _ => ())
+
 def parseSource (session : Session) (input source : String) : Except String Session :=
   match OATP.TPTP.parse source with
-  | .ok document => pure (addDocument session input document)
+  | .ok document => do
+      validateDocument document
+      pure (addDocument session input document)
   | .error error => .error (error.pretty source.toUTF8)
 
 private def addFormulaCommand (session : Session) (input name role formula : String) :

@@ -100,6 +100,10 @@ def toString : SZSStatus → String
   | .error => "Error"
   | .unknown => "Unknown"
 
+def isSuccess : SZSStatus → Bool
+  | .theorem | .unsatisfiable => true
+  | _ => false
+
 instance : ToString SZSStatus where
   toString := toString
 

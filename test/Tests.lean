@@ -13,6 +13,8 @@ import TermColor.Repl.Command
 open OATP OATP.TPTP
 
 #guard SZSStatus.toString .theorem == "Theorem"
+#guard SZSStatus.isSuccess .theorem && SZSStatus.isSuccess .unsatisfiable
+#guard !SZSStatus.isSuccess .satisfiable
 #guard SZSStatus.ofOutput "# SZS status Theorem for fixture\n" == some .theorem
 #guard SZSStatus.ofOutput "% SZS status Timeout for fixture\n" == some .timeout
 #guard SZSStatus.ofOutput
@@ -153,6 +155,13 @@ open OATP OATP.TPTP
       session.symbols.any (fun symbol => symbol.kind == .predicate && symbol.name == "p") &&
       session.symbols.any (fun symbol => symbol.kind == .variable && symbol.name == "X")
   | .error _ => false
+#guard match OATP.Repl.parseSource {} "cnf(goal, conjecture, p(a))."
+    "cnf(goal, conjecture, p(a))." with
+  | .error message => message.contains "CNF does not support" &&
+      message.contains "negated_conjecture"
+  | .ok _ => false
+#guard (OATP.Repl.parseSource {} "cnf(goal, negated_conjecture, ~p(a))."
+    "cnf(goal, negated_conjecture, ~p(a)).").isOk
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
 #guard (OATP.ReplView.screen { stateOpen := false }
     { columns := 100, rows := 24 }).plainText.contains
