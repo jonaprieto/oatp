@@ -30,7 +30,7 @@ private def cliIdentity : IO CliIdentity := do
   let executableName := executable.fileName.getD "tool"
   pure {
     name := (← IO.getEnv "OATP_NAME").getD executableName
-    version := (← IO.getEnv "OATP_VERSION").getD "development"
+    version := (← IO.getEnv "OATP_VERSION").getD OATP.version
     endpoint := (← IO.getEnv "OATP_SYSTEM_ENDPOINT").getD SystemOnTPTP.defaultEndpoint
   }
 
