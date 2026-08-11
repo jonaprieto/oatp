@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Jonathan Prieto-Cubides
 -/
 
+import OATP.Core
+
 /-!
 # OATP.Http: command-backed HTTP prototype
 
@@ -102,9 +104,9 @@ structure Request where
   url : String
   body : String := ""
   headers : Array String := #[]
-  maxSeconds : Nat := 30
-  maxBodyBytes : Nat := 4 * 1024 * 1024
-  maxRequestBodyBytes : Nat := 4 * 1024 * 1024
+  maxSeconds : Nat := OATP.defaultTimeoutSeconds
+  maxBodyBytes : Nat := OATP.defaultMaxOutputBytes
+  maxRequestBodyBytes : Nat := OATP.defaultMaxOutputBytes
   deriving Repr
 
 structure Response where

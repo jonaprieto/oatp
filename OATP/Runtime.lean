@@ -27,11 +27,19 @@ inductive CatalogueCache where
 def readProblem (path : String) : IO Problem := do
   pure { name := path, source := ← IO.FS.readFile path }
 
+def defaultLocalProverCandidates : Array String := #["eprover", "vampire", "metis"]
+
+def defaultLocalProver (installed : Array String) : Option String := installed[0]?
+
+def doctorTimeoutSeconds : Nat := 5
+
+def doctorMaxOutputBytes : Nat := 1024 * 1024
+
 def localProverCandidates : IO (Array String) := do
   match ← IO.getEnv "OATP_LOCAL_PROVERS" with
   | some value =>
       pure <| value.splitOn "," |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty) |>.toArray
-  | none => pure #["eprover", "vampire", "metis"]
+  | none => pure defaultLocalProverCandidates
 
 def catalogueLocation (cacheNamespace endpoint : String) :
     IO (Option (System.FilePath × System.FilePath)) := do

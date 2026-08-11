@@ -9,6 +9,7 @@ import OATP.Version
 import OATP.Proof
 import OATP.SystemOnTPTP
 import OATP.Argus
+import OATP.ProverReference
 import Argus
 
 /-!
@@ -42,40 +43,12 @@ def staticCompletionValues (typeName : String) : List String :=
   | "STEP" => OATP.Proof.stepNames
   | _ => []
 
-inductive ProverReferenceKind where
-  | local
-  | online
-  deriving BEq, DecidableEq, Repr, Inhabited
-
-structure ProverReference where
-  name : String
-  kind : ProverReferenceKind
-  deriving BEq, DecidableEq, Repr, Inhabited
+abbrev ProverReferenceKind := OATP.ProverReferenceKind
+abbrev ProverReference := OATP.ProverReference
 
 namespace ProverReference
 
-def fromLocal (name : String) : ProverReference := { name, kind := .local }
-
-def fromOnline (name : String) : ProverReference :=
-  { name := OATP.SystemOnTPTP.onlineSystemId name, kind := .online }
-
-def ofString (name : String) : ProverReference :=
-  if OATP.SystemOnTPTP.isOnlineReference name then fromOnline name else fromLocal name
-
-def fromPersisted (value : String) : Option ProverReference :=
-  if value.startsWith "local:" then some (fromLocal (value.drop "local:".length |>.toString))
-  else if value.startsWith "online:" then some (fromOnline (value.drop "online:".length |>.toString))
-  else if value.isEmpty then none else some (ofString value)
-
-def persisted (reference : ProverReference) : String :=
-  match reference.kind with
-  | .local => "local:" ++ reference.name
-  | .online => "online:" ++ reference.name
-
-def display (reference : ProverReference) : String :=
-  match reference.kind with
-  | .local => reference.name
-  | .online => OATP.SystemOnTPTP.onlineReference reference.name
+export OATP.ProverReference (fromLocal fromOnline ofString fromPersisted persisted display)
 
 end ProverReference
 
@@ -246,8 +219,15 @@ def parseSystemsRequest (args : List String) : Except String SystemsRequest :=
   | some (_ :: _) => .error "systems does not accept arguments after --"
   | _ => parseSpec SystemsOptions.spec args |>.map systemsRequestOf
 
-private def words (source : String) : List String :=
-  source.splitOn " " |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty)
+def splitWords (source : String) : List String :=
+  let whitespace (character : Char) : Bool := character.isWhitespace
+  let (current, words) := source.toList.foldl (fun (current, words) character =>
+    if whitespace character then
+      if current.isEmpty then ([], words)
+      else ([], String.ofList current.reverse :: words)
+    else (character :: current, words)) ([], [])
+  let words := if current.isEmpty then words else String.ofList current.reverse :: words
+  words.reverse
 
 private def textSpec (name help : String) : Spec (1 * (1 * conditional * flexible)) String :=
   Spec.map (fun values : List String => String.intercalate " " values)
@@ -326,7 +306,7 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "exit" (Spec.const .quit) (description := "Leave the REPL") ]
 
 private def commandArgv (source : String) : List String × Option (List String) :=
-  match words source.trimAscii.toString with
+  match splitWords source.trimAscii.toString with
   | command :: args =>
       let command := (command.drop 1).toString
       let (args, tail) := splitTerminator args

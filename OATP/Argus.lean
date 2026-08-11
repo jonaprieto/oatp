@@ -18,7 +18,7 @@ namespace OATP.Argus
 
 open _root_.Argus
 
-def endpointSpec := Spec.opt (Spec.flag "endpoint" none
+private def endpointSpec := Spec.opt (Spec.flag "endpoint" none
   "SystemOnTPTP endpoint" Param.str)
 
 argus_opts ResourceOptions where

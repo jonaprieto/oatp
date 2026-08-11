@@ -203,6 +203,11 @@ def completionApp : OATP.ReplView.App :=
 #guard match OATP.Repl.parseCommandSpec "local" with
   | .error message => message.contains "commands start with"
   | .ok _ => false
+#guard match OATP.Repl.parseCommandSpec "/help\tcnf" with
+  | .ok (.help (some "cnf")) => true
+  | _ => false
+#guard OATP.Runtime.defaultLocalProver #[] == none
+#guard OATP.Runtime.defaultLocalProver #["eprover", "vampire"] == some "eprover"
 #guard (OATP.ReplView.toggleFocusedContext {}).contextExpanded.getD 0 false
 #guard OATP.ReplView.contextTargetOfString "form" == some 0
 #guard OATP.ReplView.contextTargetOfString "tptp" == some 4
@@ -214,6 +219,8 @@ def completionApp : OATP.ReplView.App :=
   some (OATP.Repl.ProverReference.fromLocal "online-local")
 #guard OATP.Repl.ProverReference.fromPersisted "online:vampire" ==
   some (OATP.Repl.ProverReference.fromOnline "vampire")
+#guard OATP.ProverReference.fromPersisted "local:" == none
+#guard OATP.ProverReference.fromPersisted "online:" == none
 #guard (OATP.ReplView.focusNextContext {}).contextFocus == 1
 #guard (OATP.ReplView.focusPreviousContext {}).contextFocus == 5
 #guard OATP.ReplView.contextHitAtRow {} 40 2 == some (0, true)

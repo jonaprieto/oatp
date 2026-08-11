@@ -124,13 +124,13 @@ private def doctorOnlineAttempts (endpoint : String)
     (systems : Array SystemOnTPTP.Catalogue.SystemInfo) : Array Portfolio.Attempt :=
   systems.map fun system => {
     name := system.id
-    limits := { wallSeconds := 5, maxOutputBytes := 1024 * 1024 }
+    limits := { wallSeconds := OATP.Runtime.doctorTimeoutSeconds, maxOutputBytes := OATP.Runtime.doctorMaxOutputBytes }
     backend := .online {
       endpoint
       systemLabel := system.id
       systemCommands := if system.command.isEmpty then #[] else #[(system.id, system.command)]
-      timeLimit := 5
-      maxBodyBytes := 1024 * 1024
+      timeLimit := OATP.Runtime.doctorTimeoutSeconds
+      maxBodyBytes := OATP.Runtime.doctorMaxOutputBytes
     }
   }
 
@@ -385,9 +385,9 @@ private def runDefault (identity : CliIdentity) (options : RunOptions) : IO UInt
   try
     let problem ← readProblem options.problem
     let rawReferences ← if options.provers.isEmpty then
-      pure (← installedProvers).toList
+      pure (OATP.Runtime.defaultLocalProver (← installedProvers)).toList
     else pure options.provers
-    let references := rawReferences.map OATP.Repl.ProverReference.ofString
+    let references := rawReferences.map OATP.ProverReference.ofString
     let localReferences := references.filterMap fun reference =>
       match reference.kind with
       | .local => some reference.name

@@ -5,6 +5,6 @@ Released under Apache-2.0 license as described in the file LICENSE.
 
 namespace OATP
 
-def version : String := "0.5.0"
+def version : String := "0.5.1"
 
 end OATP

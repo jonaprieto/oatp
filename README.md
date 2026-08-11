@@ -52,6 +52,9 @@ lake exe oatp run --prover eprover problem.p
 lake exe oatp run --prover online-vampire problem.p
 ```
 
+Without `--prover`, `run` uses the first installed local prover. Set
+`OATP_LOCAL_PROVERS` to control the local candidate order; online systems are opt-in.
+
 ## Provides
 
 - pure prover, artifact, outcome, limit, and search-event models;
@@ -67,7 +70,7 @@ The standalone CLI is available in release archives. The Lean library can be ins
 
 ```lean
 require oatp from git
-  "https://github.com/jonaprieto/oatp.git" @ "v0.5.0"
+  "https://github.com/jonaprieto/oatp.git" @ "v0.5.1"
 ```
 
 ## Build
@@ -84,6 +87,11 @@ views. [`argus`](https://github.com/jonaprieto/lean-argus) provides typed CLI pa
 
 The CLI and REPL share `OATP.Argus` resource, catalogue, and online-service option specs; their
 different problem/session positionals remain frontend-specific.
+
+For the `v0.5` migration, `RunRequest.references` is now typed as
+`List OATP.ProverReference`; option records expose shared groups under `resources`, `catalogue`,
+and `remote`. Legacy persisted prover names remain accepted and are rewritten with `local:` or
+`online:` prefixes.
 
 ## License
 

@@ -18,6 +18,7 @@ import OATP.Repl
 import OATP.ReplView
 import OATP.Runtime
 import OATP.SystemOnTPTP
+import OATP.ProverReference
 import OATP.TPTP
 import OATP.Translate
 import OATP.Version

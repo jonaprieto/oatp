@@ -112,16 +112,24 @@ inductive AppKeyAction
 inductive AppContext
   | default
   | run
+  | runInput
   | provers
+  | proversInput
   | state
+  | stateInput
   | history
+  | historyInput
 
 def AppContext.name : AppContext → String
   | .default => "default"
   | .run => "run"
+  | .runInput => "run-input"
   | .provers => "provers"
+  | .proversInput => "provers-input"
   | .state => "state"
+  | .stateInput => "state-input"
   | .history => "history"
+  | .historyInput => "history-input"
 
 private def appBinding (keys : List Key) (action : AppKeyAction)
     (context : Option AppContext) (description : String) : BindingSpec AppKeyAction :=
@@ -134,21 +142,21 @@ private def appBinding (keys : List Key) (action : AppKeyAction)
 def appBindings : List (BindingSpec AppKeyAction) :=
   [ appBinding [.ctrl 'R', .ctrl 'r'] .openRun none "open the run drawer"
   , appBinding [.ctrl ']'] .focusDrawer none "focus the open drawer"
-  , appBinding [.char 'H', .char 'h', .escape] .closeRun (some .run) "return to input"
+  , appBinding [.char 'H', .char 'h', .escape] .closeRun (some .runInput) "return to input"
   , appBinding [.char 'J', .char 'j', .down] .runNext (some .run) "next run"
   , appBinding [.char 'K', .char 'k', .up] .runPrevious (some .run) "previous run"
   , appBinding [.enter, .char ' '] .runInspect (some .run) "inspect the selected run"
-  , appBinding [.char 'H', .char 'h', .escape] .closeProvers (some .provers) "return to input"
+  , appBinding [.char 'H', .char 'h', .escape] .closeProvers (some .proversInput) "return to input"
   , appBinding [.char 'J', .char 'j', .down] .proverNext (some .provers) "next prover"
   , appBinding [.char 'K', .char 'k', .up] .proverPrevious (some .provers) "previous prover"
   , appBinding [.enter, .char ' '] .toggleProver (some .provers) "toggle the selected prover"
-  , appBinding [.char 'H', .char 'h', .escape] .closeState (some .state) "return to input"
+  , appBinding [.char 'H', .char 'h', .escape] .closeState (some .stateInput) "return to input"
   , appBinding [.char 'J', .char 'j', .down] .contextNext (some .state) "next context section"
   , appBinding [.char 'K', .char 'k', .up] .contextPrevious (some .state) "previous context section"
   , appBinding [.enter, .char ' '] .toggleContext (some .state) "toggle the selected section"
   , appBinding [.right] .expandContext (some .state) "expand the selected section"
   , appBinding [.left] .collapseContext (some .state) "collapse the selected section"
-  , appBinding [.char 'H', .char 'h', .escape] .closeHistory (some .history) "return to input"
+  , appBinding [.char 'H', .char 'h', .escape] .closeHistory (some .historyInput) "return to input"
   , appBinding [.pageUp] .transcriptPageUp (some .default) "scroll transcript up"
   , appBinding [.pageDown] .transcriptPageDown (some .default) "scroll transcript down" ]
 
@@ -835,7 +843,10 @@ def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State) (focused : 
 private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
-  let close := appKeyLabel .closeRun .run
+  let closeRun := appKeyLabel .closeRun .runInput
+  let closeProvers := appKeyLabel .closeProvers .proversInput
+  let closeState := appKeyLabel .closeState .stateInput
+  let closeHistory := appKeyLabel .closeHistory .historyInput
   let focus := appKeyLabel .focusDrawer .default
   let next := appKeyLabel .runNext .run
   let previous := appKeyLabel .runPrevious .run
@@ -843,15 +854,15 @@ private def footer (app : App) (width : Nat) : Text :=
   let pageUp := appKeyLabel .transcriptPageUp .default
   let pageDown := appKeyLabel .transcriptPageDown .default
   let hint := if app.panelFocus == .drawer && app.runOpen then
-      if outer < stateDrawerMinWidth then s!"{close} main • {next}/{previous}"
-      else s!"{close} main • {next}/{previous} prover • {inspect} details"
+      if outer < stateDrawerMinWidth then s!"{closeRun} main • {next}/{previous}"
+      else s!"{closeRun} main • {next}/{previous} prover • {inspect} details"
     else if app.panelFocus == .drawer && app.stateOpen then
-      if outer < stateDrawerMinWidth then s!"{close} main • {next}/{previous}"
-      else s!"{close} main • {next}/{previous} focus • Enter toggle"
+      if outer < stateDrawerMinWidth then s!"{closeState} main • {next}/{previous}"
+      else s!"{closeState} main • {next}/{previous} focus • Enter toggle"
     else if app.panelFocus == .drawer && app.proversOpen then
-      if outer < stateDrawerMinWidth then s!"{close} main • {next}/{previous}"
-      else s!"{close} main • {next}/{previous} prover • Space toggle"
-    else if app.panelFocus == .drawer && app.historyOpen then s!"{close} main"
+      if outer < stateDrawerMinWidth then s!"{closeProvers} main • {next}/{previous}"
+      else s!"{closeProvers} main • {next}/{previous} prover • Space toggle"
+    else if app.panelFocus == .drawer && app.historyOpen then s!"{closeHistory} main"
     else if app.busy then s!"{appKeyLabel .openRun .default} run • input"
     else if app.stateOpen || app.proversOpen || app.historyOpen || app.runOpen then
       if outer < stateDrawerMinWidth then s!"input • {focus}"
