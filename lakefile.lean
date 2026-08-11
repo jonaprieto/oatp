@@ -27,7 +27,7 @@ require «termcolor-widgets» from git
 
 require «termcolor-repl» from git
   "https://github.com/jonaprieto/lean-termcolor-repl.git"
-  @ "v0.8.0"
+  @ "v0.8.1"
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
