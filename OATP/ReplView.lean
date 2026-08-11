@@ -807,10 +807,11 @@ private def runPanel (app : App) (width height : Nat) : Text :=
            , maxWidth := some width }
 
 private def mascot (scheme : ColorScheme) : Text :=
-  joinLines [ Text.styled "  ◆  " (Style.fg scheme.yellow)
-            , Text.styled " /|\\ " (Style.fg scheme.cyan)
-            , Text.styled "◆─┼─◆" (Style.fg scheme.green)
-            , Text.styled " \\|/ " (Style.fg scheme.blue) ]
+  joinLines [ Text.styled "    ◇    " (Style.fg scheme.yellow)
+            , Text.styled "  ╱ │ ╲  " (Style.fg scheme.cyan)
+            , Text.styled "◆───┼───◆" (Style.fg scheme.green)
+            , Text.styled "  ╲ │ ╱  " (Style.fg scheme.blue)
+            , Text.styled "    ◇    " (Style.fg scheme.purple) ]
 
 private def banner (scheme : ColorScheme) (width : Nat) : Text :=
   let outer := frameWidth width
@@ -820,15 +821,23 @@ private def banner (scheme : ColorScheme) (width : Nat) : Text :=
   let rightWidth := max 24 (paneSpace - leftWidth)
   let left := align leftWidth .center (truncate leftWidth <|
     Text.styled "OATP REPL" (Style.bold <+> Style.fg scheme.foreground) ++
+      Text.plain "\n" ++ Text.styled "ATP ORCHESTRATION" (Style.dim <+> Style.fg scheme.comment) ++
       Text.plain "\n\n" ++ mascot scheme ++ Text.plain "\n\n" ++
-      Text.styled "TPTP • Lean • ATP" (Style.fg scheme.comment))
+      Text.styled "TPTP • LEAN • ATP" (Style.fg scheme.comment))
   let right := align rightWidth .left (truncate rightWidth <|
     Text.styled "START HERE" (Style.bold <+> Style.fg scheme.orange) ++
       Text.plain "\n" ++ Text.styled "/to-lean p => p" (Style.fg scheme.cyan) ++
-      Text.plain "\n/state  context drawer" ++
-      Text.plain "\n/run --prover eprover" ++
-      Text.plain "\n\nenter submit • ctrl-n newline" ++
-      Text.plain "\n/help commands")
+        Text.styled "  create a Lean goal" (Style.dim <+> Style.fg scheme.comment) ++
+      Text.plain "\n" ++ Text.styled "/state" (Style.fg scheme.cyan) ++
+        Text.styled "           inspect context" (Style.dim <+> Style.fg scheme.comment) ++
+      Text.plain "\n" ++ Text.styled "/run --prover eprover" (Style.fg scheme.cyan) ++
+        Text.styled "  invoke ATP" (Style.dim <+> Style.fg scheme.comment) ++
+      Text.plain "\n\n" ++ Text.styled "ENTER" (Style.bold <+> Style.fg scheme.foreground) ++
+        Text.styled " submit  •  " (Style.dim <+> Style.fg scheme.comment) ++
+        Text.styled "CTRL-N" (Style.bold <+> Style.fg scheme.foreground) ++
+        Text.styled " newline" (Style.dim <+> Style.fg scheme.comment) ++
+      Text.plain "\n" ++ Text.styled "/help" (Style.fg scheme.cyan) ++
+        Text.styled "             command reference" (Style.dim <+> Style.fg scheme.comment))
   box (columns [leftWidth, rightWidth] 1 [left, right] []
     (Text.styled "│" (Style.fg scheme.selection)))
     { title := some (Text.styled s!" oatp repl v{version} "

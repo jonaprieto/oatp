@@ -154,6 +154,15 @@ open OATP OATP.TPTP
       session.symbols.any (fun symbol => symbol.kind == .variable && symbol.name == "X")
   | .error _ => false
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
+#guard (OATP.ReplView.screen { stateOpen := false }
+    { columns := 100, rows := 24 }).plainText.contains
+  "ATP ORCHESTRATION"
+#guard (OATP.ReplView.screen { stateOpen := false }
+    { columns := 100, rows := 24 }).plainText.contains
+  "◆───┼───◆"
+#guard (OATP.ReplView.screen { stateOpen := false }
+    { columns := 100, rows := 24 }).plainText.contains
+  "create a Lean goal"
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "/help"
 #guard ({} : OATP.ReplView.App).stateOpen && ({} : OATP.ReplView.App).panelFocus == .main
 def completionApp : OATP.ReplView.App :=
