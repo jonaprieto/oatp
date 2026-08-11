@@ -583,7 +583,7 @@ private def contextHelp : String :=
     "J/K or ↑/↓                  move between boxes",
     "Enter/Space                open or close the focused box",
     "→ / ←                      expand or collapse",
-    "H                          return to the main panel",
+    "H                          hide the state drawer",
     "mouse click                focus/toggle a box; scroll changes focus",
     "boxes: formulas, symbols, problem, Lean goal, Lean → TPTP, checked term",
     "theory: /theory fof|cnf|tff (tf1 alias); provers: /provers; theme: /theme NAME"

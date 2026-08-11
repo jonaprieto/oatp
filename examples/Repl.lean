@@ -726,6 +726,7 @@ private def initialApp (runtime : OATP.Lean.Repl.Runtime) : IO App := do
     else some s!"unknown configured theme `{prefs.theme}`; using {defaultThemeName}"
   pure {
     leanRuntime := some runtime
+    stateOpen := true
     theme := scheme
     themeName := if themeByName prefs.theme |>.isSome then prefs.theme else defaultThemeName
     theory := prefs.theory

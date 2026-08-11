@@ -505,7 +505,7 @@ private def contextPanel (app : App) (width height : Nat) : Text :=
   let body := joinLines (contextTexts app width)
   let innerWidth := boxInnerWidth width
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
-  box body { title := some (Text.styled "context" (Style.bold <+> Style.fg app.theme.cyan))
+  box body { title := some (Text.styled "state • H hide" (Style.bold <+> Style.fg app.theme.cyan))
            , borderStyle := Style.fg app.theme.selection, maxWidth := some width }
 
 private def historyPanel (app : App) (width height : Nat) : Text :=
@@ -596,7 +596,7 @@ def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State) : Text :=
 private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
-  let hint := if app.stateOpen then "H main • J/K focus • Enter open"
+  let hint := if app.stateOpen then "H hide state • J/K focus • Enter toggle"
     else if app.proversOpen then "H main • J/K prover • Space toggle"
     else if app.historyOpen then "H main • /history close"
     else "/help • PgUp/PgDn scroll • /state"

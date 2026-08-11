@@ -169,6 +169,12 @@ def completionApp : OATP.ReplView.App :=
     { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
 #guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
   "▸ FORMULAS (0)"
+#guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
+  "state • H hide"
+#guard match OATP.Repl.apply {} "/help context" with
+  | .ok session =>
+      (session.history.toList.getLast?.map (·.result)).getD "" |>.contains "hide the state drawer"
+  | .error _ => false
 #guard (OATP.ReplView.toggleFocusedContext {}).contextExpanded.getD 0 false
 #guard OATP.ReplView.contextTargetOfString "form" == some 0
 #guard OATP.ReplView.contextTargetOfString "tptp" == some 4
