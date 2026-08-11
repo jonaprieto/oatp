@@ -59,6 +59,15 @@ private def note (app : App) (cell : Nat) (input output : String) (ok : Bool)
   appendEntry { app with session := OATP.Repl.note app.session input output } cell input output ok
     elapsedMs sources diagnostic
 
+private def notePlain (app : App) (cell : Nat) (input output : String) (ok : Bool)
+    (elapsedMs : Option Nat := none) : App :=
+  appendEntry { app with session := OATP.Repl.note app.session input output } cell input output ok
+    elapsedMs
+
+#guard match (notePlain { } 1 "/run eprover" "eprover: Error" false).entries with
+  | entry :: _ => match entry.diagnostic with | none => true | some _ => false
+  | [] => false
+
 private def noteDiagnostic (app : App) (cell : Nat) (input source message : String) : App :=
   let (source, diagnostic) := diagnosticFor source message
   appendEntry { app with session := OATP.Repl.note app.session input message }
@@ -327,7 +336,7 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
   finish := fun current completed =>
     match completed.jobResult with
     | some result =>
-        note { current with busy := false, jobResult := none }
+        notePlain { current with busy := false, jobResult := none }
           result.cell result.input result.output result.ok result.elapsedMs
     | none => { current with busy := false }
   cancel := fun app => { app with
@@ -339,7 +348,7 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
       busy := false
       jobResult := none
       runRows := app.runRows.map fun row => { row with status := .failed, detail := message } }
-    note updated app.session.nextCell "background prover" message false
+    notePlain updated app.session.nextCell "background prover" message false
 
 #guard (backgroundJobs.start { repl := { history := #["first"] } } "/help").repl.history ==
   #["first"]
@@ -665,7 +674,7 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       pure (note app cell input output true)
   | .run request => do
       let (output, ok) ← runRequest app request
-      pure (note app cell input output ok)
+      pure (notePlain app cell input output ok)
   | .local request => do
       let run : OATP.Repl.RunRequest := {
         references := [OATP.ProverReference.fromLocal request.executable]
@@ -673,7 +682,7 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
         maxOutput := request.maxOutput
         arguments := request.arguments }
       let (output, ok) ← runRequest app run
-      pure (note app cell input output ok)
+      pure (notePlain app cell input output ok)
   | .online request => do
       let run : OATP.Repl.RunRequest := {
         references := [OATP.ProverReference.fromOnline request.system]
@@ -681,7 +690,7 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
         timeout := request.timeout
         maxOutput := request.maxOutput }
       let (output, ok) ← runRequest app run
-      pure (note app cell input output ok)
+      pure (notePlain app cell input output ok)
   | _ => applyPureCommand app cell input
 
 private def submitCore (app : App) (input : String) : IO App := do
