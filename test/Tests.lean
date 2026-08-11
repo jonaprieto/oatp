@@ -100,10 +100,30 @@ open OATP OATP.TPTP
 #guard match OATP.Repl.parseInput "/conjecture goal p" with
   | .command (.conjecture "goal" "p") => true
   | _ => false
+#guard match OATP.Repl.parseInput "/help cnf" with
+  | .command (.help (some "cnf")) => true
+  | _ => false
+#guard match OATP.Repl.parseInput "/state goal" with
+  | .command (.stateTarget "goal") => true
+  | _ => false
+#guard match OATP.Repl.parseInput "/grammar cnf" with
+  | .command (.grammar "cnf") => true
+  | _ => false
+#guard match OATP.Repl.parseInput "/roles tff" with
+  | .command (.roles (some "tff")) => true
+  | _ => false
+#guard match OATP.Repl.apply {} "/help cnf" with
+  | .ok session =>
+      let help := (session.history.toList.getLast?.map (·.result)).getD ""
+      help.contains "CNF" && help.contains "cnf(c1, axiom" && help.contains "implicitly universal"
+  | .error _ => false
 #guard match OATP.Repl.parseRunRequest
     ["--prover", "eprover", "--timeout", "7", "--max-output", "99", "--no-cache", "--", "--foo"] with
   | .ok request => request.references == ["eprover"] && request.timeout == 7 &&
       request.maxOutput == 99 && request.noCache && request.arguments == ["--foo"]
+  | .error _ => false
+#guard match OATP.Repl.parseRunRequest ["--all"] with
+  | .ok request => request.all
   | .error _ => false
 #guard match OATP.Repl.parseLocalRequest ["--executable", "eprover", "--timeout", "4", "--", "--foo"] with
   | .ok request => request.executable == "eprover" && request.timeout == 4 &&
@@ -126,8 +146,23 @@ open OATP OATP.TPTP
     { entries := [({ cell := 1, input := "/to-lean p => p", output := "goal created", elapsedMs := some 12 } : OATP.ReplView.TranscriptEntry)] }
     { columns := 100, rows := 24 }).plainText.contains "(12 ms)"
 #guard (OATP.ReplView.screen
+    { entries := [({ cell := 1, input := "/to-lean p => p", output := "goal created" } : OATP.ReplView.TranscriptEntry)] }
+    { columns := 100, rows := 24 }).segments.any
+      (fun segment => segment.text == "=>" && !segment.style.settings.isEmpty)
+#guard (OATP.ReplView.screen
     { stateOpen := true, translation := some "fof(goal, conjecture, p)." }
     { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
+#guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
+  "▸ FORMULAS (0)"
+#guard (OATP.ReplView.toggleFocusedContext {}).contextExpanded.getD 0 false
+#guard OATP.ReplView.contextTargetOfString "form" == some 0
+#guard OATP.ReplView.contextTargetOfString "tptp" == some 4
+#guard (OATP.ReplView.openContextTarget {} "goal").map
+    (fun app => app.stateOpen && app.contextFocus == 3 && app.contextExpanded.getD 3 false) == some true
+#guard OATP.ReplView.themeByName "dracula" |>.isSome
+#guard (OATP.ReplView.focusNextContext {}).contextFocus == 1
+#guard (OATP.ReplView.focusPreviousContext {}).contextFocus == 5
+#guard OATP.ReplView.contextHitAtRow {} 40 2 == some (0, true)
 #guard (OATP.ReplView.screen
     { historyOpen := true, session := { history := #[{ cell := 1, input := "/help", result := "commands" }] } }
     { columns := 100, rows := 24 }).plainText.contains "history • active"
@@ -136,7 +171,9 @@ open OATP OATP.TPTP
     { entries := [{ cell := 1, input := "/snapshot", output := "first\nsecond" }] }
     { columns := 100, rows := 24 }).plainText.contains "second"
 #guard match OATP.Repl.apply {} "/help" with
-  | .ok session => (session.history.toList.getLast?.map (·.result)).getD "" |>.contains "/to-lean"
+  | .ok session =>
+      let help := (session.history.toList.getLast?.map (·.result)).getD ""
+      help.contains "/help cnf" && help.contains "/goal F" && help.contains "grammar"
   | .error _ => false
 def main : IO UInt32 := do
   let x := _root_.TPTP.Formula.Term.function "f" #[

@@ -5,6 +5,7 @@ Authors: Jonathan Prieto-Cubides
 -/
 
 import OATP.Core
+import OATP.Config
 import OATP.Events
 import OATP.Http
 import OATP.Lean
@@ -18,3 +19,4 @@ import OATP.Runtime
 import OATP.SystemOnTPTP
 import OATP.TPTP
 import OATP.Translate
+import OATP.Version

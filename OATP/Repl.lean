@@ -5,6 +5,7 @@ Authors: Jonathan Cubides
 -/
 
 import OATP.TPTP
+import OATP.Version
 
 /-!
 # OATP.Repl: pure interactive session state
@@ -19,9 +20,13 @@ open OATP
 open OATP.TPTP
 
 inductive Command where
-  | help
+  | help (topic : Option String)
   | history
   | state
+  | stateTarget (target : String)
+  | grammar (topic : String)
+  | roles (topic : Option String)
+  | version
   | clear
   | reset
   | parse (source : String)
@@ -37,6 +42,7 @@ inductive Submission where
 
 structure RunRequest where
   references : List String := []
+  all : Bool := false
   endpoint : Option String := none
   refresh : Bool := false
   noCache : Bool := false
@@ -82,6 +88,7 @@ def parseRunRequest (args : List String) : Except String RunRequest :=
     | "--endpoint" :: [] => .error "--endpoint expects a URL"
     | "--refresh" :: rest => loop rest { request with refresh := true }
     | "--no-cache" :: rest => loop rest { request with noCache := true }
+    | "--all" :: rest => loop rest { request with all := true }
     | "--timeout" :: value :: rest => do
         let timeout ← parseNatOption "--timeout" value
         loop rest { request with timeout }
@@ -211,9 +218,15 @@ private def nameAndFormula (source : String) : Option (String × String) :=
 
 def parseCommand (source : String) : Command :=
   let line := source.trimAscii.toString
-  if line == "/help" then .help
+  if line == "/help" then .help none
+  else if line.startsWith "/help " then .help (some (restAfter "/help " line))
   else if line == "/history" then .history
   else if line == "/state" then .state
+  else if line.startsWith "/state " then .stateTarget (restAfter "/state " line)
+  else if line.startsWith "/grammar " then .grammar (restAfter "/grammar " line)
+  else if line == "/roles" then .roles none
+  else if line.startsWith "/roles " then .roles (some (restAfter "/roles " line))
+  else if line == "/version" then .version
   else if line == "/clear" then .clear
   else if line == "/reset" then .reset
   else if line.startsWith "/parse " then .parse (restAfter "/parse " line)
@@ -309,6 +322,162 @@ def addDocument (session : Session) (input : String) (document : _root_.TPTP.Doc
     symbols }
   record session input s!"parsed {views.size} statement(s)"
 
+def helpText : String :=
+  String.intercalate "\n" [
+    "OATP REPL help",
+    "  /load FILE       load a TPTP problem",
+    "  /parse SOURCE    parse TPTP text",
+    "  /axiom N F       add an axiom; /conjecture N F",
+    "  /goal F          create a Lean goal; /to-lean F",
+    "  /snapshot /to-tptp /reconstruct S /term",
+    "  /run OPTIONS     test with provers; /local; /online",
+    "  /state [TARGET] /history /clear /reset /systems /doctor /version /quit",
+    "  /grammar TOPIC /roles [FORMAT] /theory /prover /provers /info /theme",
+    "topics: /help cnf   /help fof   /help tff   /help lean",
+    "        /help run   /help context   /help grammar   /help roles",
+    "grammar: ~p  p & q  p | q  p => q  p <=> q  ![X] : p(X)"
+  ]
+
+private def cnfHelp : String :=
+  String.intercalate "\n" [
+    "CNF — clause normal form",
+    "statement: cnf(NAME, ROLE, CLAUSE).",
+    "clause:    literal | (literal | literal | ...)",
+    "literal:   atom | ~atom",
+    "atom:      predicate | predicate(term, ...)",
+    "terms:     constant | variable | function(term, ...)",
+    "variables are implicitly universal; CNF uses only | and ~",
+    "roles: axiom, hypothesis, definition, assumption, lemma, theorem,",
+    "       corollary, conjecture, negated_conjecture, plain",
+    "",
+    "example: cnf(c1, axiom, p(a) | ~q(a)).",
+    "example: cnf(goal, conjecture, mortal(socrates)).",
+    "try: /parse cnf(c1, axiom, p(a) | ~q(a)).",
+    "then: /state formulas   /roles cnf   /run --prover eprover"
+  ]
+
+private def fofHelp : String :=
+  String.intercalate "\n" [
+    "FOF — first-order formulas",
+    "statement: fof(NAME, ROLE, FORMULA).",
+    "formula: atom | ~F | (F & F) | (F | F) | (F => F) | (F <=> F)",
+    "quantifiers: ![X] : F   ?[X] : F",
+    "terms: constants, variables, and functions such as f(a, X)",
+    "",
+    "example: fof(ax, axiom, ![X] : (human(X) => mortal(X))).",
+    "example: fof(goal, conjecture, mortal(socrates)).",
+    "try: /parse fof(ax, axiom, ![X] : (human(X) => mortal(X))).",
+    "use FOF when the problem needs implication, conjunction, or quantifiers"
+  ]
+
+private def tffHelp : String :=
+  String.intercalate "\n" [
+    "TFF — typed first-order formulas",
+    "type:     tff(nat_type, type, nat: $tType).",
+    "constant: tff(zero_type, type, zero: nat).",
+    "function: tff(add_type, type, add: (nat * nat) > nat).",
+    "formula:  tff(goal, conjecture, ![X:nat] : add(X,zero) = X).",
+    "connectives: ~  &  |  =>  <=>; quantifiers: ![...] and ?[...]",
+    "",
+    "try: /parse tff(nat_type, type, nat: $tType).",
+    "TFF is parsed as TPTP input; use /state to inspect collected symbols"
+  ]
+
+private def grammarHelp : String :=
+  String.intercalate "\n" [
+    "Grammar lookup",
+    "/grammar cnf       clause normal form",
+    "/grammar fof       first-order formulas",
+    "/grammar tff       typed first-order formulas",
+    "/roles [cnf|fof|tff]  statement roles",
+    "",
+    "operators: ~  &  |  =>  <=>",
+    "quantifiers: ![X] : F   ?[X] : F",
+    "term shape: constant | variable | function(term, ...)",
+    "Use /help cnf, /help fof, or /help tff for examples."
+  ]
+
+private def roleHelp (topic : Option String) : String :=
+  let format := topic.getD "all"
+  String.intercalate "\n" [
+    s!"Roles ({format})",
+    "axiom          accepted premise",
+    "hypothesis     temporary premise",
+    "definition     definitional statement",
+    "assumption     assumed premise",
+    "lemma          supporting result",
+    "theorem        proved result",
+    "corollary      consequence of a theorem",
+    "conjecture     statement to prove",
+    "negated_conjecture  refutation form",
+    "plain          ordinary formula",
+    "type           TFF type declaration",
+    "interpretation / logic / unknown / fi_domain / fi_functors / fi_predicates",
+    "",
+    "roles are shared by CNF and FOF; TFF additionally uses `type`.",
+    s!"Use /grammar {format} for the syntax."
+  ]
+
+private def leanHelp : String :=
+  String.intercalate "\n" [
+    "Lean bridge",
+    "1. /goal p => p              create a Lean goal",
+    "2. /snapshot                  show variables and target",
+    "3. /to-tptp                   translate the goal to TPTP",
+    "4. /reconstruct implication-intro h exact h",
+    "5. /term                      show the kernel-checked term",
+    "",
+    "atoms become Prop variables; &&, ||, ~, => and <=> are supported",
+    "example result: fun h => h : _fvar.1 → _fvar.1"
+  ]
+
+private def runHelp : String :=
+  String.intercalate "\n" [
+    "Provers",
+    "/run [--prover NAME] [--timeout SEC] [--max-output BYTES]",
+    "/run --all              run every installed local prover",
+    "/local EXECUTABLE [--timeout SEC] [-- ARGUMENTS...]",
+    "/online SYSTEM [--endpoint URL] [--timeout SEC]",
+    "/systems                 list installed and online systems",
+    "/doctor                  check transports and local provers",
+    "",
+    "examples: /run --prover eprover",
+    "          /local vampire -- --mode casc"
+  ]
+
+private def contextHelp : String :=
+  String.intercalate "\n" [
+    "Context drawer",
+    "/state [TARGET]            open context or focus a box",
+    "/state goal|formulas|symbols|problem|translation|term",
+    "J/K or ↑/↓                  move between boxes",
+    "Enter/Space                open or close the focused box",
+    "→ / ←                      expand or collapse",
+    "H                          return to the main panel",
+    "mouse click                focus/toggle a box; scroll changes focus",
+    "boxes: formulas, symbols, problem, Lean goal, Lean → TPTP, checked term",
+    "theory: /theory fof|cnf|tff; provers: /provers; theme: /theme NAME"
+  ]
+
+def helpFor : Option String → String
+  | none => helpText
+  | some topic => match topic.toLower with
+      | "cnf" => cnfHelp
+      | "fof" => fofHelp
+      | "tff" => tffHelp
+      | "lean" => leanHelp
+      | "run" | "provers" => runHelp
+      | "context" | "state" => contextHelp
+      | "grammar" => grammarHelp
+      | "roles" => roleHelp none
+      | topic =>
+          if topic.startsWith "roles " then
+            roleHelp (some (topic.drop "roles ".length |>.trimAscii.toString))
+          else String.intercalate "\n" [
+            s!"unknown help topic `{topic}`",
+            "try: /help cnf, /help fof, /help tff, /help lean, /help run, /help context"
+          ]
+
 def parseSource (session : Session) (input source : String) : Except String Session :=
   match OATP.TPTP.parse source with
   | .ok document => pure (addDocument session input document)
@@ -323,12 +492,13 @@ def apply (session : Session) (input : String) : Except String Session :=
   | .source source => parseSource session source source
   | .command command =>
       match command with
-      | .help => pure (record session input
-          ("commands: /load /axiom /conjecture /parse /state /history /clear /reset " ++
-            "/goal /to-lean /snapshot /to-tptp /reconstruct /term /run /local /online " ++
-            "/systems /doctor /quit"))
+      | .help topic => pure (record session input (helpFor topic))
       | .history => pure (record session input s!"{session.history.size} history entries")
       | .state => pure (record session input s!"{session.formulas.size} formulas, {session.symbols.size} symbols")
+      | .stateTarget target => pure (record session input s!"state target: {target}")
+      | .grammar topic => pure (record session input (helpFor (some topic)))
+      | .roles topic => pure (record session input (roleHelp topic))
+      | .version => pure (record session input s!"oatp {OATP.version}")
       | .clear => pure (record { session with formulas := #[], symbols := #[], problemSource := "" }
           input "session context cleared")
       | .reset => pure (record {} input "session reset")

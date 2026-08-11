@@ -2,7 +2,7 @@ import Lake
 open Lake DSL
 
 package «oatp» where
-  version := v!"0.3.2"
+  version := v!"0.4.0"
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`relaxedAutoImplicit, false⟩]
 
 require grip from git
@@ -20,6 +20,10 @@ require «termcolor» from git
 require «termcolor-terminal» from git
   "https://github.com/jonaprieto/lean-termcolor-terminal.git"
   @ "v0.3.1"
+
+require «termcolor-widgets» from git
+  "https://github.com/jonaprieto/lean-termcolor-widgets.git"
+  @ "v0.1.9"
 
 require «termcolor-repl» from git
   "https://github.com/jonaprieto/lean-termcolor-repl.git"
