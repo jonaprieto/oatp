@@ -238,7 +238,10 @@ private def showPortfolioResult : Portfolio.Result → IO Bool
 
 private def portfolioView (total : Nat) (progress : Widgets.IndeterminateProgressState)
     (results : List Portfolio.Result) : Text :=
-  let label := s!"running {total} prover(s) · {results.length}/{total} done"
+  let latest := match results.getLast? with
+    | some result => s!" · latest {portfolioName result}"
+    | none => ""
+  let label := s!"running {total} prover(s) · {results.length}/{total} done{latest}"
   Widgets.indeterminateProgressBar {
     width := 28
     indeterminateWidth := 8
@@ -319,12 +322,8 @@ private def runDoctorOnline (identity : CliIdentity) (transports : Array String)
           else
             failures := failures.push (portfolioName result)
         doctorRow "probe" s!"{responsive}/{systems.size} systems responded" (responsive > 0)
-        unless failures.isEmpty do
-          let shown := failures.toList.take 4
-          let suffix := if failures.size > shown.length then
-              s!" … +{failures.size - shown.length} more"
-            else ""
-          doctorRow "issues" (String.intercalate ", " shown ++ suffix) false
+        for failure in failures do
+          doctorRow "issue" failure false
         pure (responsive > 0)
 
 private def runDoctor (identity : CliIdentity) : IO UInt32 := do
@@ -352,8 +351,6 @@ private def runDoctor (identity : CliIdentity) : IO UInt32 := do
   for command in ← localProverCandidates do
     doctorTool command
 
-  doctorSection "OPTIONAL"
-  doctorTool "docker"
   pure <| if transports.isEmpty || !onlineWorking then 1 else 0
 
 private def runPortfolio (problem : Problem) (attempts : Array Portfolio.Attempt) : IO UInt32 := do
