@@ -87,6 +87,11 @@ private def currentProblem (app : App) : Option Problem :=
   app.translation.map (fun source => { name := "lean-goal", source }) |>.orElse
     (fun _ => OATP.Repl.problem app.session)
 
+private def theoryStatus (theory : String) : String :=
+  s!"theory: {theory}; available: fof, cnf, tff"
+
+#guard theoryStatus "fof" == "theory: fof; available: fof, cnf, tff"
+
 private def preferences (app : App) : OATP.Config.Preferences := {
   theory := app.theory
   defaultProver := app.defaultProver
@@ -455,7 +460,7 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       | some scheme => pure (note { app with theme := scheme, themeName := name } cell input
           s!"theme changed to {name}" true)
       | none => pure (note app cell input s!"unknown theme `{name}`; try: {themeNames}" false)
-  | .theory none => pure (note app cell input "theory: current; available: fof, cnf, tff" true)
+  | .theory none => pure (note app cell input (theoryStatus app.theory) true)
   | .theory (some requested) =>
       let requested := requested.toLower
       let theory := if requested == "tf1" then "tff" else requested
