@@ -6,6 +6,9 @@ Authors: Jonathan Cubides
 
 import OATP.TPTP
 import OATP.Version
+import OATP.Proof
+import OATP.SystemOnTPTP
+import OATP.Argus
 import Argus
 
 /-!
@@ -19,31 +22,86 @@ namespace OATP.Repl
 
 open OATP
 open OATP.TPTP
-open Argus
+open _root_.Argus
+
+def helpTopics : List String :=
+  ["cnf", "fof", "tff", "lean", "run", "context", "grammar", "roles"]
+
+def grammarTopics : List String := OATP.TPTP.supportedTheories
+
+def roleFormats : List String := OATP.TPTP.supportedTheories
+
+def completionParam (typeName : String) (values : List String) : Param String :=
+  Param.named typeName (Param.enum (values.map fun value => (value, value)))
+
+def staticCompletionValues (typeName : String) : List String :=
+  match typeName with
+  | "TOPIC" => helpTopics
+  | "FORMAT" => roleFormats
+  | "THEORY" => OATP.TPTP.theoryChoices
+  | "STEP" => OATP.Proof.stepNames
+  | _ => []
+
+inductive ProverReferenceKind where
+  | local
+  | online
+  deriving BEq, DecidableEq, Repr, Inhabited
+
+structure ProverReference where
+  name : String
+  kind : ProverReferenceKind
+  deriving BEq, DecidableEq, Repr, Inhabited
+
+namespace ProverReference
+
+def fromLocal (name : String) : ProverReference := { name, kind := .local }
+
+def fromOnline (name : String) : ProverReference :=
+  { name := OATP.SystemOnTPTP.onlineSystemId name, kind := .online }
+
+def ofString (name : String) : ProverReference :=
+  if OATP.SystemOnTPTP.isOnlineReference name then fromOnline name else fromLocal name
+
+def fromPersisted (value : String) : Option ProverReference :=
+  if value.startsWith "local:" then some (fromLocal (value.drop "local:".length |>.toString))
+  else if value.startsWith "online:" then some (fromOnline (value.drop "online:".length |>.toString))
+  else if value.isEmpty then none else some (ofString value)
+
+def persisted (reference : ProverReference) : String :=
+  match reference.kind with
+  | .local => "local:" ++ reference.name
+  | .online => "online:" ++ reference.name
+
+def display (reference : ProverReference) : String :=
+  match reference.kind with
+  | .local => reference.name
+  | .online => OATP.SystemOnTPTP.onlineReference reference.name
+
+end ProverReference
 
 structure RunRequest where
-  references : List String := []
+  references : List ProverReference := []
   all : Bool := false
   endpoint : Option String := none
   refresh : Bool := false
   noCache : Bool := false
-  timeout : Nat := 30
-  maxOutput : Nat := 4 * 1024 * 1024
+  timeout : Nat := OATP.defaultTimeoutSeconds
+  maxOutput : Nat := OATP.defaultMaxOutputBytes
   arguments : List String := []
   deriving Repr
 
 structure LocalRequest where
   executable : String
-  timeout : Nat := 30
-  maxOutput : Nat := 4 * 1024 * 1024
+  timeout : Nat := OATP.defaultTimeoutSeconds
+  maxOutput : Nat := OATP.defaultMaxOutputBytes
   arguments : List String := []
   deriving Repr
 
 structure OnlineRequest where
   system : String
   endpoint : Option String := none
-  timeout : Nat := 30
-  maxOutput : Nat := 4 * 1024 * 1024
+  timeout : Nat := OATP.defaultTimeoutSeconds
+  maxOutput : Nat := OATP.defaultMaxOutputBytes
   deriving Repr
 
 structure SystemsRequest where
@@ -96,41 +154,27 @@ argus_opts RunOptions where
   references : List String := Spec.many (Spec.arg "REFERENCE" "Prover reference" Param.str);
   provers : List String := Spec.many (Spec.flag "prover" (some 'p')
     "Prover reference; repeat for a portfolio" (Param.named "PROVER" Param.str));
-  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none "SystemOnTPTP endpoint" Param.str);
-  refresh : Bool := Spec.switch "refresh" none "Refresh the online prover catalogue";
-  noCache : Bool := Spec.switch "no-cache" none "Do not read or write the catalogue cache";
+  catalogue : OATP.Argus.CatalogueOptions := OATP.Argus.CatalogueOptions.spec;
   all : Bool := Spec.switch "all" (some 'a') "Use all installed provers";
-  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
-    "Wall-clock limit" Param.nat);
-  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
-    "Maximum captured output" Param.nat)
+  resources : OATP.Argus.ResourceOptions := OATP.Argus.ResourceOptions.spec
 
 argus_opts LocalOptions where
   executable : String := Spec.alt
     (Spec.flag "executable" (some 'x') "Local prover executable" Param.path)
     (Spec.arg "EXECUTABLE" "Local prover executable" Param.path);
   arguments : List String := Spec.many (Spec.arg "ARG" "Argument passed to the prover" Param.str);
-  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
-    "Wall-clock limit" Param.nat);
-  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
-    "Maximum captured output" Param.nat)
+  resources : OATP.Argus.ResourceOptions := OATP.Argus.ResourceOptions.spec
 
 argus_opts OnlineOptions where
   system : String := Spec.alt
     (Spec.flag "system" (some 's') "SystemOnTPTP system label"
       (Param.named "SYSTEM" Param.str))
     (Spec.arg "SYSTEM" "SystemOnTPTP system label" (Param.named "SYSTEM" Param.str));
-  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none "SystemOnTPTP endpoint" Param.str);
-  timeout : Option Nat := Spec.opt (Spec.flag "timeout" (some 't')
-    "Remote time limit" Param.nat);
-  maxOutput : Option Nat := Spec.opt (Spec.flag "max-output" none
-    "Maximum captured response" Param.nat)
+  remote : OATP.Argus.RemoteOptions := OATP.Argus.RemoteOptions.spec
 
 argus_opts SystemsOptions where
   online : Bool := Spec.switch "online" (some 'o') "Also fetch online provers";
-  endpoint : Option String := Spec.opt (Spec.flag "endpoint" none "SystemOnTPTP endpoint" Param.str);
-  refresh : Bool := Spec.switch "refresh" none "Refresh the online prover catalogue";
-  noCache : Bool := Spec.switch "no-cache" none "Do not read or write the catalogue cache"
+  catalogue : OATP.Argus.CatalogueOptions := OATP.Argus.CatalogueOptions.spec
 
 private def parseSpec {α : Type} {g : Grade} (spec : Argus.Spec g α)
     (args : List String) : Except String α :=
@@ -154,31 +198,31 @@ private def splitTerminator : List String → List String × Option (List String
 
 private def runRequestOf (options : RunOptions) : RunRequest :=
   let (references, arguments) := splitArguments options.references
-  { references := references ++ options.provers
+  { references := (references ++ options.provers).map ProverReference.ofString
     all := options.all
-    endpoint := options.endpoint
-    refresh := options.refresh
-    noCache := options.noCache
-    timeout := options.timeout.getD 30
-    maxOutput := options.maxOutput.getD (4 * 1024 * 1024)
+    endpoint := options.catalogue.endpoint
+    refresh := options.catalogue.refresh
+    noCache := options.catalogue.noCache
+    timeout := options.resources.timeout.getD OATP.defaultTimeoutSeconds
+    maxOutput := options.resources.maxOutput.getD OATP.defaultMaxOutputBytes
     arguments }
 
 private def localRequestOf (options : LocalOptions) : LocalRequest :=
   let (_, arguments) := splitArguments options.arguments
   { executable := options.executable
-    timeout := options.timeout.getD 30
-    maxOutput := options.maxOutput.getD (4 * 1024 * 1024)
+    timeout := options.resources.timeout.getD OATP.defaultTimeoutSeconds
+    maxOutput := options.resources.maxOutput.getD OATP.defaultMaxOutputBytes
     arguments := if arguments.isEmpty then options.arguments else arguments }
 
 private def onlineRequestOf (options : OnlineOptions) : OnlineRequest :=
   { system := options.system
-    endpoint := options.endpoint
-    timeout := options.timeout.getD 30
-    maxOutput := options.maxOutput.getD (4 * 1024 * 1024) }
+    endpoint := options.remote.endpoint
+    timeout := options.remote.resources.timeout.getD OATP.defaultTimeoutSeconds
+    maxOutput := options.remote.resources.maxOutput.getD OATP.defaultMaxOutputBytes }
 
 private def systemsRequestOf (options : SystemsOptions) : SystemsRequest :=
-  { online := options.online, endpoint := options.endpoint, refresh := options.refresh,
-    noCache := options.noCache }
+  { online := options.online, endpoint := options.catalogue.endpoint,
+    refresh := options.catalogue.refresh, noCache := options.catalogue.noCache }
 
 def parseRunRequest (args : List String) : Except String RunRequest :=
   let (args, tail) := splitTerminator args
@@ -223,10 +267,10 @@ def commandSpec : Argus.Command Command :=
         (Spec.opt (Spec.arg "TARGET" "Context target" (Param.named "TARGET" Param.str))))
         (description := "Open or focus the state drawer")
     , Argus.cmd "grammar" (Spec.map Command.grammar
-        (Spec.arg "TOPIC" "Grammar topic" (Param.named "TOPIC" Param.str)))
+        (Spec.arg "TOPIC" "Grammar topic" (completionParam "TOPIC" grammarTopics)))
         (description := "Show grammar help")
     , Argus.cmd "roles" (Spec.map Command.roles
-        (Spec.opt (Spec.arg "FORMAT" "TPTP format" (Param.named "FORMAT" Param.str))))
+        (Spec.opt (Spec.arg "FORMAT" "TPTP format" (completionParam "FORMAT" roleFormats))))
         (description := "Show role help")
     , Argus.cmd "version" (Spec.const .version) (description := "Show the OATP version")
     , Argus.cmd "clear" (Spec.const .clear) (description := "Clear the session context")
@@ -261,7 +305,8 @@ def commandSpec : Argus.Command Command :=
         (Spec.map (fun options => .online (onlineRequestOf options)) OnlineOptions.spec)
         (description := "Run an online prover")
     , Argus.cmd "theory" (Spec.map Command.theory
-        (Spec.opt (Spec.arg "THEORY" "Theory" (Param.named "THEORY" Param.str))))
+        (Spec.opt (Spec.arg "THEORY" "Theory" (completionParam "THEORY"
+          OATP.TPTP.theoryChoices))))
         (description := "Show or select the TPTP theory")
     , Argus.cmd "prover" (Spec.map Command.prover
         (Spec.opt (Spec.arg "PROVER" "Default prover" (Param.named "PROVER" Param.str))))
@@ -305,26 +350,48 @@ private def appendCommandArguments (command : Command) (tail : Option (List Stri
 
 def parseCommandSpec (source : String) : Except String Command :=
   let line := source.trimAscii.toString
-  if !line.startsWith "/" then .error "input is not a slash command"
+  if !line.startsWith "/" then .error "commands start with `/`; try `/help`"
   else
     let (argv, tail) := commandArgv line
     match commandSpec.run argv with
     | .ok command => appendCommandArguments command tail
-    | .error errors => .error (String.intercalate "\n" (errors.map Argus.Err.message))
+    | .error errors =>
+        let message := String.intercalate "\n" (errors.map Argus.Err.message)
+        let hint := match argv with
+          | command :: _ => s!"\ntry `/help {command}` for usage and examples"
+          | [] => ""
+        .error (message ++ hint)
 
 private def commandChildren : List (Argus.Command Command) :=
   match commandSpec.body with
   | .subs children => children
   | .opts _ => []
 
-private def friendlyUsage (usage : String) : String :=
-  let usage := usage.replace " <SOURCE> <SOURCE>..." " <SOURCE>..."
-  let usage := usage.replace " <FORMULA> <FORMULA>..." " <FORMULA>..."
-  usage.replace " <STEP> <STEP>..." " <STEP>..."
+def commandNames : List String := commandChildren.map (·.name)
+
+private def usageArguments : {g : Grade} → {α : Type} → Spec g α → List (String × Bool × Bool)
+  | _, _, .const _ | _, _, .switch _ _ _ | _, _, .flag _ _ _ _ => []
+  | _, _, .arg name _ _ => [(name, false, false)]
+  | _, _, .ap function argument => usageArguments function ++ usageArguments argument
+  | _, _, .alt left right => usageArguments left ++ usageArguments right
+  | _, _, .opt argument => usageArguments argument |>.map fun (name, _, variadic) =>
+      (name, true, variadic)
+  | _, _, .many argument => usageArguments argument |>.map fun (name, _, _) =>
+      (name, true, true)
+
+private def usageLine (command : Argus.Command Command) : String :=
+  let flags := if command.toMeta.flags.isEmpty then "" else " [OPTIONS]"
+  let arguments := match command.body with
+    | .opts spec => usageArguments spec
+    | .subs _ => []
+  let arguments := arguments.foldl (fun output (name, optional, variadic) =>
+    let value := "<" ++ name ++ ">" ++ if variadic then "..." else ""
+    output ++ if optional then " [" ++ value ++ "]" else " " ++ value) ""
+  command.name ++ flags ++ arguments
 
 def commandHelpText : String :=
   String.intercalate "\n" <| ["OATP REPL commands"] ++ commandChildren.map fun command =>
-    "  /" ++ friendlyUsage command.usageLine ++ "  " ++ command.description
+    "  /" ++ usageLine command ++ "  " ++ command.description
 
 inductive SymbolKind where
   | variable
@@ -453,7 +520,9 @@ def addDocument (session : Session) (input : String) (document : _root_.TPTP.Doc
 
 def helpText : String :=
   commandHelpText ++ "\n" ++ String.intercalate "\n" [
+    "Commands start with `/`; <ARG> is required and [ARG] is optional.",
     "  TAB completes command names, options, and paths",
+    "examples: /run   /local eprover   /online online-vampire   /to-lean p => p",
     "topics: /help cnf   /help fof   /help tff   /help lean",
     "        /help run   /help context   /help grammar   /help roles",
     "grammar: ~p  p & q  p | q  p => q  p <=> q  ![X] : p(X)"
@@ -561,6 +630,7 @@ private def leanHelp : String :=
 private def runHelp : String :=
   String.intercalate "\n" [
     "Provers",
+    "/run                    run the configured or first local prover",
     "/run [--prover NAME] [--all] [--timeout SEC] [--max-output BYTES]",
     "     [--refresh] [--no-cache] [--endpoint URL]",
     "/run --all              run every installed local prover",
@@ -596,9 +666,26 @@ private def contextHelp : String :=
     "theory: /theory fof|cnf|tff (tf1 alias); provers: /provers; theme: /theme NAME"
   ]
 
+private def commandHelp (command : Argus.Command Command) : String :=
+  let details := match command.name with
+    | "goal" | "to-lean" | "translate-to-lean" | "snapshot" | "to-tptp" | "reconstruct" | "term" =>
+        leanHelp
+    | "run" | "local" | "online" | "prover" | "provers" | "systems" | "doctor" => runHelp
+    | "state" | "history" => contextHelp
+    | "parse" | "axiom" | "conjecture" | "grammar" | "roles" => grammarHelp
+    | _ => ""
+  String.intercalate "\n" <| [s!"/{usageLine command}", command.description] ++
+    (if details.isEmpty then [] else ["", details])
+
+private def normalizeHelpTopic (topic : String) : String :=
+  let topic := topic.trimAscii.toString
+  if topic.startsWith "/" then topic.drop 1 |>.trimAscii.toString else topic
+
 def helpFor : Option String → String
   | none => helpText
-  | some topic => match topic.toLower with
+  | some rawTopic =>
+      let topic := normalizeHelpTopic rawTopic
+      match topic.toLower with
       | "cnf" => cnfHelp
       | "fof" => fofHelp
       | "tff" => tffHelp
@@ -608,12 +695,15 @@ def helpFor : Option String → String
       | "grammar" => grammarHelp
       | "roles" => roleHelp none
       | topic =>
-          if topic.startsWith "roles " then
-            roleHelp (some (topic.drop "roles ".length |>.trimAscii.toString))
-          else String.intercalate "\n" [
-            s!"unknown help topic `{topic}`",
-            "try: /help cnf, /help fof, /help tff, /help lean, /help run, /help context"
-          ]
+          match commandChildren.find? (fun command => command.name == topic) with
+          | some command => commandHelp command
+          | none =>
+              if topic.startsWith "roles " then
+                roleHelp (some (topic.drop "roles ".length |>.trimAscii.toString))
+              else String.intercalate "\n" [
+                s!"unknown help topic `{topic}`",
+                "try: /help cnf, /help fof, /help tff, /help lean, /help to-lean, /help run, /help context"
+              ]
 
 def parseSource (session : Session) (input source : String) : Except String Session :=
   match OATP.TPTP.parse source with

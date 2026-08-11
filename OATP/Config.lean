@@ -4,13 +4,14 @@ Released under Apache-2.0 license as described in the file LICENSE.
 -/
 
 import Grip.Json
+import OATP.TPTP
 
 namespace OATP.Config
 
 open Grip.Json
 
 structure Preferences where
-  theory : String := "fof"
+  theory : String := OATP.TPTP.defaultTheory
   defaultProver : String := ""
   enabledProvers : Array String := #[]
   proverSelectionSet : Bool := false

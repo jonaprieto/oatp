@@ -24,6 +24,7 @@ namespace OATP.ReplView
 
 open OATP
 open OATP.Repl
+open OATP.TPTP
 open TermColor
 open TermColor.Diagnostics
 open TermColor.Layout
@@ -66,6 +67,95 @@ def themes : List (String × ColorScheme) :=
    ("monokai", ColorScheme.monokai)]
 
 def defaultThemeName : String := "aurora"
+
+/-- Semantic token colors extend the base palette without making syntax roles part of ColorScheme. -/
+structure SemanticColors where
+  format : Color
+  role : Color
+  error : Color
+  variableColor : Color
+  constantColor : Color
+  functionColor : Color
+  predicateColor : Color
+
+def semanticColors (scheme : ColorScheme) : SemanticColors where
+  format := scheme.cyan
+  role := scheme.purple
+  error := scheme.red
+  variableColor := scheme.yellow
+  constantColor := scheme.green
+  functionColor := scheme.green
+  predicateColor := scheme.cyan
+
+inductive AppKeyAction
+  | openRun
+  | focusDrawer
+  | closeProvers
+  | proverNext
+  | proverPrevious
+  | toggleProver
+  | closeRun
+  | runNext
+  | runPrevious
+  | runInspect
+  | closeState
+  | contextNext
+  | contextPrevious
+  | toggleContext
+  | expandContext
+  | collapseContext
+  | closeHistory
+  | transcriptPageUp
+  | transcriptPageDown
+  deriving BEq, DecidableEq, Repr
+
+inductive AppContext
+  | default
+  | run
+  | provers
+  | state
+  | history
+
+def AppContext.name : AppContext → String
+  | .default => "default"
+  | .run => "run"
+  | .provers => "provers"
+  | .state => "state"
+  | .history => "history"
+
+private def appBinding (keys : List Key) (action : AppKeyAction)
+    (context : Option AppContext) (description : String) : BindingSpec AppKeyAction :=
+  { keys
+    action
+    context := context.map AppContext.name
+    label := Keymap.keyLabel (keys.headD .escape)
+    description }
+
+def appBindings : List (BindingSpec AppKeyAction) :=
+  [ appBinding [.ctrl 'R', .ctrl 'r'] .openRun none "open the run drawer"
+  , appBinding [.ctrl ']'] .focusDrawer none "focus the open drawer"
+  , appBinding [.char 'H', .char 'h', .escape] .closeRun (some .run) "return to input"
+  , appBinding [.char 'J', .char 'j', .down] .runNext (some .run) "next run"
+  , appBinding [.char 'K', .char 'k', .up] .runPrevious (some .run) "previous run"
+  , appBinding [.enter, .char ' '] .runInspect (some .run) "inspect the selected run"
+  , appBinding [.char 'H', .char 'h', .escape] .closeProvers (some .provers) "return to input"
+  , appBinding [.char 'J', .char 'j', .down] .proverNext (some .provers) "next prover"
+  , appBinding [.char 'K', .char 'k', .up] .proverPrevious (some .provers) "previous prover"
+  , appBinding [.enter, .char ' '] .toggleProver (some .provers) "toggle the selected prover"
+  , appBinding [.char 'H', .char 'h', .escape] .closeState (some .state) "return to input"
+  , appBinding [.char 'J', .char 'j', .down] .contextNext (some .state) "next context section"
+  , appBinding [.char 'K', .char 'k', .up] .contextPrevious (some .state) "previous context section"
+  , appBinding [.enter, .char ' '] .toggleContext (some .state) "toggle the selected section"
+  , appBinding [.right] .expandContext (some .state) "expand the selected section"
+  , appBinding [.left] .collapseContext (some .state) "collapse the selected section"
+  , appBinding [.char 'H', .char 'h', .escape] .closeHistory (some .history) "return to input"
+  , appBinding [.pageUp] .transcriptPageUp (some .default) "scroll transcript up"
+  , appBinding [.pageDown] .transcriptPageDown (some .default) "scroll transcript down" ]
+
+def appKeyLabel (action : AppKeyAction) (context : AppContext) : String :=
+  (appBindings.find? (fun binding => binding.action == action &&
+    (binding.context == none || binding.context == some (AppContext.name context)))).map
+      (·.label) |>.getD "?"
 
 def themeByName (name : String) : Option ColorScheme :=
   themes.find? (fun pair => pair.1 == name) |>.map Prod.snd
@@ -121,18 +211,68 @@ inductive PanelFocus where
   | drawer
   deriving BEq, DecidableEq, Repr
 
+inductive ContextTarget where
+  | formulas
+  | symbols
+  | problem
+  | goal
+  | translation
+  | term
+  deriving BEq, DecidableEq, Repr
+
+namespace ContextTarget
+
+def all : List ContextTarget :=
+  [.formulas, .symbols, .problem, .goal, .translation, .term]
+
+def name : ContextTarget → String
+  | .formulas => "formulas"
+  | .symbols => "symbols"
+  | .problem => "problem"
+  | .goal => "goal"
+  | .translation => "translation"
+  | .term => "term"
+
+def label : ContextTarget → String
+  | .formulas => "FORMULAS"
+  | .symbols => "SYMBOLS"
+  | .problem => "PROBLEM"
+  | .goal => "LEAN GOAL"
+  | .translation => "LEAN → TPTP"
+  | .term => "CHECKED TERM"
+
+def aliases : ContextTarget → List String
+  | .formulas => ["form", "formula", "formulas"]
+  | .symbols => ["symbol", "symbols"]
+  | .problem => ["problem"]
+  | .goal => ["goal", "lean"]
+  | .translation => ["translation", "tptp"]
+  | .term => ["term", "checked-term", "checked"]
+
+private def indexOf (value : String) : List ContextTarget → Nat → Option Nat
+  | [], _ => none
+  | contextTarget :: rest, index =>
+      if (aliases contextTarget).any (· == value) then some index
+      else indexOf value rest (index + 1)
+
+def indexOfString (value : String) : Option Nat := indexOf value.toLower all 0
+
+end ContextTarget
+
+def contextSectionCount : Nat := ContextTarget.all.length
+
 structure App where
   session : OATP.Repl.Session := {}
   entries : List TranscriptEntry := []
   transcriptScroll : Nat := 0
   repl : Repl.State := {}
-  stateOpen : Bool := false
+  stateOpen : Bool := true
   historyOpen : Bool := false
   proversOpen : Bool := false
   runOpen : Bool := false
   panelFocus : PanelFocus := .main
   proverFocus : Nat := 0
-  proverChoices : Array String := #[]
+  proverChoices : Array ProverReference := #[]
   runFocus : Nat := 0
   runRows : Array RunRow := #[]
   runFrame : Nat := 0
@@ -141,14 +281,14 @@ structure App where
   selectionEnd : Option (Nat × Nat) := none
   copyPending : Option String := none
   contextFocus : Nat := 0
-  contextExpanded : Array Bool := #[false, false, false, false, false, false]
+  contextExpanded : Array Bool := Array.replicate contextSectionCount false
   running : Bool := true
   statusNotice : Option String := none
   theme : ColorScheme := aurora
   themeName : String := defaultThemeName
-  theory : String := "fof"
-  defaultProver : String := ""
-  enabledProvers : Array String := #[]
+  theory : String := OATP.TPTP.defaultTheory
+  defaultProver : Option ProverReference := none
+  enabledProvers : Array ProverReference := #[]
   proverSelectionSet : Bool := false
   busy : Bool := false
   jobResult : Option JobResult := none
@@ -255,34 +395,37 @@ private def diagnosticView (scheme : ColorScheme) (width : Nat) (sources : Sourc
 private def identifierChar (character : Char) : Bool :=
   character.isAlpha || character.isDigit || character == '_' || character == '$' || character == '\''
 
-private def symbolStyle (scheme : ColorScheme) (symbols : Array Symbol) (token : String) : Style :=
+private def roleStyle (semantic : SemanticColors) : _root_.TPTP.Role → Option Style
+  | .axiom | .hypothesis | .definition | .assumption | .lemma | .theorem | .corollary
+    | .conjecture | .negatedConjecture | .plain | .type | .interpretation | .logic
+    | .unknown | .finiteDomain | .finiteFunctor | .finitePredicate =>
+      some (Style.fg semantic.role)
+  | .other _ => none
+
+private def symbolStyle (scheme : ColorScheme) (symbols : Array Symbol) (token : String)
+    (highlightSyntax : Bool := true) : Style :=
   let lower := token.toLower
+  let semantic := semanticColors scheme
   if token.startsWith "/" then Style.bold <+> Style.fg scheme.orange
   else if token.startsWith "--" then Style.fg scheme.blue
   else if token == "-" then Style.fg scheme.blue
   else if token.startsWith "$" then Style.fg scheme.blue
-  else if lower == "cnf" || lower == "fof" || lower == "tff" || lower == "thf" then
-    Style.bold <+> Style.fg scheme.cyan
-  else if lower == "axiom" || lower == "conjecture" || lower == "type" ||
-      lower == "definition" || lower == "theorem" || lower == "hypothesis" ||
-      lower == "assumption" || lower == "lemma" || lower == "corollary" ||
-      lower == "negated_conjecture" || lower == "plain" || lower == "interpretation" ||
-      lower == "logic" || lower == "fi_domain" || lower == "fi_functors" ||
-      lower == "fi_predicates" then Style.fg scheme.purple
-  else if lower == "error" || lower == "failed" || lower == "unknown" then
-    Style.bold <+> Style.fg scheme.red
-  else match symbols.find? (fun symbol => symbol.name == token) with
-  | some symbol => match symbol.kind with
-      | .variable => Style.fg scheme.yellow
-      | .constant => Style.fg scheme.green
-      | .function => Style.fg scheme.green
-      | .predicate => Style.fg scheme.cyan
-  | none =>
-      match token.toList.head? with
-      | some character =>
-          if character.isUpper || character.isDigit then Style.fg scheme.yellow
-          else Style.fg scheme.foreground
-      | none => Style.fg scheme.foreground
+  else if !highlightSyntax then Style.fg scheme.foreground
+  else match _root_.TPTP.Kind.ofString lower with
+  | .fof | .cnf | .tff | .thf | .tcf | .tpi => Style.bold <+> Style.fg semantic.format
+  | .other _ =>
+      match roleStyle semantic (_root_.TPTP.Role.ofString lower) with
+      | some style => style
+      | none =>
+          match lower with
+          | "error" | "failed" => Style.bold <+> Style.fg semantic.error
+          | _ => match symbols.find? (fun symbol => symbol.name == token) with
+              | some symbol => match symbol.kind with
+                  | .variable => Style.fg semantic.variableColor
+                  | .constant => Style.fg semantic.constantColor
+                  | .function => Style.fg semantic.functionColor
+                  | .predicate => Style.fg semantic.predicateColor
+              | none => Style.fg scheme.foreground
 
 private def operatorStyle (scheme : ColorScheme) (token : String) : Style :=
   if token == "!" || token == "?" then Style.fg scheme.pink
@@ -290,10 +433,12 @@ private def operatorStyle (scheme : ColorScheme) (token : String) : Style :=
       token == ":" || token == "." || token == ";" then Style.fg scheme.purple
   else Style.fg scheme.blue
 
-private def semanticText (scheme : ColorScheme) (symbols : Array Symbol) (value : String) : Text :=
+private def semanticText (scheme : ColorScheme) (symbols : Array Symbol) (value : String)
+    (highlightSyntax : Bool := true) : Text :=
   let flush := fun (state : Text × String) =>
     if state.2.isEmpty then state
-    else (state.1 ++ Text.styled state.2 (symbolStyle scheme symbols state.2), "")
+    else (state.1 ++ Text.styled state.2
+      (symbolStyle scheme symbols state.2 highlightSyntax), "")
   let step := fun (state : Text × String) (character : Char) =>
     if identifierChar character || character == '/' || character == '-' then
       (state.1, state.2.push character)
@@ -305,7 +450,8 @@ private def semanticText (scheme : ColorScheme) (symbols : Array Symbol) (value 
           character == '&' || character == '|' || character == '~' || character == '=' ||
           character == '<' || character == '>' || character == '.' || character == ';' ||
           character == '⊢' || character == '→' then
-        (state.1 ++ Text.styled token (operatorStyle scheme token), "")
+        (state.1 ++ Text.styled token
+          (if highlightSyntax then operatorStyle scheme token else Style.fg scheme.foreground), "")
       else
         (state.1 ++ Text.plain token, "")
   (flush (value.toList.foldl step (Text.empty, ""))).1
@@ -336,8 +482,9 @@ private def transcriptLine (scheme : ColorScheme) (symbols : Array Symbol) (widt
         match entry.output.splitOn "\n" with
         | [] => marker
         | line :: rest =>
-            let first := marker ++ semanticText scheme symbols line
-            rest.foldl (fun output line => output ++ Text.plain "\n    " ++ semanticText scheme symbols line)
+            let first := marker ++ semanticText scheme symbols line false
+            rest.foldl (fun output line => output ++ Text.plain "\n    " ++
+              semanticText scheme symbols line false)
               first
   let timing := entry.elapsedMs.map (fun milliseconds =>
       Text.styled s!"  ({formatElapsed milliseconds})"
@@ -408,8 +555,6 @@ private def symbolLine (scheme : ColorScheme) (symbol : Symbol) : Text :=
     Text.styled symbol.name (symbolStyle scheme #[symbol] symbol.name) ++
     Text.styled s!"/{symbol.arity}" (Style.dim <+> Style.fg scheme.comment)
 
-def contextSectionCount : Nat := 6
-
 private def contextWidgetConfig (scheme : ColorScheme) : CollapsibleConfig where
   collapsedMarker := Text.styled "▸ " (Style.fg scheme.comment)
   expandedMarker := Text.styled "▾ " (Style.fg scheme.orange)
@@ -438,14 +583,18 @@ private def contextSections (app : App) : List (Text × Text) :=
   let translation := match app.translation with
     | none => "(no Lean → TPTP translation)"
     | some source => String.intercalate "\n" (source.splitOn "\n" |>.take 3)
-  [ (Text.plain s!"FORMULAS ({app.session.formulas.size})"
-    , joinLines (if formulas.isEmpty then [] else formulas.map (formulaLine app.theme)))
-  , (Text.plain s!"SYMBOLS ({app.session.symbols.size})"
-    , joinLines (symbols.map (symbolLine app.theme)))
-  , (Text.plain "PROBLEM", semanticText app.theme app.session.symbols problem)
-  , (Text.plain "LEAN GOAL", goal)
-  , (Text.plain "LEAN → TPTP", semanticText app.theme app.session.symbols translation)
-  , (Text.plain "CHECKED TERM", term) ]
+  let render : ContextTarget → Text × Text
+    | .formulas => (Text.plain s!"{ContextTarget.label .formulas} ({app.session.formulas.size})",
+        joinLines (if formulas.isEmpty then [] else formulas.map (formulaLine app.theme)))
+    | .symbols => (Text.plain s!"{ContextTarget.label .symbols} ({app.session.symbols.size})",
+        joinLines (symbols.map (symbolLine app.theme)))
+    | .problem => (Text.plain (ContextTarget.label .problem),
+        semanticText app.theme app.session.symbols problem)
+    | .goal => (Text.plain (ContextTarget.label .goal), goal)
+    | .translation => (Text.plain (ContextTarget.label .translation),
+        semanticText app.theme app.session.symbols translation)
+    | .term => (Text.plain (ContextTarget.label .term), term)
+  ContextTarget.all.map render
 
 private def contextExpandedAt (app : App) (index : Nat) : Bool :=
   app.contextExpanded.getD index false
@@ -522,31 +671,25 @@ def focusPreviousRun (app : App) : App :=
 
 def toggleFocusedProver (app : App) : App :=
   if app.proverChoices.isEmpty then app else
-    let name := app.proverChoices[app.proverFocus]!
-    let enabled := app.enabledProvers.any (· == name)
+    let reference := app.proverChoices[app.proverFocus]!
+    let enabled := app.enabledProvers.any (· == reference)
     let updated := { app with enabledProvers := if enabled then
-        app.enabledProvers.filter (· != name)
-      else app.enabledProvers.push name }
+        app.enabledProvers.filter (· != reference)
+      else app.enabledProvers.push reference }
     let updated := { updated with proverSelectionSet := true }
-    { updated with statusNotice := some s!"{name} {if enabled then "disabled" else "enabled"}" }
+    { updated with statusNotice := some s!"{ProverReference.display reference} {
+      if enabled then "disabled" else "enabled"}" }
 
 def contextTargetNames : List String :=
-  ["formulas", "symbols", "problem", "goal", "translation", "term"]
+  ContextTarget.all.map ContextTarget.name
 
 def contextTargetOfString (value : String) : Option Nat :=
-  match value.toLower with
-  | "form" | "formula" | "formulas" => some 0
-  | "symbol" | "symbols" => some 1
-  | "problem" => some 2
-  | "goal" | "lean" => some 3
-  | "translation" | "tptp" => some 4
-  | "term" | "checked-term" | "checked" => some 5
-  | _ => none
+  ContextTarget.indexOfString value
 
 def openContextTarget (app : App) (target : String) : Option App :=
   if target.toLower == "all" then
     let app := { app with stateOpen := true }
-    some { app with contextExpanded := #[true, true, true, true, true, true] }
+    some { app with contextExpanded := Array.replicate contextSectionCount true }
   else
     match contextTargetOfString target with
     | some index => some <| expandFocusedContext <| focusContext { app with stateOpen := true } index
@@ -573,7 +716,7 @@ private def historyPanel (app : App) (width height : Nat) : Text :=
           Text.plain "\n" ++
           Text.styled "  = " (Style.bold <+> Style.fg app.theme.green) ++
           semanticText app.theme app.session.symbols
-            (fitText (max 1 (width - 6)) entry.result).plainText)
+            (fitText (max 1 (width - 6)) entry.result).plainText false)
   let innerWidth := boxInnerWidth width
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
   box body { title := some (Text.styled "history • active" (Style.bold <+> Style.fg app.theme.cyan))
@@ -588,13 +731,16 @@ private def proverPanel (app : App) (width height : Nat) : Text :=
   let start := proverVisibleStart app height
   let rows := if app.proverChoices.isEmpty then
       [Text.styled "No local or online provers." (Style.dim <+> Style.fg app.theme.comment)]
-    else app.proverChoices.toList.drop start |>.take visible |>.mapIdx fun offset name =>
+    else app.proverChoices.toList.drop start |>.take visible |>.mapIdx fun offset reference =>
       let index := start + offset
-      let checked := app.enabledProvers.any (· == name)
+      let checked := app.enabledProvers.any (· == reference)
       let marker := if checked then "[x]" else "[ ]"
       let style := if index == app.proverFocus then Style.reverse else {}
-      let nameStyle := if SystemOnTPTP.isOnlineReference name then Style.fg app.theme.purple else {}
-      Text.styled s!"{marker} " style ++ Text.styled name (style <+> nameStyle)
+      let nameStyle := match reference.kind with
+        | .online => Style.fg app.theme.purple
+        | .local => {}
+      Text.styled s!"{marker} " style ++
+        Text.styled (ProverReference.display reference) (style <+> nameStyle)
   let body := padRight (boxInnerWidth width) (fillHeight (max 1 (height - 2)) (joinLines rows))
   let active := app.panelFocus == .drawer
   let title := if active then "provers • active • H main" else "provers • inactive • Ctrl-] focus"
@@ -689,21 +835,32 @@ def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State) (focused : 
 private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
+  let close := appKeyLabel .closeRun .run
+  let focus := appKeyLabel .focusDrawer .default
+  let next := appKeyLabel .runNext .run
+  let previous := appKeyLabel .runPrevious .run
+  let inspect := appKeyLabel .runInspect .run
+  let pageUp := appKeyLabel .transcriptPageUp .default
+  let pageDown := appKeyLabel .transcriptPageDown .default
   let hint := if app.panelFocus == .drawer && app.runOpen then
-      if outer < stateDrawerMinWidth then "H main • J/K" else "H main • J/K prover • Enter details"
+      if outer < stateDrawerMinWidth then s!"{close} main • {next}/{previous}"
+      else s!"{close} main • {next}/{previous} prover • {inspect} details"
     else if app.panelFocus == .drawer && app.stateOpen then
-      if outer < stateDrawerMinWidth then "H main • J/K" else "H main • J/K focus • Enter toggle"
+      if outer < stateDrawerMinWidth then s!"{close} main • {next}/{previous}"
+      else s!"{close} main • {next}/{previous} focus • Enter toggle"
     else if app.panelFocus == .drawer && app.proversOpen then
-      if outer < stateDrawerMinWidth then "H main • J/K" else "H main • J/K prover • Space toggle"
-    else if app.panelFocus == .drawer && app.historyOpen then "H main"
-    else if app.busy then "Ctrl-R run • input"
+      if outer < stateDrawerMinWidth then s!"{close} main • {next}/{previous}"
+      else s!"{close} main • {next}/{previous} prover • Space toggle"
+    else if app.panelFocus == .drawer && app.historyOpen then s!"{close} main"
+    else if app.busy then s!"{appKeyLabel .openRun .default} run • input"
     else if app.stateOpen || app.proversOpen || app.historyOpen || app.runOpen then
-      if outer < stateDrawerMinWidth then "input • Ctrl-]" else "input active • Ctrl-] focus drawer"
-    else "/help • PgUp/PgDn scroll • Ctrl-R runs"
+      if outer < stateDrawerMinWidth then s!"input • {focus}"
+      else s!"input active • {focus} focus drawer"
+    else s!"/help • {pageUp}/{pageDown} scroll • {appKeyLabel .openRun .default} runs"
   let leftWidth := outer * 2 / 3
   let rightWidth := outer - leftWidth
   let notice := app.statusNotice.map (fun value => s!"  • {value}") |>.getD ""
-  let prover := if app.defaultProver.isEmpty then "auto" else app.defaultProver
+  let prover := app.defaultProver.map ProverReference.display |>.getD "auto"
   let metadata := if outer < stateDrawerMinWidth then s!"  theory={app.theory}{notice}"
     else s!"  theory={app.theory} • prover={prover}{notice}"
   let left := Text.styled state (Style.bold <+> Style.fg (if app.busy then app.theme.yellow else app.theme.green)) ++

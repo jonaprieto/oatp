@@ -120,11 +120,18 @@ open OATP OATP.TPTP
   | .error _ => false
 #guard match OATP.Repl.parseRunRequest
     ["--prover", "eprover", "--timeout", "7", "--max-output", "99", "--no-cache", "--", "--foo"] with
-  | .ok request => request.references == ["eprover"] && request.timeout == 7 &&
+  | .ok request => request.references == [OATP.Repl.ProverReference.fromLocal "eprover"] &&
+      request.timeout == 7 &&
       request.maxOutput == 99 && request.noCache && request.arguments == ["--foo"]
   | .error _ => false
 #guard match OATP.Repl.parseRunRequest ["--all"] with
   | .ok request => request.all
+  | .error _ => false
+#guard OATP.Argus.ResourceOptions.spec.toMeta.flags.map (·.long) == ["timeout", "max-output"]
+#guard OATP.Argus.CatalogueOptions.spec.toMeta.flags.map (·.long) ==
+  ["endpoint", "refresh", "no-cache"]
+#guard match OATP.Repl.parseRunRequest ["--timeout", "2m", "--max-output", "2Mi"] with
+  | .ok request => request.timeout == 120 && request.maxOutput == 2 * 1024 * 1024
   | .error _ => false
 #guard match OATP.Repl.parseCommandSpec "/run --all -- --foo" with
   | .ok (.run request) => request.all && request.arguments == ["--foo"]
@@ -145,6 +152,7 @@ open OATP OATP.TPTP
   | .error _ => false
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "/help"
+#guard ({} : OATP.ReplView.App).stateOpen && ({} : OATP.ReplView.App).panelFocus == .main
 def completionApp : OATP.ReplView.App :=
   { repl := { input := { value := "/st", cursor := 3 }
               completion := some { candidates := #[{ replacement := "/state" }] } } }
@@ -181,12 +189,31 @@ def completionApp : OATP.ReplView.App :=
   | .ok session =>
       (session.history.toList.getLast?.map (·.result)).getD "" |>.contains "Ctrl-]"
   | .error _ => false
+#guard match OATP.Repl.apply {} "/help /to-lean" with
+  | .ok session =>
+      let help := (session.history.toList.getLast?.map (·.result)).getD ""
+      help.contains "/to-lean" && help.contains "1. /goal"
+  | .error _ => false
+#guard match OATP.Repl.parseCommandSpec "/local" with
+  | .error message => message.contains "missing required argument" && message.contains "/help local"
+  | .ok _ => false
+#guard match OATP.Repl.parseCommandSpec "/run" with
+  | .ok (.run request) => request.references.isEmpty && !request.all
+  | _ => false
+#guard match OATP.Repl.parseCommandSpec "local" with
+  | .error message => message.contains "commands start with"
+  | .ok _ => false
 #guard (OATP.ReplView.toggleFocusedContext {}).contextExpanded.getD 0 false
 #guard OATP.ReplView.contextTargetOfString "form" == some 0
 #guard OATP.ReplView.contextTargetOfString "tptp" == some 4
 #guard (OATP.ReplView.openContextTarget {} "goal").map
     (fun app => app.stateOpen && app.contextFocus == 3 && app.contextExpanded.getD 3 false) == some true
 #guard OATP.ReplView.themeByName "dracula" |>.isSome
+#guard "to-lean" ∈ OATP.Repl.commandNames
+#guard OATP.Repl.ProverReference.fromPersisted "local:online-local" ==
+  some (OATP.Repl.ProverReference.fromLocal "online-local")
+#guard OATP.Repl.ProverReference.fromPersisted "online:vampire" ==
+  some (OATP.Repl.ProverReference.fromOnline "vampire")
 #guard (OATP.ReplView.focusNextContext {}).contextFocus == 1
 #guard (OATP.ReplView.focusPreviousContext {}).contextFocus == 5
 #guard OATP.ReplView.contextHitAtRow {} 40 2 == some (0, true)
@@ -200,8 +227,8 @@ def completionApp : OATP.ReplView.App :=
 #guard match OATP.Repl.apply {} "/help" with
   | .ok session =>
       let help := (session.history.toList.getLast?.map (·.result)).getD ""
-      help.contains "/help <TOPIC>" && help.contains "/goal <FORMULA>" &&
-        help.contains "/axiom <NAME> <FORMULA>..." && help.contains "grammar"
+      help.contains "/help [<TOPIC>]" && help.contains "/goal <FORMULA> [<FORMULA>...]" &&
+        help.contains "/axiom <NAME> <FORMULA> [<FORMULA>...]" && help.contains "grammar"
   | .error _ => false
 #guard (OATP.ReplView.clearSelection
     { selectionStart := some (1, 2), selectionEnd := some (3, 4) }).selectionStart.isNone
@@ -215,6 +242,11 @@ def main : IO UInt32 := do
     { value := "/help ", cursor := 6 }
   if !(topicCompletions.any (·.replacement == "cnf")) then
     throw <| IO.userError "REPL topic completion omitted cnf"
+  let slashTopicCompletions ← TermColor.Repl.completeCommandWith OATP.Repl.commandSpec
+    (fun typeName => pure <| if typeName == "TOPIC" then ["to-lean"] else [])
+    { value := "/help /to", cursor := 9 }
+  if !(slashTopicCompletions.any (·.replacement == "/to-lean")) then
+    throw <| IO.userError "REPL slash-topic completion omitted /to-lean"
   let x := _root_.TPTP.Formula.Term.function "f" #[
     .constant "a", .var "X"
   ]

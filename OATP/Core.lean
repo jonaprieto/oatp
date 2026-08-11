@@ -14,6 +14,10 @@ must distinguish an untrusted candidate from a kernel-accepted proof.
 
 namespace OATP
 
+def defaultTimeoutSeconds : Nat := 30
+
+def defaultMaxOutputBytes : Nat := 4 * 1024 * 1024
+
 structure Prover where
   name : String
   version : Option String := none
@@ -102,8 +106,8 @@ instance : ToString SZSStatus where
 end SZSStatus
 
 structure Limits where
-  wallSeconds : Nat := 30
-  maxOutputBytes : Nat := 4 * 1024 * 1024
+  wallSeconds : Nat := defaultTimeoutSeconds
+  maxOutputBytes : Nat := defaultMaxOutputBytes
   deriving BEq, DecidableEq, Repr
 
 structure Problem where

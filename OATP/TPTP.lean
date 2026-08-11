@@ -25,6 +25,19 @@ abbrev Include := _root_.TPTP.Include
 abbrev Item := _root_.TPTP.Item
 abbrev Document := _root_.TPTP.Document
 
+def supportedTheories : List String := ["fof", "cnf", "tff"]
+
+def theoryAliases : List (String × String) := [("tf1", "tff")]
+
+def defaultTheory : String := supportedTheories.headD "fof"
+
+def theoryChoices : List String := supportedTheories ++ theoryAliases.map Prod.fst
+
+def normalizeTheory (value : String) : Option String :=
+  let value := value.toLower
+  if value ∈ supportedTheories then some value
+  else theoryAliases.find? (·.1 == value) |>.map Prod.snd
+
 def parse (source : String) : Except Grip.ParseError Document :=
   _root_.TPTP.parseString source
 

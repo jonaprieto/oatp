@@ -59,6 +59,7 @@ lake exe oatp run --prover online-vampire problem.p
 - bounded local process and HTTP transport;
 - concurrent local-prover portfolios;
 - SystemOnTPTP catalogue and cache;
+- shared Argus option specs for the batch CLI and REPL;
 - proposition-to-TPTP translation and small kernel-checked reconstruction;
 - plain and ANSI terminal rendering through the TermColor stack.
 
@@ -66,7 +67,7 @@ The standalone CLI is available in release archives. The Lean library can be ins
 
 ```lean
 require oatp from git
-  "https://github.com/jonaprieto/oatp.git" @ "v0.3.1"
+  "https://github.com/jonaprieto/oatp.git" @ "v0.5.0"
 ```
 
 ## Build
@@ -80,6 +81,9 @@ lake exe tests
 
 [`oatp-proofwidgets`](https://github.com/jonaprieto/oatp-proofwidgets) provides optional Infoview
 views. [`argus`](https://github.com/jonaprieto/lean-argus) provides typed CLI parsing.
+
+The CLI and REPL share `OATP.Argus` resource, catalogue, and online-service option specs; their
+different problem/session positionals remain frontend-specific.
 
 ## License
 
