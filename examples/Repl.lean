@@ -30,14 +30,15 @@ open TermColor.Widgets
 private def words (line : String) : List String :=
   line.splitOn " " |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty)
 
+private def catalogueNamespace : String := "oatp-repl"
+
 private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : Bool)
     (elapsedMs : Option Nat := none) (sources : Sources := #[])
     (diagnostic : Option Diagnostic := none) : App :=
   { app with
     entries := { cell, input, output, ok, elapsedMs, sources, diagnostic } :: app.entries
     transcriptScroll := 0
-    repl := {} 
-    status := if ok then "ready" else "error" }
+    repl := {} }
 
 private def diagnosticFor (source message : String) : Source × Diagnostic :=
   let sourceText := source
@@ -86,15 +87,15 @@ private def artifactText : Portfolio.Result → (String × Bool)
 private def runRow : Portfolio.Result → RunRow
   | .artifact attempt artifact =>
       { name := attempt.name
-        status := s!"{artifact.status}"
+        status := .result artifact.status
         detail := if !artifact.stderr.isEmpty then artifact.stderr.trimAscii.toString
           else artifact.stdout.trimAscii.toString
         elapsedMs := some artifact.elapsedMs }
   | .failed attempt message =>
-      { name := attempt.name, status := "failed", detail := message }
+      { name := attempt.name, status := .failed, detail := message }
 
 private def runRowsFor (attempts : Array Portfolio.Attempt) : Array RunRow :=
-  attempts.map fun attempt => { name := attempt.name, status := "running" }
+  attempts.map fun attempt => { name := attempt.name, status := .running }
 
 private def publishRunRows (app : App) (rows : Array RunRow) : IO Unit := do
   match app.runProgress with
@@ -132,9 +133,9 @@ private def savePreferences (before after : App) : IO App := do
     | some message => pure { after with statusNotice := some message }
 
 private def onlineProverNames : IO (Except String (Array String)) := do
-  match ← OATP.Runtime.loadCatalogue "oatp-repl" SystemOnTPTP.defaultCatalogueEndpoint .normal with
+  match ← OATP.Runtime.loadCatalogue catalogueNamespace SystemOnTPTP.defaultCatalogueEndpoint .normal with
   | .error message => pure (.error message)
-  | .ok systems => pure (.ok (systems.map fun system => "online-" ++ system.id))
+  | .ok systems => pure (.ok (systems.map fun system => SystemOnTPTP.onlineReference system.id))
 
 private def selectableProvers : IO (Array String × Option String) := do
   let installed ← OATP.Runtime.installedProvers
@@ -146,7 +147,7 @@ private def selectedProvers (app : App) (all : Bool) : IO (Array String) := do
   let installed ← OATP.Runtime.installedProvers
   if all then pure installed
   else if app.proverSelectionSet then
-    if app.enabledProvers.any (·.startsWith "online-") then
+    if app.enabledProvers.any SystemOnTPTP.isOnlineReference then
       match ← onlineProverNames with
       | .ok online =>
           let available := installed ++ online
@@ -155,7 +156,7 @@ private def selectedProvers (app : App) (all : Bool) : IO (Array String) := do
     else
       pure <| app.enabledProvers.filter (fun name => installed.any (· == name))
   else if !app.defaultProver.isEmpty then
-    if app.defaultProver.startsWith "online-" then
+    if SystemOnTPTP.isOnlineReference app.defaultProver then
       match ← onlineProverNames with
       | .ok online => pure <| if online.any (· == app.defaultProver) then #[app.defaultProver] else #[]
       | .error _ => pure #[]
@@ -167,14 +168,14 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
   match currentProblem app with
   | none =>
       let message := "no current problem; try `/parse fof(goal, conjecture, p => p).` or `/load FILE`"
-      publishRunRows app #[{ name := "run", status := "failed", detail := message }]
+      publishRunRows app #[{ name := "run", status := .failed, detail := message }]
       pure (message, false)
   | some problem =>
       let references ← if request.references.isEmpty then
         pure (← selectedProvers app request.all).toList
       else pure request.references
-      let localReferences := references.filter (!·.startsWith "online-")
-      let onlineReferences := references.filter (·.startsWith "online-")
+      let localReferences := references.filter (fun reference => !SystemOnTPTP.isOnlineReference reference)
+      let onlineReferences := references.filter SystemOnTPTP.isOnlineReference
       let limits : Limits := { wallSeconds := request.timeout, maxOutputBytes := request.maxOutput }
       let mut attempts : Array Portfolio.Attempt := #[]
       for reference in localReferences do
@@ -188,14 +189,14 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
         let mode := if request.noCache then OATP.Runtime.CatalogueCache.noCache
           else if request.refresh then OATP.Runtime.CatalogueCache.refresh
           else OATP.Runtime.CatalogueCache.normal
-        match ← OATP.Runtime.loadCatalogue "oatp-repl" endpoint mode with
+        match ← OATP.Runtime.loadCatalogue catalogueNamespace endpoint mode with
         | .error message =>
-            publishRunRows app #[{ name := "online catalogue", status := "failed", detail := message }]
+            publishRunRows app #[{ name := "online catalogue", status := .failed, detail := message }]
             return (message, false)
         | .ok systems =>
-            match OATP.Runtime.resolveOnline "oatp-repl" systems onlineReferences with
+            match OATP.Runtime.resolveOnline catalogueNamespace systems onlineReferences with
             | .error message =>
-                publishRunRows app #[{ name := "online prover", status := "failed", detail := message }]
+                publishRunRows app #[{ name := "online prover", status := .failed, detail := message }]
                 return (message, false)
             | .ok resolved =>
                 let labels := resolved.map (·.id)
@@ -215,7 +216,7 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
                 }
       if attempts.isEmpty then
         let message := "no prover selected or installed"
-        publishRunRows app #[{ name := "run", status := "failed", detail := message }]
+        publishRunRows app #[{ name := "run", status := .failed, detail := message }]
         pure (message, false)
       else
         publishRunRows app (runRowsFor attempts)
@@ -245,8 +246,8 @@ private def backendRequest (input : String) : Except String OATP.Repl.RunRequest
       maxOutput := request.maxOutput
       arguments := request.arguments }
   | .ok (.online request) => pure {
-      references := [if request.system.startsWith "online-" then request.system
-        else "online-" ++ request.system]
+      references := [if SystemOnTPTP.isOnlineReference request.system then request.system
+        else SystemOnTPTP.onlineReference request.system]
       endpoint := request.endpoint
       timeout := request.timeout
       maxOutput := request.maxOutput }
@@ -256,9 +257,9 @@ private def backendRequest (input : String) : Except String OATP.Repl.RunRequest
 private def startingRunRows (input : String) : Array RunRow :=
   match backendRequest input with
   | .ok request =>
-      if request.references.isEmpty then #[{ name := "selected provers", status := "running" }]
-      else request.references.toArray.map fun name => { name, status := "running" }
-  | .error _ => #[{ name := "run", status := "running" }]
+      if request.references.isEmpty then #[{ name := "selected provers", status := .running }]
+      else request.references.toArray.map fun name => { name, status := .running }
+  | .error _ => #[{ name := "run", status := .running }]
 
 private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
   shouldRun := fun _ input => backendLine input
@@ -301,12 +302,12 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
   cancel := fun app => { app with
     busy := false
     jobResult := none
-    runRows := app.runRows.map fun row => { row with status := "cancelled", detail := "cancelled" } }
+    runRows := app.runRows.map fun row => { row with status := .cancelled, detail := "cancelled" } }
   fail := fun app message =>
     let updated := { app with
       busy := false
       jobResult := none
-      runRows := app.runRows.map fun row => { row with status := "failed", detail := message } }
+      runRows := app.runRows.map fun row => { row with status := .failed, detail := message } }
     note updated app.session.nextCell "background prover" message false
 
 private def systemsText (request : OATP.Repl.SystemsRequest) : IO String := do
@@ -320,11 +321,11 @@ private def systemsText (request : OATP.Repl.SystemsRequest) : IO String := do
     let mode := if request.noCache then OATP.Runtime.CatalogueCache.noCache
       else if request.refresh then OATP.Runtime.CatalogueCache.refresh
       else OATP.Runtime.CatalogueCache.normal
-    match ← OATP.Runtime.loadCatalogue "oatp-repl" endpoint mode with
+    match ← OATP.Runtime.loadCatalogue catalogueNamespace endpoint mode with
     | .error message => pure <| String.intercalate "\n" lines ++ "\nONLINE: " ++ message
     | .ok systems =>
         pure <| String.intercalate "\n" (lines ++ ["ONLINE:"] ++
-          systems.toList.map (fun system => "  online-" ++ system.id))
+          systems.toList.map (fun system => "  " ++ SystemOnTPTP.onlineReference system.id))
 
 private def doctorText : IO String := do
   let transports ← Http.availableTransports
@@ -362,7 +363,8 @@ private def fuzzy (query : String) (value : String) : Bool :=
   value == query || value.startsWith query || value.contains query
 
 private def proverMatches (query name : String) : Bool :=
-  fuzzy query name || (name.startsWith "online-" && fuzzy query (name.drop "online-".length).toString)
+  fuzzy query name || (SystemOnTPTP.isOnlineReference name &&
+    fuzzy query (SystemOnTPTP.onlineSystemId name))
 
 private def infoText (app : App) (query : String) : IO (String × Bool) := do
   let candidates ← OATP.Runtime.localProverCandidates
@@ -382,7 +384,7 @@ private def infoText (app : App) (query : String) : IO (String × Bool) := do
   if found.size > 1 then
     return (s!"`{query}` matches local provers: {String.intercalate ", " found.toList}", false)
   let endpoint := SystemOnTPTP.defaultCatalogueEndpoint
-  match ← OATP.Runtime.loadCatalogue "oatp-repl" endpoint .normal with
+  match ← OATP.Runtime.loadCatalogue catalogueNamespace endpoint .normal with
   | .error _ => pure (s!"no prover matched `{query}`; local candidates: {
       String.intercalate ", " candidates.toList}", false)
   | .ok systems =>
@@ -390,13 +392,14 @@ private def infoText (app : App) (query : String) : IO (String × Bool) := do
       match online.toList with
       | [] => pure (s!"no prover matched `{query}`", false)
       | [system] => pure (String.intercalate "\n" [
-          s!"prover: online-{system.id}",
+          s!"prover: {SystemOnTPTP.onlineReference system.id}",
           "kind:   SystemOnTPTP catalogue",
           s!"command: {if system.command.isEmpty then "catalogue default" else system.command}",
           s!"time limit: {system.timeLimit}s"
         ], true)
       | _ => pure (s!"`{query}` matches online provers: {
-          String.intercalate ", " (online.toList.map (fun system => "online-" ++ system.id))}", false)
+          String.intercalate ", " (online.toList.map (fun system =>
+            SystemOnTPTP.onlineReference system.id))}", false)
 
 private partial def parseStepTokens : List String → Except String (OATP.Proof.Step × List String)
   | "true-intro" :: rest => pure (.trueIntro, rest)
@@ -615,8 +618,8 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       pure (note app cell input output ok)
   | .online request => do
       let run : OATP.Repl.RunRequest := {
-        references := [if request.system.startsWith "online-" then request.system
-          else "online-" ++ request.system]
+        references := [if SystemOnTPTP.isOnlineReference request.system then request.system
+          else SystemOnTPTP.onlineReference request.system]
         endpoint := request.endpoint
         timeout := request.timeout
         maxOutput := request.maxOutput }
@@ -662,7 +665,7 @@ private def commandValues (typeName : String) : IO (List String) := do
   | "SYSTEM" =>
       let localNames ← OATP.Runtime.localProverCandidates
       let online ← match ← onlineProverNames with
-        | .ok names => pure <| names.map (fun name => (name.drop "online-".length).toString)
+        | .ok names => pure <| names.map SystemOnTPTP.onlineSystemId
         | .error _ => pure #[]
       pure (localNames ++ online).toList
   | _ => pure []

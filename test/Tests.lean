@@ -175,7 +175,7 @@ def completionApp : OATP.ReplView.App :=
   "input • Ctrl-]"
 #guard (OATP.ReplView.screen
     { runOpen := true, panelFocus := .drawer,
-      runRows := #[({ name := "eprover", status := "running" } : OATP.ReplView.RunRow)] }
+      runRows := #[({ name := "eprover", status := .running } : OATP.ReplView.RunRow)] }
     { columns := 110, rows := 24 }).plainText.contains "running"
 #guard match OATP.Repl.apply {} "/help context" with
   | .ok session =>

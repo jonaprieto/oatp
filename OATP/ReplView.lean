@@ -6,6 +6,7 @@ Authors: Jonathan Cubides
 
 import OATP.Lean.Repl
 import OATP.Repl
+import OATP.SystemOnTPTP
 import TermColor.ColorScheme
 import TermColor.Diagnostics
 import TermColor.Repl
@@ -89,9 +90,28 @@ structure JobResult where
   elapsedMs : Option Nat := none
   deriving Repr
 
+inductive RunStatus where
+  | queued
+  | running
+  | result (status : SZSStatus)
+  | failed
+  | cancelled
+  deriving BEq, DecidableEq, Repr
+
+namespace RunStatus
+
+def label : RunStatus → String
+  | .queued => "queued"
+  | .running => "running"
+  | .result status => s!"{status}"
+  | .failed => "failed"
+  | .cancelled => "cancelled"
+
+end RunStatus
+
 structure RunRow where
   name : String
-  status : String := "queued"
+  status : RunStatus := .queued
   detail : String := ""
   elapsedMs : Option Nat := none
   deriving Repr
@@ -123,7 +143,6 @@ structure App where
   contextFocus : Nat := 0
   contextExpanded : Array Bool := #[false, false, false, false, false, false]
   running : Bool := true
-  status : String := "ready"
   statusNotice : Option String := none
   theme : ColorScheme := aurora
   themeName : String := defaultThemeName
@@ -574,7 +593,7 @@ private def proverPanel (app : App) (width height : Nat) : Text :=
       let checked := app.enabledProvers.any (· == name)
       let marker := if checked then "[x]" else "[ ]"
       let style := if index == app.proverFocus then Style.reverse else {}
-      let nameStyle := if name.startsWith "online-" then Style.fg app.theme.purple else {}
+      let nameStyle := if SystemOnTPTP.isOnlineReference name then Style.fg app.theme.purple else {}
       Text.styled s!"{marker} " style ++ Text.styled name (style <+> nameStyle)
   let body := padRight (boxInnerWidth width) (fillHeight (max 1 (height - 2)) (joinLines rows))
   let active := app.panelFocus == .drawer
@@ -583,11 +602,10 @@ private def proverPanel (app : App) (width height : Nat) : Text :=
            , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
            , maxWidth := some width }
 
-private def runStatusStyle (scheme : ColorScheme) (status : String) : Style :=
-  match status.toLower with
-  | "theorem" | "unsatisfiable" => Style.bold <+> Style.fg scheme.green
-  | "running" | "queued" => Style.fg scheme.yellow
-  | "error" | "failed" => Style.bold <+> Style.fg scheme.red
+private def runStatusStyle (scheme : ColorScheme) : RunStatus → Style
+  | .result .theorem | .result .unsatisfiable => Style.bold <+> Style.fg scheme.green
+  | .running | .queued => Style.fg scheme.yellow
+  | .result .error | .failed => Style.bold <+> Style.fg scheme.red
   | _ => Style.fg scheme.comment
 
 private def runPanel (app : App) (width height : Nat) : Text :=
@@ -596,10 +614,10 @@ private def runPanel (app : App) (width height : Nat) : Text :=
       [Text.styled "No active prover run." (Style.dim <+> Style.fg app.theme.comment)]
     else app.runRows.toList.mapIdx fun index row =>
       let focused := app.runFocus == index && app.panelFocus == .drawer
-      let status := if row.status == "running" then
+      let status := if row.status == .running then
           shimmer { base := app.theme.comment, highlight := app.theme.foreground, band := 4 }
             { frame := app.runFrame } (Text.plain "running")
-        else Text.styled row.status (runStatusStyle app.theme row.status)
+        else Text.styled row.status.label (runStatusStyle app.theme row.status)
       let elapsed := row.elapsedMs.map (fun value => s!" {value}ms") |>.getD ""
       let marker := if focused then "› " else "  "
       let line := Text.plain marker ++ Text.styled row.name (if focused then Style.reverse else {}) ++
@@ -672,21 +690,21 @@ private def footer (app : App) (width : Nat) : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
   let hint := if app.panelFocus == .drawer && app.runOpen then
-      if outer < 70 then "H main • J/K" else "H main • J/K prover • Enter details"
+      if outer < stateDrawerMinWidth then "H main • J/K" else "H main • J/K prover • Enter details"
     else if app.panelFocus == .drawer && app.stateOpen then
-      if outer < 70 then "H main • J/K" else "H main • J/K focus • Enter toggle"
+      if outer < stateDrawerMinWidth then "H main • J/K" else "H main • J/K focus • Enter toggle"
     else if app.panelFocus == .drawer && app.proversOpen then
-      if outer < 70 then "H main • J/K" else "H main • J/K prover • Space toggle"
+      if outer < stateDrawerMinWidth then "H main • J/K" else "H main • J/K prover • Space toggle"
     else if app.panelFocus == .drawer && app.historyOpen then "H main"
     else if app.busy then "Ctrl-R run • input"
     else if app.stateOpen || app.proversOpen || app.historyOpen || app.runOpen then
-      if outer < 70 then "input • Ctrl-]" else "input active • Ctrl-] focus drawer"
+      if outer < stateDrawerMinWidth then "input • Ctrl-]" else "input active • Ctrl-] focus drawer"
     else "/help • PgUp/PgDn scroll • Ctrl-R runs"
   let leftWidth := outer * 2 / 3
   let rightWidth := outer - leftWidth
   let notice := app.statusNotice.map (fun value => s!"  • {value}") |>.getD ""
   let prover := if app.defaultProver.isEmpty then "auto" else app.defaultProver
-  let metadata := if outer < 70 then s!"  theory={app.theory}{notice}"
+  let metadata := if outer < stateDrawerMinWidth then s!"  theory={app.theory}{notice}"
     else s!"  theory={app.theory} • prover={prover}{notice}"
   let left := Text.styled state (Style.bold <+> Style.fg (if app.busy then app.theme.yellow else app.theme.green)) ++
     Text.styled metadata

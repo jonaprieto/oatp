@@ -24,6 +24,15 @@ def defaultCatalogueEndpoint : String := "https://tptp.org/cgi-bin/SystemOnTPTP"
 
 def defaultEndpoint : String := "https://tptp.org/cgi-bin/SystemOnTPTPFormReply"
 
+def onlineReferencePrefix : String := "online-"
+
+def isOnlineReference (reference : String) : Bool := reference.startsWith onlineReferencePrefix
+
+def onlineReference (systemId : String) : String := onlineReferencePrefix ++ systemId
+
+def onlineSystemId (reference : String) : String :=
+  if isOnlineReference reference then (reference.drop onlineReferencePrefix.length).toString else reference
+
 structure Config where
   endpoint : String := defaultEndpoint
   systemLabel : String
@@ -73,9 +82,7 @@ def parse (html : String) : Array SystemInfo :=
 def baseName (id : String) : String := id.splitOn "---" |>.headD id
 
 def matchesReference (reference : String) (system : SystemInfo) : Bool :=
-  let reference := if reference.startsWith "online-" then
-      (reference.drop "online-".length).toString
-    else reference
+  let reference := onlineSystemId reference
   let wanted := reference.toLower
   let id := system.id.toLower
   id == wanted || (baseName system.id).toLower == wanted ||

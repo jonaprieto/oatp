@@ -404,8 +404,8 @@ private def runDefault (identity : CliIdentity) (options : RunOptions) : IO UInt
     let references ← if options.provers.isEmpty then
       pure (← installedProvers).toList
     else pure options.provers
-    let localReferences := references.filter (!·.startsWith "online-")
-    let onlineReferences := references.filter (·.startsWith "online-")
+    let localReferences := references.filter (fun reference => !SystemOnTPTP.isOnlineReference reference)
+    let onlineReferences := references.filter SystemOnTPTP.isOnlineReference
     let limits : Limits := {
       wallSeconds := options.timeout.getD 30
       maxOutputBytes := options.maxOutput.getD (4 * 1024 * 1024)
@@ -478,7 +478,7 @@ private def runSystems (identity : CliIdentity) (options : SystemsOptions) : IO 
     | .ok systems =>
         for system in systems do
           let name := SystemOnTPTP.Catalogue.baseName system.id
-          writeTextLine (Text.plain s!"  online-{system.id}  ({name})")
+          writeTextLine (Text.plain s!"  {SystemOnTPTP.onlineReference system.id}  ({name})")
         pure 0
   else
     writeTextLine Text.empty
