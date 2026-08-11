@@ -122,16 +122,17 @@ private def doctorOnlineProblem : Problem := {
 
 private def doctorOnlineAttempts (endpoint : String)
     (systems : Array SystemOnTPTP.Catalogue.SystemInfo) : Array Portfolio.Attempt :=
+  let timeout := OATP.Runtime.doctorTimeoutSeconds
+  let outputLimit := OATP.Runtime.doctorMaxOutputBytes
   systems.map fun system => {
     name := system.id
-    limits := { wallSeconds := OATP.Runtime.doctorTimeoutSeconds
-      maxOutputBytes := OATP.Runtime.doctorMaxOutputBytes }
+    limits := { wallSeconds := timeout, maxOutputBytes := outputLimit }
     backend := .online {
       endpoint
       systemLabel := system.id
       systemCommands := if system.command.isEmpty then #[] else #[(system.id, system.command)]
-      timeLimit := OATP.Runtime.doctorTimeoutSeconds
-      maxBodyBytes := OATP.Runtime.doctorMaxOutputBytes
+      timeLimit := timeout
+      maxBodyBytes := outputLimit
     }
   }
 

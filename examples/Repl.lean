@@ -157,9 +157,10 @@ private def selectedProvers (app : App) (all : Bool) : IO (Array OATP.ProverRefe
       match ← onlineProverNames with
       | .ok online =>
           let available := installed ++ online
-          pure <| app.enabledProvers.filter (fun reference => available.any (· == reference))
-      | .error _ => pure <| app.enabledProvers.filter
-          (fun reference => installed.any (· == reference))
+          pure <| app.enabledProvers.filter fun reference =>
+            available.any (· == reference)
+      | .error _ => pure <| app.enabledProvers.filter fun reference =>
+          installed.any (· == reference)
     else
       pure <| app.enabledProvers.filter (fun reference => installed.any (· == reference))
   else match app.defaultProver with
@@ -207,14 +208,20 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
           else OATP.Runtime.CatalogueCache.normal
         match ← OATP.Runtime.loadCatalogue catalogueNamespace endpoint mode with
         | .error message =>
-            publishRunRows app #[{ name := "online catalogue", status := .failed
-              detail := message }]
+            let row : RunRow :=
+              { name := "online catalogue"
+                status := .failed
+                detail := message }
+            publishRunRows app #[row]
             return (message, false)
         | .ok systems =>
             match OATP.Runtime.resolveOnline catalogueNamespace systems onlineReferences with
             | .error message =>
-                publishRunRows app #[{ name := "online prover", status := .failed
-                  detail := message }]
+                let row : RunRow :=
+                  { name := "online prover"
+                    status := .failed
+                    detail := message }
+                publishRunRows app #[row]
                 return (message, false)
             | .ok resolved =>
                 let labels := resolved.map (·.id)
@@ -566,7 +573,10 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       pure (appendEntry updated cell input "state drawer toggled" true)
   | OATP.Repl.Command.stateTarget stateName =>
       match openContextTarget
-          { app with historyOpen := false, proversOpen := false, runOpen := false
+          { app with
+            historyOpen := false
+            proversOpen := false
+            runOpen := false
             panelFocus := .drawer } stateName with
       | some focused => pure (note focused cell input s!"state: {stateName}" true)
       | none => pure (note app cell input
@@ -575,8 +585,12 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
   | .history =>
       let session := OATP.Repl.note app.session input "history drawer toggled"
       pure (appendEntry
-        { app with session := session, historyOpen := !app.historyOpen, stateOpen := false
-          proversOpen := false, runOpen := false
+        { app with
+          session := session
+          historyOpen := !app.historyOpen
+          stateOpen := false
+          proversOpen := false
+          runOpen := false
           panelFocus := if app.historyOpen then .main else .drawer }
         cell input "history drawer toggled" true)
   | .theme none => pure (note app cell input
@@ -628,7 +642,10 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       let updated := { updated with enabledProvers := enabled }
       let updated := { updated with proverSelectionSet := true }
       let updated := { updated with proversOpen := !app.proversOpen }
-      let updated := { updated with stateOpen := false, historyOpen := false, runOpen := false
+      let updated := { updated with
+        stateOpen := false
+        historyOpen := false
+        runOpen := false
         panelFocus := if app.proversOpen then .main else .drawer }
       pure (note updated cell input output true)
   | .info query => do
@@ -734,8 +751,12 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
   handle := fun app action => some (clearSelection (match action with
     | .openRun =>
         if app.runRows.isEmpty then { app with statusNotice := some "no prover run to inspect" }
-        else { app with runOpen := true, stateOpen := false, historyOpen := false
-          proversOpen := false, panelFocus := .drawer }
+        else { app with
+          runOpen := true
+          stateOpen := false
+          historyOpen := false
+          proversOpen := false
+          panelFocus := .drawer }
     | .focusDrawer =>
         if app.runOpen || app.stateOpen || app.historyOpen || app.proversOpen then
           { app with panelFocus := .drawer }
