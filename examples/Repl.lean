@@ -58,7 +58,8 @@ private def note (app : App) (cell : Nat) (input output : String) (ok : Bool)
 
 private def noteDiagnostic (app : App) (cell : Nat) (input source message : String) : App :=
   let (source, diagnostic) := diagnosticFor source message
-  appendEntry { app with session := OATP.Repl.note app.session input message } cell input message false
+  appendEntry { app with session := OATP.Repl.note app.session input message }
+    cell input message false
     none #[source] (some diagnostic)
 
 private def clearDerived (app : App) : App :=
@@ -77,8 +78,10 @@ private def lastHistory (session : OATP.Repl.Session) : String :=
 private def artifactText : Portfolio.Result → (String × Bool)
   | .artifact attempt artifact =>
       let head := s!"{attempt.name}: {artifact.status} ({artifact.elapsedMs}ms)"
-      let stdout := if artifact.stdout.isEmpty then "" else "\n" ++ artifact.stdout.trimAscii.toString
-      let stderr := if artifact.stderr.isEmpty then "" else "\nstderr: " ++ artifact.stderr.trimAscii.toString
+      let stdout := if artifact.stdout.isEmpty then ""
+        else "\n" ++ artifact.stdout.trimAscii.toString
+      let stderr := if artifact.stderr.isEmpty then ""
+        else "\nstderr: " ++ artifact.stderr.trimAscii.toString
       (head ++ stdout ++ stderr, artifact.status == .theorem)
   | .failed attempt message => (s!"{attempt.name}: failed: {message}", false)
 
@@ -135,7 +138,8 @@ private def installedProverReferences : IO (Array OATP.ProverReference) := do
   pure (installed.map OATP.ProverReference.fromLocal)
 
 private def onlineProverNames : IO (Except String (Array OATP.ProverReference)) := do
-  match ← OATP.Runtime.loadCatalogue catalogueNamespace SystemOnTPTP.defaultCatalogueEndpoint .normal with
+  match ← OATP.Runtime.loadCatalogue catalogueNamespace
+      SystemOnTPTP.defaultCatalogueEndpoint .normal with
   | .error message => pure (.error message)
   | .ok systems => pure (.ok (systems.map fun system => OATP.ProverReference.fromOnline system.id))
 
@@ -154,7 +158,8 @@ private def selectedProvers (app : App) (all : Bool) : IO (Array OATP.ProverRefe
       | .ok online =>
           let available := installed ++ online
           pure <| app.enabledProvers.filter (fun reference => available.any (· == reference))
-      | .error _ => pure <| app.enabledProvers.filter (fun reference => installed.any (· == reference))
+      | .error _ => pure <| app.enabledProvers.filter
+          (fun reference => installed.any (· == reference))
     else
       pure <| app.enabledProvers.filter (fun reference => installed.any (· == reference))
   else match app.defaultProver with
@@ -171,7 +176,8 @@ private def selectedProvers (app : App) (all : Bool) : IO (Array OATP.ProverRefe
 private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String × Bool) := do
   match currentProblem app with
   | none =>
-      let message := "no current problem; try `/parse fof(goal, conjecture, p => p).` or `/load FILE`"
+      let message :=
+        "no current problem; try `/parse fof(goal, conjecture, p => p).` or `/load FILE`"
       publishRunRows app #[{ name := "run", status := .failed, detail := message }]
       pure (message, false)
   | some problem =>
@@ -201,12 +207,14 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
           else OATP.Runtime.CatalogueCache.normal
         match ← OATP.Runtime.loadCatalogue catalogueNamespace endpoint mode with
         | .error message =>
-            publishRunRows app #[{ name := "online catalogue", status := .failed, detail := message }]
+            publishRunRows app #[{ name := "online catalogue", status := .failed
+              detail := message }]
             return (message, false)
         | .ok systems =>
             match OATP.Runtime.resolveOnline catalogueNamespace systems onlineReferences with
             | .error message =>
-                publishRunRows app #[{ name := "online prover", status := .failed, detail := message }]
+                publishRunRows app #[{ name := "online prover", status := .failed
+                  detail := message }]
                 return (message, false)
             | .ok resolved =>
                 let labels := resolved.map (·.id)
@@ -235,7 +243,8 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
           | some progress =>
               let row := runRow result
               let rows ← progress.get
-              progress.set (rows.map fun current => if current.name == row.name then row else current)
+              progress.set (rows.map fun current =>
+                if current.name == row.name then row else current)
           | none => pure ()
         let rendered := results.toList.map artifactText
         pure (String.intercalate "\n" (rendered.map Prod.fst), rendered.any Prod.snd)
@@ -276,7 +285,7 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
   start := fun app input => { app with
     busy := true
     jobResult := none
-    runOpen := false
+    runOpen := true
     stateOpen := false
     historyOpen := false
     proversOpen := false
@@ -285,7 +294,9 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
     repl := {} }
   tick := fun app => do
     let rows ← currentRunRows app
-    pure { app with runRows := if rows.isEmpty then app.runRows else rows, runFrame := app.runFrame + 1 }
+    pure { app with
+      runRows := if rows.isEmpty then app.runRows else rows
+      runFrame := app.runFrame + 1 }
   run := fun cancellation app input => do
     let started ← IO.monoMsNow
     unless ← TermColor.Repl.Terminal.Cancellation.sleep cancellation 1 do
@@ -383,7 +394,9 @@ private def infoText (app : App) (query : String) : IO (String × Bool) := do
     let reference := OATP.ProverReference.fromLocal name
     let version := (← Http.commandVersion name).getD "not installed"
     let installed := (← OATP.Runtime.installedProvers).any (· == name)
-    let enabled := if app.proverSelectionSet then app.enabledProvers.any (· == reference) else installed
+    let enabled := if app.proverSelectionSet then
+        app.enabledProvers.any (· == reference)
+      else installed
     return (String.intercalate "\n" [
       s!"prover: {name}",
       s!"kind:   local executable",
@@ -398,7 +411,8 @@ private def infoText (app : App) (query : String) : IO (String × Bool) := do
   | .error _ => pure (s!"no prover matched `{query}`; local candidates: {
       String.intercalate ", " candidates.toList}", false)
   | .ok systems =>
-      let online := systems.filter (fun system => fuzzy query system.id || fuzzy query (SystemOnTPTP.Catalogue.baseName system.id))
+      let online := systems.filter (fun system =>
+        fuzzy query system.id || fuzzy query (SystemOnTPTP.Catalogue.baseName system.id))
       match online.toList with
       | [] => pure (s!"no prover matched `{query}`", false)
       | [system] => pure (String.intercalate "\n" [
@@ -551,13 +565,19 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
         panelFocus := if app.stateOpen then .main else .drawer }
       pure (appendEntry updated cell input "state drawer toggled" true)
   | OATP.Repl.Command.stateTarget stateName =>
-      match openContextTarget { app with historyOpen := false, proversOpen := false, runOpen := false, panelFocus := .drawer } stateName with
+      match openContextTarget
+          { app with historyOpen := false, proversOpen := false, runOpen := false
+            panelFocus := .drawer } stateName with
       | some focused => pure (note focused cell input s!"state: {stateName}" true)
       | none => pure (note app cell input
-          s!"unknown state target `{stateName}`; try: {String.intercalate ", " contextTargetNames}" false)
+          s!"unknown state target `{stateName}`; try: {
+            String.intercalate ", " contextTargetNames}" false)
   | .history =>
       let session := OATP.Repl.note app.session input "history drawer toggled"
-      pure (appendEntry { app with session := session, historyOpen := !app.historyOpen, stateOpen := false, proversOpen := false, runOpen := false, panelFocus := if app.historyOpen then .main else .drawer }
+      pure (appendEntry
+        { app with session := session, historyOpen := !app.historyOpen, stateOpen := false
+          proversOpen := false, runOpen := false
+          panelFocus := if app.historyOpen then .main else .drawer }
         cell input "history drawer toggled" true)
   | .theme none => pure (note app cell input
       s!"theme: {app.themeName}; available: {themeNames}" true)
@@ -608,7 +628,8 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       let updated := { updated with enabledProvers := enabled }
       let updated := { updated with proverSelectionSet := true }
       let updated := { updated with proversOpen := !app.proversOpen }
-      let updated := { updated with stateOpen := false, historyOpen := false, runOpen := false, panelFocus := if app.proversOpen then .main else .drawer }
+      let updated := { updated with stateOpen := false, historyOpen := false, runOpen := false
+        panelFocus := if app.proversOpen then .main else .drawer }
       pure (note updated cell input output true)
   | .info query => do
       let (output, ok) ← infoText app query
@@ -694,26 +715,27 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
   keymap := Keymap.fromSpecs appBindings
   contexts := fun app =>
     let drawerContexts := if app.runOpen then
-        [AppContext.name .run, AppContext.name .runInput]
+        [AppContext.keyContext .run, AppContext.keyContext .runInput]
       else if app.proversOpen then
-        [AppContext.name .provers, AppContext.name .proversInput]
+        [AppContext.keyContext .provers, AppContext.keyContext .proversInput]
       else if app.stateOpen then
-        [AppContext.name .state, AppContext.name .stateInput]
+        [AppContext.keyContext .state, AppContext.keyContext .stateInput]
       else if app.historyOpen then
-        [AppContext.name .history, AppContext.name .historyInput]
+        [AppContext.keyContext .history, AppContext.keyContext .historyInput]
       else []
     if app.panelFocus == .drawer then drawerContexts
     else
-      let inputContext := if app.runOpen then some (AppContext.name .runInput)
-        else if app.proversOpen then some (AppContext.name .proversInput)
-        else if app.stateOpen then some (AppContext.name .stateInput)
-        else if app.historyOpen then some (AppContext.name .historyInput)
+      let inputContext := if app.runOpen then some (AppContext.keyContext .runInput)
+        else if app.proversOpen then some (AppContext.keyContext .proversInput)
+        else if app.stateOpen then some (AppContext.keyContext .stateInput)
+        else if app.historyOpen then some (AppContext.keyContext .historyInput)
         else none
-      AppContext.name .default :: inputContext.toList
+      AppContext.keyContext .default :: inputContext.toList
   handle := fun app action => some (clearSelection (match action with
     | .openRun =>
         if app.runRows.isEmpty then { app with statusNotice := some "no prover run to inspect" }
-        else { app with runOpen := true, stateOpen := false, historyOpen := false, proversOpen := false, panelFocus := .drawer }
+        else { app with runOpen := true, stateOpen := false, historyOpen := false
+          proversOpen := false, panelFocus := .drawer }
     | .focusDrawer =>
         if app.runOpen || app.stateOpen || app.historyOpen || app.proversOpen then
           { app with panelFocus := .drawer }
@@ -736,17 +758,21 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
       | .transcriptPageUp => scrollTranscriptPageUp app
     | .transcriptPageDown => scrollTranscriptPageDown app))
 
-#guard (Keymap.fromSpecs appBindings).resolve [AppContext.name .state,
-    AppContext.name .stateInput] .escape ==
+#guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .state,
+    AppContext.keyContext .stateInput] .escape ==
   some AppKeyAction.closeState
-#guard (Keymap.fromSpecs appBindings).resolve [AppContext.name .history,
-    AppContext.name .historyInput] .escape ==
+#guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .history,
+    AppContext.keyContext .historyInput] .escape ==
   some AppKeyAction.closeHistory
-#guard (Keymap.fromSpecs appBindings).resolve [AppContext.name .default,
-    AppContext.name .stateInput] .escape == some AppKeyAction.closeState
-#guard (Keymap.fromSpecs appBindings).resolve [AppContext.name .default,
-    AppContext.name .stateInput] (.char 'j') == none
-#guard appKeymap.contexts {} == [AppContext.name .default, AppContext.name .stateInput]
+#guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .default,
+    AppContext.keyContext .stateInput] .escape == some AppKeyAction.closeState
+#guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .default,
+    AppContext.keyContext .stateInput] (.char 'j') == none
+#guard appKeymap.contexts {} == [AppContext.keyContext .default, AppContext.keyContext .stateInput]
+#guard (Keymap.fromSpecs appBindings).conflicts == []
+#guard appKeyLabel .openRun .default == "Ctrl-R/Ctrl-r"
+#guard match backgroundJobs.start ({} : App) "/run" with
+  | app => app.busy && app.runOpen && app.panelFocus == .main
 
 private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option App :=
   if app.runOpen then
@@ -764,7 +790,8 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
             if mouse.button != .left || mouse.row < 2 then none
             else
               let index := mouse.row - 2
-              if index < app.runRows.size then some (focusRun { app with panelFocus := .drawer } index)
+              if index < app.runRows.size then
+                some (focusRun { app with panelFocus := .drawer } index)
               else none
         | _ => none
   else if app.proversOpen then
@@ -804,7 +831,8 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
         match app.selectionStart with
         | none => none
         | some _ =>
-            let selected := selectedText { app with selectionEnd := some (mouse.column, mouse.row) } size
+            let selected := selectedText
+              { app with selectionEnd := some (mouse.column, mouse.row) } size
             if selected.isEmpty then none
             else
               let updated := { app with selectionEnd := some (mouse.column, mouse.row) }
@@ -820,7 +848,8 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
         if !inContext then
           match mouse.action with
           | .scrollUp => some (clearSelection (scrollTranscriptUp { app with panelFocus := .main }))
-          | .scrollDown => some (clearSelection (scrollTranscriptDown { app with panelFocus := .main }))
+          | .scrollDown =>
+              some (clearSelection (scrollTranscriptDown { app with panelFocus := .main }))
           | _ => some { app with panelFocus := .main }
         else match mouse.action with
         | .scrollUp => some (focusPreviousContext { app with panelFocus := .drawer })
@@ -871,13 +900,15 @@ private def runScript (app : App) (lines : List String) : IO App := do
 private def staticOutput (app : App) : IO Unit := do
   for entry in app.entries.reverse do
     IO.println s!"[{entry.cell}] › {entry.input}"
-    let timing := entry.elapsedMs.map (fun milliseconds => s!" ({formatElapsed milliseconds})") |>.getD ""
+    let timing := entry.elapsedMs.map (fun milliseconds =>
+      s!" ({formatElapsed milliseconds})") |>.getD ""
     IO.println s!"    {(if entry.ok then "=" else "!")} {entry.output}{timing}"
 
 private def usage : String :=
   "oatp repl — interactive TPTP/Lean ATP workbench\n\n" ++
   "usage:\n  lake exe oatp repl\n  lake exe oatp repl --script FILE\n\n" ++
-  "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  /to-tptp\n  /reconstruct implication-intro h exact h\n  /term"
+  "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  /to-tptp\n  " ++
+  "/reconstruct implication-intro h exact h\n  /term"
 
 private def scriptExitCode (app : App) : UInt32 :=
   if app.entries.all (·.ok) then 0 else 1
@@ -898,7 +929,8 @@ private def initialApp (runtime : OATP.Lean.Repl.Runtime) : IO App := do
     themeName := if themeByName prefs.theme |>.isSome then prefs.theme else defaultThemeName
     theory := prefs.theory
     defaultProver := OATP.ProverReference.fromPersisted prefs.defaultProver
-    enabledProvers := prefs.enabledProvers.toList.filterMap OATP.ProverReference.fromPersisted |>.toArray
+    enabledProvers := prefs.enabledProvers.toList.filterMap
+      OATP.ProverReference.fromPersisted |>.toArray
     proverSelectionSet := prefs.proverSelectionSet
     statusNotice := warning
   }

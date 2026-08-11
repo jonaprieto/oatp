@@ -63,7 +63,8 @@ open OATP OATP.TPTP
       "\n<input name=\"System___E---3.5.1\">") with
   | systems => (OATP.SystemOnTPTP.Catalogue.resolve systems "online-vampire").isSome &&
       (OATP.SystemOnTPTP.Catalogue.resolve systems "online-E---3.5.1").isSome
-#guard match OATP.Runtime.resolveOnline "oatp" #[{ id := "Vampire---5.0.1" }] ["online-vampire"] with
+#guard match OATP.Runtime.resolveOnline "oatp" #[{ id := "Vampire---5.0.1" }]
+    ["online-vampire"] with
   | .ok #[system] => system.id == "Vampire---5.0.1"
   | _ => false
 #guard match (OATP.SystemOnTPTP.Catalogue.parse
@@ -119,7 +120,8 @@ open OATP OATP.TPTP
       help.contains "CNF" && help.contains "cnf(c1, axiom" && help.contains "implicitly universal"
   | .error _ => false
 #guard match OATP.Repl.parseRunRequest
-    ["--prover", "eprover", "--timeout", "7", "--max-output", "99", "--no-cache", "--", "--foo"] with
+    ["--prover", "eprover", "--timeout", "7", "--max-output", "99", "--no-cache",
+      "--", "--foo"] with
   | .ok request => request.references == [OATP.Repl.ProverReference.fromLocal "eprover"] &&
       request.timeout == 7 &&
       request.maxOutput == 99 && request.noCache && request.arguments == ["--foo"]
@@ -136,7 +138,8 @@ open OATP OATP.TPTP
 #guard match OATP.Repl.parseCommandSpec "/run --all -- --foo" with
   | .ok (.run request) => request.all && request.arguments == ["--foo"]
   | _ => false
-#guard match OATP.Repl.parseLocalRequest ["--executable", "eprover", "--timeout", "4", "--", "--foo"] with
+#guard match OATP.Repl.parseLocalRequest
+    ["--executable", "eprover", "--timeout", "4", "--", "--foo"] with
   | .ok request => request.executable == "eprover" && request.timeout == 4 &&
       request.arguments == ["--foo"]
   | .error _ => false
@@ -156,13 +159,23 @@ open OATP OATP.TPTP
 def completionApp : OATP.ReplView.App :=
   { repl := { input := { value := "/st", cursor := 3 }
               completion := some { candidates := #[{ replacement := "/state" }] } } }
-#guard (OATP.ReplView.screen completionApp { columns := 100, rows := 24 }).plainText.contains "/state"
+#guard (OATP.ReplView.screen completionApp { columns := 100, rows := 24 }).plainText.contains
+  "/state"
 #guard OATP.ReplView.formatElapsed 1_500 == "1.5 s"
+private def timedEntry : OATP.ReplView.TranscriptEntry :=
+  { cell := 1
+    input := "/to-lean p => p"
+    output := "goal created"
+    elapsedMs := some 12 }
 #guard (OATP.ReplView.screen
-    { entries := [({ cell := 1, input := "/to-lean p => p", output := "goal created", elapsedMs := some 12 } : OATP.ReplView.TranscriptEntry)] }
+    { entries := [timedEntry] }
     { columns := 100, rows := 24 }).plainText.contains "(12 ms)"
+private def plainEntry : OATP.ReplView.TranscriptEntry :=
+  { cell := 1
+    input := "/to-lean p => p"
+    output := "goal created" }
 #guard (OATP.ReplView.screen
-    { entries := [({ cell := 1, input := "/to-lean p => p", output := "goal created" } : OATP.ReplView.TranscriptEntry)] }
+    { entries := [plainEntry] }
     { columns := 100, rows := 24 }).segments.any
       (fun segment => segment.text == "=>" && !segment.style.settings.isEmpty)
 #guard (OATP.ReplView.screen
@@ -175,11 +188,14 @@ def completionApp : OATP.ReplView.App :=
 #guard (OATP.ReplView.screen
     { stateOpen := true, translation := some "fof(goal, conjecture, p)." }
     { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
-#guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
+#guard
+  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
   "▸ FORMULAS (0)"
-#guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
+#guard
+  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
   "state • inactive • Ctrl-] focus"
-#guard (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
+#guard
+  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
   "input • Ctrl-]"
 #guard (OATP.ReplView.screen
     { runOpen := true, panelFocus := .drawer,
@@ -193,6 +209,12 @@ def completionApp : OATP.ReplView.App :=
   | .ok session =>
       let help := (session.history.toList.getLast?.map (·.result)).getD ""
       help.contains "/to-lean" && help.contains "1. /goal"
+  | .error _ => false
+#guard OATP.Repl.commandNames.all (fun command =>
+  !(OATP.Repl.helpFor (some command)).contains "unknown help topic")
+#guard match OATP.Repl.apply {} "/help local" with
+  | .ok session =>
+      (session.history.toList.getLast?.map (·.result)).getD "" |>.contains "/local"
   | .error _ => false
 #guard match OATP.Repl.parseCommandSpec "/local" with
   | .error message => message.contains "missing required argument" && message.contains "/help local"
@@ -212,7 +234,8 @@ def completionApp : OATP.ReplView.App :=
 #guard OATP.ReplView.contextTargetOfString "form" == some 0
 #guard OATP.ReplView.contextTargetOfString "tptp" == some 4
 #guard (OATP.ReplView.openContextTarget {} "goal").map
-    (fun app => app.stateOpen && app.contextFocus == 3 && app.contextExpanded.getD 3 false) == some true
+    (fun app => app.stateOpen && app.contextFocus == 3 && app.contextExpanded.getD 3 false) ==
+      some true
 #guard OATP.ReplView.themeByName "dracula" |>.isSome
 #guard "to-lean" ∈ OATP.Repl.commandNames
 #guard OATP.Repl.ProverReference.fromPersisted "local:online-local" ==
@@ -225,7 +248,8 @@ def completionApp : OATP.ReplView.App :=
 #guard (OATP.ReplView.focusPreviousContext {}).contextFocus == 5
 #guard OATP.ReplView.contextHitAtRow {} 40 2 == some (0, true)
 #guard (OATP.ReplView.screen
-    { historyOpen := true, session := { history := #[{ cell := 1, input := "/help", result := "commands" }] } }
+    { historyOpen := true
+      session := { history := #[{ cell := 1, input := "/help", result := "commands" }] } }
     { columns := 100, rows := 24 }).plainText.contains "history • active"
 #guard (OATP.ReplView.screen { historyOpen := true } { columns := 100, rows := 24 }).height == 24
 #guard (OATP.ReplView.screen

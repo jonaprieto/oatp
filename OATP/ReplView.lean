@@ -68,7 +68,7 @@ def themes : List (String × ColorScheme) :=
 
 def defaultThemeName : String := "aurora"
 
-/-- Semantic token colors extend the base palette without making syntax roles part of ColorScheme. -/
+/-- Semantic token colors extend the palette without putting syntax roles in ColorScheme. -/
 structure SemanticColors where
   format : Color
   role : Color
@@ -131,12 +131,23 @@ def AppContext.name : AppContext → String
   | .history => "history"
   | .historyInput => "history-input"
 
+def AppContext.keyContext : AppContext → KeyContext
+  | .default => KeyContext.ofString "default"
+  | .run => KeyContext.ofString "run"
+  | .runInput => KeyContext.ofString "run-input"
+  | .provers => KeyContext.ofString "provers"
+  | .proversInput => KeyContext.ofString "provers-input"
+  | .state => KeyContext.ofString "state"
+  | .stateInput => KeyContext.ofString "state-input"
+  | .history => KeyContext.ofString "history"
+  | .historyInput => KeyContext.ofString "history-input"
+
 private def appBinding (keys : List Key) (action : AppKeyAction)
     (context : Option AppContext) (description : String) : BindingSpec AppKeyAction :=
   { keys
     action
-    context := context.map AppContext.name
-    label := Keymap.keyLabel (keys.headD .escape)
+    context := context.map AppContext.keyContext
+    label := String.intercalate "/" (keys.map Keymap.keyLabel)
     description }
 
 def appBindings : List (BindingSpec AppKeyAction) :=
@@ -162,7 +173,7 @@ def appBindings : List (BindingSpec AppKeyAction) :=
 
 def appKeyLabel (action : AppKeyAction) (context : AppContext) : String :=
   (appBindings.find? (fun binding => binding.action == action &&
-    (binding.context == none || binding.context == some (AppContext.name context)))).map
+    (binding.context == none || binding.context == some (AppContext.keyContext context)))).map
       (·.label) |>.getD "?"
 
 def themeByName (name : String) : Option ColorScheme :=
@@ -396,12 +407,14 @@ def formatElapsed (milliseconds : Nat) : String :=
   else if milliseconds < 1_000 then s!"{milliseconds} ms"
   else s!"{milliseconds / 1_000}.{milliseconds % 1_000 / 100} s"
 
-private def diagnosticView (scheme : ColorScheme) (width : Nat) (sources : Sources) (diagnostic : Diagnostic) : Text :=
+private def diagnosticView (scheme : ColorScheme) (width : Nat) (sources : Sources)
+    (diagnostic : Diagnostic) : Text :=
   TermColor.Diagnostics.render sources diagnostic
     { width := max 1 (frameWidth width - 2), contextLines := 0, hyperlinks := false } scheme
 
 private def identifierChar (character : Char) : Bool :=
-  character.isAlpha || character.isDigit || character == '_' || character == '$' || character == '\''
+  character.isAlpha || character.isDigit || character == '_' || character == '$' ||
+    character == '\''
 
 private def roleStyle (semantic : SemanticColors) : _root_.TPTP.Role → Option Style
   | .axiom | .hypothesis | .definition | .assumption | .lemma | .theorem | .corollary
@@ -472,10 +485,11 @@ private def formulaLine (scheme : ColorScheme) (formula : FormulaView) : Text :=
     Text.styled formula.name (Style.bold <+> Style.fg scheme.cyan) ++
     Text.styled ": " (Style.dim <+> Style.fg scheme.comment) ++ semanticFormula scheme formula
 
-private def transcriptLine (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat) (entry : TranscriptEntry) : Text :=
+private def transcriptLine (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
+    (entry : TranscriptEntry) : Text :=
   let input := Text.styled s!"[{entry.cell}] " (Style.dim <+> Style.fg scheme.comment) ++
     Text.styled "› " (Style.bold <+> Style.fg scheme.orange) ++
-    semanticText scheme symbols entry.input
+    semanticText scheme symbols entry.input false
   let marker := if entry.ok then "=" else "!"
   let style := if entry.ok then Style.fg scheme.green else Style.fg scheme.red
   let marker := Text.styled s!"  {marker} " (Style.bold <+> style)
@@ -583,7 +597,8 @@ private def contextSections (app : App) : List (Text × Text) :=
       String.intercalate "\n" (app.session.problemSource.splitOn "\n" |>.take 3)
   let goal := match app.goal with
     | none => Text.plain "(no Lean goal)"
-    | some goal => joinLines <| goal.context.toList.map (semanticText app.theme app.session.symbols) ++
+    | some goal => joinLines <| goal.context.toList.map
+        (semanticText app.theme app.session.symbols) ++
         [semanticText app.theme app.session.symbols s!"⊢ {goal.target}"]
   let term := match app.term with
     | none => Text.plain "(no checked term)"
@@ -616,7 +631,8 @@ private def contextRenders (app : App) (width : Nat) : List CollapsibleRender :=
   let rec go : List (Text × Text) → Nat → List CollapsibleRender
     | [], _ => []
     | (summary, body) :: sections, index =>
-        renderCollapsible (contextWidgetConfig app.theme) innerWidth summary body (contextState app index) ::
+        renderCollapsible (contextWidgetConfig app.theme) innerWidth summary body
+          (contextState app index) ::
           go sections (index + 1)
   go (contextSections app) 0
 
@@ -700,7 +716,8 @@ def openContextTarget (app : App) (target : String) : Option App :=
     some { app with contextExpanded := Array.replicate contextSectionCount true }
   else
     match contextTargetOfString target with
-    | some index => some <| expandFocusedContext <| focusContext { app with stateOpen := true } index
+    | some index => some <| expandFocusedContext <| focusContext
+        { app with stateOpen := true } index
     | none => none
 
 private def contextPanel (app : App) (width height : Nat) : Text :=
@@ -708,7 +725,8 @@ private def contextPanel (app : App) (width height : Nat) : Text :=
   let innerWidth := boxInnerWidth width
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
   let active := app.panelFocus == .drawer
-  let title := if active then "state • active • H main" else "state • inactive • Ctrl-] focus"
+  let title := if active then "state • active • H main"
+    else "state • inactive • Ctrl-] focus"
   box body { title := some (Text.styled title (Style.bold <+> Style.fg app.theme.cyan))
            , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
            , maxWidth := some width }
@@ -720,14 +738,15 @@ private def historyPanel (app : App) (width height : Nat) : Text :=
     else
       joinLines (rows.map fun entry =>
         Text.styled s!"[{entry.cell}] " (Style.dim <+> Style.fg app.theme.comment) ++
-          semanticText app.theme app.session.symbols entry.input ++
+          semanticText app.theme app.session.symbols entry.input false ++
           Text.plain "\n" ++
           Text.styled "  = " (Style.bold <+> Style.fg app.theme.green) ++
           semanticText app.theme app.session.symbols
             (fitText (max 1 (width - 6)) entry.result).plainText false)
   let innerWidth := boxInnerWidth width
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
-  box body { title := some (Text.styled "history • active" (Style.bold <+> Style.fg app.theme.cyan))
+  box body { title := some (Text.styled "history • active"
+      (Style.bold <+> Style.fg app.theme.cyan))
            , borderStyle := Style.fg app.theme.selection, maxWidth := some width }
 
 def proverVisibleStart (app : App) (height : Nat) : Nat :=
@@ -751,7 +770,8 @@ private def proverPanel (app : App) (width height : Nat) : Text :=
         Text.styled (ProverReference.display reference) (style <+> nameStyle)
   let body := padRight (boxInnerWidth width) (fillHeight (max 1 (height - 2)) (joinLines rows))
   let active := app.panelFocus == .drawer
-  let title := if active then "provers • active • H main" else "provers • inactive • Ctrl-] focus"
+  let title := if active then "provers • active • H main"
+    else "provers • inactive • Ctrl-] focus"
   box body { title := some (Text.styled title (Style.bold <+> Style.fg app.theme.cyan))
            , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
            , maxWidth := some width }
@@ -774,7 +794,8 @@ private def runPanel (app : App) (width height : Nat) : Text :=
         else Text.styled row.status.label (runStatusStyle app.theme row.status)
       let elapsed := row.elapsedMs.map (fun value => s!" {value}ms") |>.getD ""
       let marker := if focused then "› " else "  "
-      let line := Text.plain marker ++ Text.styled row.name (if focused then Style.reverse else {}) ++
+      let line := Text.plain marker ++
+        Text.styled row.name (if focused then Style.reverse else {}) ++
         Text.plain "  " ++ status ++ Text.plain elapsed
       if row.detail.isEmpty || !focused then line
       else line ++ Text.plain "\n  " ++ fitText (max 1 (innerWidth - 2)) row.detail
@@ -824,7 +845,8 @@ private def compactHeader (scheme : ColorScheme) (width : Nat) : Text :=
     Text.styled (String.ofList (List.replicate (if outer > used then outer - used else 0) '─'))
       (Style.fg scheme.selection)
 
-def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State) (focused : Bool := true) : Text :=
+def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State)
+    (focused : Bool := true) : Text :=
   let outer := frameWidth width
   let input := box (Text.styled "› " (Style.bold <+> Style.fg scheme.orange) ++
       TermColor.Repl.renderMultilineTextInputBody
@@ -874,17 +896,20 @@ private def footer (app : App) (width : Nat) : Text :=
   let prover := app.defaultProver.map ProverReference.display |>.getD "auto"
   let metadata := if outer < stateDrawerMinWidth then s!"  theory={app.theory}{notice}"
     else s!"  theory={app.theory} • prover={prover}{notice}"
-  let left := Text.styled state (Style.bold <+> Style.fg (if app.busy then app.theme.yellow else app.theme.green)) ++
+  let left := Text.styled state
+      (Style.bold <+> Style.fg (if app.busy then app.theme.yellow else app.theme.green)) ++
     Text.styled metadata
       (Style.dim <+> Style.fg app.theme.comment)
   columns [leftWidth, rightWidth] 0
     [ truncate leftWidth left
-    , truncate rightWidth (Text.styled hint (Style.dim <+> Style.fg app.theme.comment)) ] [.left, .left]
+    , truncate rightWidth
+        (Text.styled hint (Style.dim <+> Style.fg app.theme.comment)) ] [.left, .left]
 
 def selectedText (app : App) (size : Size) : String :=
   let width := frameWidth size.columns
   let head := if app.entries.isEmpty then banner app.theme width else compactHeader app.theme width
-  let foot := prompt app.theme width app.repl (app.panelFocus == .main) ++ Text.plain "\n" ++ footer app width
+  let foot := prompt app.theme width app.repl (app.panelFocus == .main) ++
+    Text.plain "\n" ++ footer app width
   let used := head.height + foot.height + 2
   let budget := if size.rows > used then size.rows - used else 1
   let bodyStart := head.height + 1
@@ -901,7 +926,8 @@ def selectedText (app : App) (size : Size) : String :=
 private def calcContent (app : App) (size : Size) : Text :=
   let width := frameWidth size.columns
   let head := if app.entries.isEmpty then banner app.theme width else compactHeader app.theme width
-  let foot := prompt app.theme width app.repl (app.panelFocus == .main) ++ Text.plain "\n" ++ footer app width
+  let foot := prompt app.theme width app.repl (app.panelFocus == .main) ++
+    Text.plain "\n" ++ footer app width
   let used := head.height + foot.height + 2
   let budget := if size.rows > used then size.rows - used else 1
   let body := transcript app width budget (head.height + 1)

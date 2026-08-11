@@ -39,7 +39,9 @@ def isOnlineReference (reference : String) : Bool := reference.startsWith online
 def onlineReference (systemId : String) : String := onlineReferencePrefix ++ systemId
 
 def onlineSystemId (reference : String) : String :=
-  if isOnlineReference reference then (reference.drop onlineReferencePrefix.length).toString else reference
+  if isOnlineReference reference then
+    (reference.drop onlineReferencePrefix.length).toString
+  else reference
 
 structure Config where
   endpoint : String := defaultEndpoint

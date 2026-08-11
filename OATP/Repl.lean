@@ -279,7 +279,8 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "term" (Spec.const .term) (description := "Show the checked term")
     , Argus.cmd "run" (Spec.map (fun options => .run (runRequestOf options)) RunOptions.spec)
         (description := "Run selected provers")
-    , Argus.cmd "local" (Spec.map (fun options => .local (localRequestOf options)) LocalOptions.spec)
+    , Argus.cmd "local"
+        (Spec.map (fun options => .local (localRequestOf options)) LocalOptions.spec)
         (description := "Run a local prover")
     , Argus.cmd "online"
         (Spec.map (fun options => .online (onlineRequestOf options)) OnlineOptions.spec)
@@ -349,7 +350,8 @@ private def commandChildren : List (Argus.Command Command) :=
 
 def commandNames : List String := commandChildren.map (·.name)
 
-private def usageArguments : {g : Grade} → {α : Type} → Spec g α → List (String × Bool × Bool)
+private def usageArguments : {g : Grade} → {α : Type} → Spec g α →
+    List (String × Bool × Bool)
   | _, _, .const _ | _, _, .switch _ _ _ | _, _, .flag _ _ _ _ => []
   | _, _, .arg name _ _ => [(name, false, false)]
   | _, _, .ap function argument => usageArguments function ++ usageArguments argument
@@ -438,7 +440,8 @@ private partial def collectFormula (formula : _root_.TPTP.Formula.Expr)
     (symbols : Array Symbol) : Array Symbol :=
   match formula with
   | .atom predicate arguments =>
-      let symbols := addSymbol symbols { kind := .predicate, name := predicate, arity := arguments.size }
+      let symbols := addSymbol symbols
+        { kind := .predicate, name := predicate, arity := arguments.size }
       arguments.foldl (fun symbols term => collectTerm term symbols) symbols
   | .truth | .falsity => symbols
   | .not body => collectFormula body symbols
@@ -682,7 +685,8 @@ def helpFor : Option String → String
                 roleHelp (some (topic.drop "roles ".length |>.trimAscii.toString))
               else String.intercalate "\n" [
                 s!"unknown help topic `{topic}`",
-                "try: /help cnf, /help fof, /help tff, /help lean, /help to-lean, /help run, /help context"
+                "try: /help cnf, /help fof, /help tff, /help lean, /help to-lean, " ++
+                  "/help run, /help context"
               ]
 
 def parseSource (session : Session) (input source : String) : Except String Session :=
@@ -701,7 +705,8 @@ def apply (session : Session) (input : String) : Except String Session :=
       match command with
       | .help topic => pure (record session input (helpFor topic))
       | .history => pure (record session input s!"{session.history.size} history entries")
-      | .state => pure (record session input s!"{session.formulas.size} formulas, {session.symbols.size} symbols")
+      | .state => pure (record session input
+          s!"{session.formulas.size} formulas, {session.symbols.size} symbols")
       | .stateTarget target => pure (record session input s!"state target: {target}")
       | .grammar topic => pure (record session input (helpFor (some topic)))
       | .roles topic => pure (record session input (roleHelp topic))
