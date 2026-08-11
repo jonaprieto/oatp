@@ -36,7 +36,10 @@ private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : B
   { app with
     entries := { cell, input, output, ok, elapsedMs, sources, diagnostic } :: app.entries
     transcriptScroll := 0
-    repl := {} }
+    repl := { app.repl with input := {}, historyIndex := none, completion := none } }
+
+#guard (appendEntry { repl := { history := #["first"] } } 1 "input" "output" true).repl.history ==
+  #["first"]
 
 private def diagnosticFor (source message : String) : Source × Diagnostic :=
   let sourceText := source
@@ -298,7 +301,7 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
     proversOpen := false
     panelFocus := .main
     runRows := startingRunRows input
-    repl := {} }
+    repl := { app.repl with input := {}, historyIndex := none, completion := none } }
   tick := fun app => do
     let rows ← currentRunRows app
     pure { app with
@@ -337,6 +340,9 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
       jobResult := none
       runRows := app.runRows.map fun row => { row with status := .failed, detail := message } }
     note updated app.session.nextCell "background prover" message false
+
+#guard (backgroundJobs.start { repl := { history := #["first"] } } "/help").repl.history ==
+  #["first"]
 
 private def systemsText (request : OATP.Repl.SystemsRequest) : IO String := do
   let installed ← OATP.Runtime.installedProvers

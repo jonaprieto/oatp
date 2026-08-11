@@ -816,15 +816,20 @@ private def mascot (scheme : ColorScheme) : Text :=
 private def banner (scheme : ColorScheme) (width : Nat) : Text :=
   let outer := frameWidth width
   let inner := boxInnerWidth outer
-  let paneSpace := inner - 1
-  let leftWidth := max 24 (paneSpace * 56 / 100)
-  let rightWidth := max 24 (paneSpace - leftWidth)
-  let left := align leftWidth .center (truncate leftWidth <|
+  let leftContent :=
     Text.styled "OATP REPL" (Style.bold <+> Style.fg scheme.foreground) ++
       Text.plain "\n" ++ Text.styled "ATP ORCHESTRATION" (Style.dim <+> Style.fg scheme.comment) ++
       Text.plain "\n\n" ++ mascot scheme ++ Text.plain "\n\n" ++
-      Text.styled "TPTP • LEAN • ATP" (Style.fg scheme.comment))
-  let right := align rightWidth .left (truncate rightWidth <|
+      Text.styled "TPTP • LEAN • ATP" (Style.fg scheme.comment)
+  let compactRight :=
+    Text.styled "/to-lean  /state  /run  /help" (Style.fg scheme.cyan) ++
+      Text.plain "\n" ++
+      Text.styled "↑/↓ history • Enter submit" (Style.dim <+> Style.fg scheme.comment)
+  let compactLeft :=
+    Text.styled "OATP REPL" (Style.bold <+> Style.fg scheme.foreground) ++
+      Text.plain "\n\n" ++ mascot scheme ++ Text.plain "\n\n" ++
+      Text.styled "TPTP • LEAN • ATP" (Style.fg scheme.comment)
+  let rightContent :=
     Text.styled "START HERE" (Style.bold <+> Style.fg scheme.orange) ++
       Text.plain "\n" ++ Text.styled "/to-lean p => p" (Style.fg scheme.cyan) ++
         Text.styled "  create a Lean goal" (Style.dim <+> Style.fg scheme.comment) ++
@@ -837,9 +842,18 @@ private def banner (scheme : ColorScheme) (width : Nat) : Text :=
         Text.styled "CTRL-N" (Style.bold <+> Style.fg scheme.foreground) ++
         Text.styled " newline" (Style.dim <+> Style.fg scheme.comment) ++
       Text.plain "\n" ++ Text.styled "/help" (Style.fg scheme.cyan) ++
-        Text.styled "             command reference" (Style.dim <+> Style.fg scheme.comment))
-  box (columns [leftWidth, rightWidth] 1 [left, right] []
-    (Text.styled "│" (Style.fg scheme.selection)))
+        Text.styled "             command reference" (Style.dim <+> Style.fg scheme.comment)
+  let content := if outer < 82 then
+      align inner .center (truncate inner (compactLeft ++ Text.plain "\n\n" ++ compactRight))
+    else
+      let paneSpace := inner - 1
+      let leftWidth := paneSpace * 56 / 100
+      let rightWidth := paneSpace - leftWidth
+      let left := align leftWidth .center (truncate leftWidth leftContent)
+      let right := align rightWidth .left (truncate rightWidth rightContent)
+      columns [leftWidth, rightWidth] 1 [left, right] []
+        (Text.styled "│" (Style.fg scheme.selection))
+  box content
     { title := some (Text.styled s!" oatp repl v{version} "
         (Style.bold <+> Style.fg scheme.orange))
       , titleAlignment := .left, borderStyle := Style.fg scheme.orange

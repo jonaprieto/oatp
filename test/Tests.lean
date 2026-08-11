@@ -183,6 +183,10 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
   { cell := 1
     input := "/to-lean p => p"
     output := "goal created" }
+#guard (OATP.ReplView.screen { stateOpen := true } { columns := 100, rows := 24 }).plainText
+    |>.splitOn "\n" |>.all (·.length ≤ 100)
+#guard (OATP.ReplView.screen { stateOpen := true } { columns := 80, rows := 24 }).plainText
+    |>.splitOn "\n" |>.all (·.length ≤ 80)
 #guard (OATP.ReplView.screen
     { entries := [plainEntry] }
     { columns := 100, rows := 24 }).segments.any
