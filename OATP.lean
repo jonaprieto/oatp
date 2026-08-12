@@ -6,6 +6,7 @@ Authors: Jonathan Prieto-Cubides
 
 import OATP.Core
 import OATP.Argus
+import OATP.Artifacts
 import OATP.Config
 import OATP.Events
 import OATP.Http

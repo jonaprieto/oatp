@@ -3,3 +3,4 @@
 *.ilean
 build/
 .DS_Store
+.oatp/

@@ -5,6 +5,7 @@ Authors: Jonathan Prieto-Cubides
 -/
 
 import OATP.Core
+import OATP.Artifacts
 
 /-!
 # OATP.Process: local prover execution
@@ -46,6 +47,10 @@ private partial def waitForExit {cfg : IO.Process.StdioConfig}
 
 private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (command : Command) :
     IO (Except Error Artifact) := do
+  let artifacts ← OATP.Artifacts.start s!"local {command.executable}" problem
+  for run in artifacts do
+    OATP.Artifacts.writeCommand run
+      (String.intercalate " " (command.executable :: command.arguments.toList))
   let child ← IO.Process.spawn {
     cmd := command.executable
     args := command.arguments
@@ -66,6 +71,9 @@ private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (c
   let _ ← IO.ofExcept stdinTask.get
   let stdout ← IO.ofExcept stdoutTask.get
   let stderr ← IO.ofExcept stderrTask.get
+  for run in artifacts do
+    OATP.Artifacts.write run "stdout.txt" stdout
+    OATP.Artifacts.write run "stderr.txt" stderr
   if stderr.startsWith "could not execute external process" then
     return .error (.io stderr.trimAscii.toString)
   let elapsedMs := (← IO.monoMsNow) - started
@@ -84,6 +92,8 @@ private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (c
     exitCode := some exitCode,
     elapsedMs
   }
+  for run in artifacts do
+    OATP.Artifacts.write run "result.txt" s!"{status}\n"
   return .ok artifact
 
 def run (prover : Prover) (problem : Problem) (limits : Limits) (command : Command) :

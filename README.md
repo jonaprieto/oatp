@@ -48,6 +48,10 @@ when a Lean signature is required.
 Use `/check` for a beginner-friendly check with the configured default prover and any selected
 provers. Use `/run` when choosing an explicit prover or portfolio.
 
+Each local or online prover request saves its exact input and captured output under `.oatp/` in
+the current directory. If that directory is not writable, OATP uses the same per-user directory
+as its preferences (`$XDG_CONFIG_HOME/oatp` or `~/.config/oatp`).
+
 Run a local problem or select an online system explicitly:
 
 ```sh

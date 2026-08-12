@@ -83,6 +83,9 @@ open OATP OATP.TPTP
   { name := "x", value := "a b" },
   { name := "y", value := "✓" }
 ] == "x=a%20b&y=%E2%9C%93"
+#guard OATP.SystemOnTPTP.responseText
+    "<html><body>% upload error<BR><PRE>&lt;bad&gt;</PRE></body></html>" ==
+  "% upload error\n\n<bad>"
 #guard match OATP.Http.Form.encodeMultipart "oatp-boundary" #[
     { name := "problem", value := "fof(goal, conjecture, p)." }
   ] with
@@ -396,6 +399,14 @@ def main : IO UInt32 := do
         throw <| IO.userError "local process backend did not preserve stdin"
   | .error _ =>
       throw <| IO.userError "local process backend failed to run cat"
+  let artifactRun ← OATP.Artifacts.start "test-local" problem
+  match artifactRun with
+  | some run =>
+      let saved ← IO.FS.readFile (System.FilePath.join run.directory "problem.tptp")
+      if saved != problem.source then
+        throw <| IO.userError "artifact run did not preserve the TPTP input"
+      OATP.Artifacts.write run "stdout.txt" "fixture output\n"
+  | none => throw <| IO.userError "artifact run could not create a writable directory"
   let limited ← OATP.Process.run
     { name := "cat" } problem { wallSeconds := 2, maxOutputBytes := 1 }
     { executable := "cat" }

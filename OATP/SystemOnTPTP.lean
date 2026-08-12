@@ -5,6 +5,7 @@ Authors: Jonathan Prieto-Cubides
 -/
 
 import OATP.Core
+import OATP.Artifacts
 import OATP.Http
 
 /-!
@@ -142,8 +143,38 @@ def request (config : Config) (problem : Problem) : Http.Request where
   maxRequestBodyBytes := config.maxBodyBytes
 
 def submit (config : Config) (problem : Problem) :
-  IO (Except Http.Error Http.Response) :=
-  Http.requestWithTransport (request config problem)
+  IO (Except Http.Error Http.Response) := do
+  let label := String.intercalate ", " (labels config).toList
+  let request := request config problem
+  let artifacts ← OATP.Artifacts.start s!"online {label}" problem
+  for run in artifacts do
+    OATP.Artifacts.write run "request.txt" request.body
+  let response ← Http.requestWithTransport request
+  for run in artifacts do
+    match response with
+    | .ok response => OATP.Artifacts.write run "response.html" response.body
+    | .error _ => OATP.Artifacts.write run "response.error" "HTTP request failed\n"
+  pure response
+
+private def stripHtmlTags (source : String) : String :=
+  let rec loop : List Char → Bool → List Char
+    | [], _ => []
+    | '<' :: rest, false => loop rest true
+    | '>' :: rest, true => loop rest false
+    | _ :: rest, true => loop rest true
+    | character :: rest, false => character :: loop rest false
+  String.ofList (loop source.toList false)
+
+def responseText (body : String) : String :=
+  let body := body.trimAscii.toString
+  if body.startsWith "<!DOCTYPE" || body.startsWith "<html" then
+    let body := body.splitOn "<body>" |>.reverse.headD body
+    let body := body.replace "<BR>" "\n" |>.replace "<br>" "\n"
+    let body := body.replace "<PRE>" "\n" |>.replace "</PRE>" "\n"
+    let body := stripHtmlTags body
+    body.replace "&gt;" ">" |>.replace "&lt;" "<" |>.replace "&amp;" "&"
+      |>.replace "&quot;" "\"" |>.replace "&#39;" "'" |>.trimAscii.toString
+  else body
 
 def catalogueRequest (endpoint : String) : Http.Request where
   method := .get
@@ -169,7 +200,7 @@ def parseResponse (config : Config) (problem : Problem) (response : Http.Respons
     prover := { name := String.intercalate ", " (labels config).toList }
     status
     problemName := some problem.name
-    stdout := response.body
+    stdout := responseText response.body
     stderr := response.stderr
   }
 
