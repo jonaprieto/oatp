@@ -119,6 +119,9 @@ open OATP OATP.TPTP
 #guard match OATP.Repl.parseCommand "/remove 2 4" with
   | .remove [2, 4] => true
   | _ => false
+#guard match OATP.Repl.parseCommand "/remove #2" with
+  | .remove [2] => true
+  | _ => false
 #guard match OATP.Repl.parseCommand "/update 2 fof(goal, conjecture, q)." with
   | .update 2 "fof(goal, conjecture, q)." => true
   | _ => false
@@ -187,6 +190,20 @@ open OATP OATP.TPTP
   | .ok session =>
       match OATP.Repl.apply session "/update 1 not-tptp" with
       | .error _ => true
+      | .ok _ => false
+  | .error _ => false
+#guard match OATP.Repl.parseSource {} "include('Axioms/foo.p').\nfof(a, axiom, p)."
+    "include('Axioms/foo.p').\nfof(a, axiom, p)." with
+  | .ok session =>
+      session.context.toList.map (·.id) == [1, 2] &&
+      session.formulas.toList.map (·.id) == [2] &&
+      session.problemSource.startsWith "include('Axioms/foo.p')."
+  | .error _ => false
+#guard match OATP.Repl.parseSource {} "include('Axioms/foo.p').\nfof(a, axiom, p)."
+    "include('Axioms/foo.p').\nfof(a, axiom, p)." with
+  | .ok session =>
+      match OATP.Repl.apply session "/update 1 fof(b, axiom, q)." with
+      | .error message => message.contains "include"
       | .ok _ => false
   | .error _ => false
 #guard match OATP.Repl.parseSource {} "fof(a, axiom, p)."
