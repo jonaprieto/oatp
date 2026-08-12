@@ -46,7 +46,9 @@ quantifiers remain available for `/parse` and prover execution and return an exp
 when a Lean signature is required.
 
 Use `/check` for a beginner-friendly check with the configured default prover and any selected
-provers. Use `/run` when choosing an explicit prover or portfolio.
+provers. Its transcript result is collapsed by default: click the `▸` report header to expand it;
+press `Ctrl-R` to open the run drawer with the full multiline output.
+Use `/run` when choosing an explicit prover or portfolio.
 
 Each local or online prover request saves its exact input and captured output under `.oatp/` in
 the current directory. If that directory is not writable, OATP uses the same per-user directory

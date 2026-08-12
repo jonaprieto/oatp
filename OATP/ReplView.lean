@@ -189,6 +189,8 @@ structure TranscriptEntry where
   elapsedMs : Option Nat := none
   sources : Sources := #[]
   diagnostic : Option Diagnostic := none
+  report : Option Report := none
+  reportExpanded : Bool := false
   deriving Repr
 
 structure JobResult where
@@ -197,6 +199,7 @@ structure JobResult where
   output : String
   ok : Bool
   elapsedMs : Option Nat := none
+  report : Option Report := none
   deriving Repr
 
 inductive RunStatus where
@@ -485,6 +488,28 @@ private def formulaLine (scheme : ColorScheme) (formula : FormulaView) : Text :=
     Text.styled formula.name (Style.bold <+> Style.fg scheme.cyan) ++
     Text.styled ": " (Style.dim <+> Style.fg scheme.comment) ++ semanticFormula scheme formula
 
+private def reportWidgetConfig (scheme : ColorScheme) : CollapsibleConfig := {
+  collapsedMarker := Text.styled "▸ " (Style.fg scheme.comment)
+  expandedMarker := Text.styled "▾ " (Style.fg scheme.orange)
+  summaryStyle := Style.bold <+> Style.fg scheme.purple
+  bodyStyle := Style.fg scheme.foreground
+  bodyPrefix := Text.plain "    "
+  maxBodyLines := 10
+  overflowText := Text.styled "… more" (Style.dim <+> Style.fg scheme.comment)
+  emptyText := Text.styled "(no report details)" (Style.dim <+> Style.fg scheme.comment) }
+
+private def reportSummary (scheme : ColorScheme) (report : Report) : Text :=
+  let marker := match report.severity with
+    | .error => Text.styled "issues" (Style.bold <+> Style.fg scheme.red)
+    | .warning => Text.styled "warning" (Style.bold <+> Style.fg scheme.yellow)
+    | _ => Text.styled "check" (Style.bold <+> Style.fg scheme.green)
+  marker ++ Text.plain s!" • {report.title} • click to expand • Ctrl-R full output"
+
+private def reportBody (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
+    (entry : TranscriptEntry) (report : Report) : Text :=
+  renderReport report { width := max 1 (width - 6) } scheme ++ Text.plain "\n" ++
+    semanticText scheme symbols entry.output false
+
 private def transcriptLine (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
     (entry : TranscriptEntry) : Text :=
   let input := Text.styled s!"[{entry.cell}] " (Style.dim <+> Style.fg scheme.comment) ++
@@ -493,14 +518,19 @@ private def transcriptLine (scheme : ColorScheme) (symbols : Array Symbol) (widt
   let marker := if entry.ok then "=" else "!"
   let style := if entry.ok then Style.fg scheme.green else Style.fg scheme.red
   let marker := Text.styled s!"  {marker} " (Style.bold <+> style)
-  let output := match entry.diagnostic with
-    | some diagnostic =>
+  let output := match entry.report, entry.diagnostic with
+    | some report, _ =>
+        let widget := renderCollapsible (reportWidgetConfig scheme) (max 1 (width - 2))
+          (reportSummary scheme report) (reportBody scheme symbols width entry report)
+          { expanded := entry.reportExpanded }
+        marker ++ Text.plain " " ++ widget.text
+    | none, some diagnostic =>
         match splitLines (diagnosticView scheme width entry.sources diagnostic) with
         | [] => marker
         | line :: rest =>
             let first := marker ++ line
             rest.foldl (fun output line => output ++ Text.plain "\n    " ++ line) first
-    | none =>
+    | none, none =>
         match entry.output.splitOn "\n" with
         | [] => marker
         | line :: rest =>
@@ -522,6 +552,33 @@ private def transcriptLines (scheme : ColorScheme) (symbols : Array Symbol) (wid
     (entries : List TranscriptEntry) : List Text :=
   let views := entries.reverse.map (transcriptLine scheme symbols width)
   (spacedEntries views).flatMap splitLines
+
+private def reportWidget (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
+    (entry : TranscriptEntry) : Option CollapsibleRender := do
+  let report ← entry.report
+  pure <| renderCollapsible (reportWidgetConfig scheme) (max 1 (width - 2))
+    (reportSummary scheme report) (reportBody scheme symbols width entry report)
+    { expanded := entry.reportExpanded }
+
+def reportAtTranscriptRow (app : App) (width row : Nat) : Option Nat :=
+  let rec find : List TranscriptEntry → Nat → Option Nat
+    | [], _ => none
+    | entry :: rest, offset =>
+        let text := transcriptLine app.theme app.session.symbols width entry
+        let lineCount := text.height
+        match entry.report, reportWidget app.theme app.session.symbols width entry with
+        | some _, some widget =>
+            let headerStart := offset + 1
+            if headerStart ≤ row && row < headerStart + widget.hitHeaderHeight then
+              some entry.cell
+            else find rest (offset + lineCount + 1)
+        | _, _ => find rest (offset + lineCount + 1)
+  find app.entries.reverse 0
+
+def toggleReportCell (app : App) (cell : Nat) : App :=
+  { app with
+    entries := app.entries.map fun entry =>
+      if entry.cell == cell then { entry with reportExpanded := !entry.reportExpanded } else entry }
 
 private def visibleTranscriptLines (app : App) (width budget : Nat) : List Text :=
   let lines := transcriptLines app.theme app.session.symbols width app.entries
@@ -798,7 +855,9 @@ private def runPanel (app : App) (width height : Nat) : Text :=
         Text.styled row.name (if focused then Style.reverse else {}) ++
         Text.plain "  " ++ status ++ Text.plain elapsed
       if row.detail.isEmpty || !focused then line
-      else line ++ Text.plain "\n  " ++ fitText (max 1 (innerWidth - 2)) row.detail
+      else
+        let details := splitLines (wrapLines (max 1 (innerWidth - 2)) (Text.plain row.detail))
+        line ++ Text.plain "\n  " ++ joinLines details
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) (joinLines rows))
   let active := app.panelFocus == .drawer
   let title := if active then "run • active • H main" else "run • inactive • Ctrl-R open"
@@ -871,6 +930,12 @@ private def compactHeader (scheme : ColorScheme) (width : Nat) : Text :=
     Text.styled title (Style.bold <+> Style.fg scheme.orange) ++
     Text.styled (String.ofList (List.replicate (if outer > used then outer - used else 0) '─'))
       (Style.fg scheme.selection)
+
+def reportAtScreenRow (app : App) (size : Size) (row : Nat) : Option Nat :=
+  let width := frameWidth size.columns
+  let head := if app.entries.isEmpty then banner app.theme width else compactHeader app.theme width
+  let bodyStart := head.height + 1
+  if row < bodyStart then none else reportAtTranscriptRow app width (row - bodyStart)
 
 def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State)
     (focused : Bool := true) : Text :=

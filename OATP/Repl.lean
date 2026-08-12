@@ -629,6 +629,8 @@ private def runHelp : String :=
     "interactive run drawer:",
     "  Ctrl-R                   open the latest run; H returns to input",
     "  J/K or ↑/↓               focus a prover result",
+    "  click ▸                  expand a collapsed check report",
+    "  Ctrl-R                   show the full multiline prover output",
     "",
     "workflow (a problem is required):",
     "  /parse fof(goal, conjecture, p => p).",

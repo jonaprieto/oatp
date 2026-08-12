@@ -32,9 +32,9 @@ private def catalogueNamespace : String := "oatp-repl"
 
 private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : Bool)
     (elapsedMs : Option Nat := none) (sources : Sources := #[])
-    (diagnostic : Option Diagnostic := none) : App :=
+    (diagnostic : Option Diagnostic := none) (report : Option Report := none) : App :=
   { app with
-    entries := { cell, input, output, ok, elapsedMs, sources, diagnostic } :: app.entries
+    entries := { cell, input, output, ok, elapsedMs, sources, diagnostic, report } :: app.entries
     transcriptScroll := 0
     repl := { app.repl with input := {}, historyIndex := none, completion := none } }
 
@@ -60,9 +60,9 @@ private def note (app : App) (cell : Nat) (input output : String) (ok : Bool)
     elapsedMs sources diagnostic
 
 private def notePlain (app : App) (cell : Nat) (input output : String) (ok : Bool)
-    (elapsedMs : Option Nat := none) : App :=
+    (elapsedMs : Option Nat := none) (report : Option Report := none) : App :=
   appendEntry { app with session := OATP.Repl.note app.session input output } cell input output ok
-    elapsedMs
+    elapsedMs #[] none report
 
 #guard match (notePlain { } 1 "/run eprover" "eprover: Error" false).entries with
   | entry :: _ => match entry.diagnostic with | none => true | some _ => false
@@ -100,6 +100,34 @@ private def artifactText : Portfolio.Result → (String × Bool)
           stdout ++ stderr
       (head ++ details, SZSStatus.isSuccess artifact.status)
   | .failed attempt failure => (s!"{attempt.name}: failed: {failure.message}", false)
+
+private def resultHasIssue : Portfolio.Result → Bool
+  | .artifact _ artifact => !SZSStatus.isSuccess artifact.status
+  | .failed _ _ => true
+
+private def resultIssueText : Portfolio.Result → String
+  | .artifact attempt artifact => s!"{attempt.name}: returned {artifact.status}"
+  | .failed attempt failure => s!"{attempt.name}: {failure.message}"
+
+private def runReport (results : List Portfolio.Result) : Report :=
+  let issues := results.filter resultHasIssue
+  let report := if issues.isEmpty then
+      Report.info "all selected provers completed"
+    else
+      Report.error "some prover results need attention"
+  let report := report.withCode "check"
+    |>.withField "provers" (toString results.length)
+    |>.withField "issues" (toString issues.length)
+    |>.withHelp "click to expand; Ctrl-R opens the full run output"
+  issues.foldl (fun report result => report.withNote (resultIssueText result)) report
+
+structure RunOutput where
+  text : String
+  ok : Bool
+  report : Report
+
+private def failedRunOutput (code message : String) : RunOutput :=
+  { text := message, ok := false, report := (Report.error message).withCode code }
 
 private def runRow : Portfolio.Result → RunRow
   | .artifact attempt artifact =>
@@ -206,13 +234,13 @@ private def selectedProvers (app : App) (all includeDefault : Bool := false) :
       if selected.any (· == reference) then selected else selected.push reference) selected
 
 private def runRequest (app : App) (request : OATP.Repl.RunRequest)
-    (includeDefault : Bool := false) : IO (String × Bool) := do
+    (includeDefault : Bool := false) : IO RunOutput := do
   match currentProblem app with
   | none =>
       let message :=
         "no current problem; try `/parse fof(goal, conjecture, p => p).` or `/load FILE`"
       publishRunRows app #[{ name := "run", status := .failed, detail := message }]
-      pure (message, false)
+      pure { text := message, ok := false, report := (Report.error message).withCode "check" }
   | some problem =>
       let references ← if request.references.isEmpty then
         pure (← selectedProvers app request.all includeDefault).toList
@@ -245,7 +273,7 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest)
                 status := .failed
                 detail := message }
             publishRunRows app #[row]
-            return (message, false)
+            return failedRunOutput "catalogue" message
         | .ok systems =>
             match OATP.Runtime.resolveOnline catalogueNamespace systems onlineReferences with
             | .error message =>
@@ -254,7 +282,7 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest)
                     status := .failed
                     detail := message }
                 publishRunRows app #[row]
-                return (message, false)
+                return failedRunOutput "prover" message
             | .ok resolved =>
                 let labels := resolved.map (·.id)
                 let commands := resolved.toList.filterMap fun system =>
@@ -274,7 +302,7 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest)
       if attempts.isEmpty then
         let message := "no prover selected or installed"
         publishRunRows app #[{ name := "run", status := .failed, detail := message }]
-        pure (message, false)
+        pure { text := message, ok := false, report := (Report.error message).withCode "check" }
       else
         publishRunRows app (runRowsFor attempts)
         let results ← Portfolio.runWith problem attempts fun result => do
@@ -286,7 +314,8 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest)
                 if current.name == row.name then row else current)
           | none => pure ()
         let rendered := results.toList.map artifactText
-        pure (String.intercalate "\n" (rendered.map Prod.fst), rendered.any Prod.snd)
+        pure <| RunOutput.mk (String.intercalate "\n" (rendered.map Prod.fst))
+          (rendered.any Prod.snd) (runReport results.toList)
 
 private def backendLine (input : String) : Bool :=
   match OATP.Repl.parseCommandSpec input with
@@ -347,20 +376,21 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
     | .error message =>
         pure { app with jobResult := some {
           cell := app.session.nextCell, input, output := message, ok := false,
-          elapsedMs := some ((← IO.monoMsNow) - started) } }
+          elapsedMs := some ((← IO.monoMsNow) - started),
+          report := some ((Report.error message).withCode "command") } }
     | .ok (request, includeDefault) =>
         -- partiality: portfolio execution has no process-cancellation seam yet; keep the UI
         -- responsive and add cancellation at Portfolio once process ownership is exposed.
-        let (output, ok) ← runRequest app request includeDefault
+        let result ← runRequest app request includeDefault
         let rows ← currentRunRows app
         pure { app with runRows := rows, jobResult := some {
-          cell := app.session.nextCell, input, output, ok,
-          elapsedMs := some ((← IO.monoMsNow) - started) } }
+          cell := app.session.nextCell, input, output := result.text, ok := result.ok,
+          elapsedMs := some ((← IO.monoMsNow) - started), report := some result.report } }
   finish := fun current completed =>
     match completed.jobResult with
     | some result =>
         notePlain { current with busy := false, jobResult := none }
-          result.cell result.input result.output result.ok result.elapsedMs
+          result.cell result.input result.output result.ok result.elapsedMs result.report
     | none => { current with busy := false }
   cancel := fun app => { app with
     busy := false
@@ -371,7 +401,8 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
       busy := false
       jobResult := none
       runRows := app.runRows.map fun row => { row with status := .failed, detail := message } }
-    notePlain updated app.session.nextCell "background prover" message false
+    notePlain updated app.session.nextCell "background prover" message false none
+      (some ((Report.error message).withCode "background"))
 
 #guard (backgroundJobs.start { repl := { history := #["first"] } } "/help").repl.history ==
   #["first"]
@@ -696,27 +727,27 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       let output ← doctorText
       pure (note app cell input output true)
   | .run request => do
-      let (output, ok) ← runRequest app request
-      pure (notePlain app cell input output ok)
+      let result ← runRequest app request
+      pure (notePlain app cell input result.text result.ok none (some result.report))
   | .local request => do
       let run : OATP.Repl.RunRequest := {
         references := [OATP.ProverReference.fromLocal request.executable]
         timeout := request.timeout
         maxOutput := request.maxOutput
         arguments := request.arguments }
-      let (output, ok) ← runRequest app run
-      pure (notePlain app cell input output ok)
+      let result ← runRequest app run
+      pure (notePlain app cell input result.text result.ok none (some result.report))
   | .online request => do
       let run : OATP.Repl.RunRequest := {
         references := [OATP.ProverReference.fromOnline request.system]
         endpoint := request.endpoint
         timeout := request.timeout
         maxOutput := request.maxOutput }
-      let (output, ok) ← runRequest app run
-      pure (notePlain app cell input output ok)
+      let result ← runRequest app run
+      pure (notePlain app cell input result.text result.ok none (some result.report))
   | .check => do
-      let (output, ok) ← runRequest app {} true
-      pure (notePlain app cell input output ok)
+      let result ← runRequest app {} true
+      pure (notePlain app cell input result.text result.ok none (some result.report))
   | _ => applyPureCommand app cell input
 
 private def submitCore (app : App) (input : String) : IO App := do
@@ -877,10 +908,13 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
     | .press =>
         if mouse.button != .left then none
         else
-          let updated := { app with selectionStart := some (mouse.column, mouse.row) }
-          let updated := { updated with selectionEnd := some (mouse.column, mouse.row) }
-          let updated := { updated with copyPending := none }
-          some { updated with statusNotice := none }
+          match reportAtScreenRow app size mouse.row with
+          | some cell => some (clearSelection (toggleReportCell app cell))
+          | none =>
+              let updated := { app with selectionStart := some (mouse.column, mouse.row) }
+              let updated := { updated with selectionEnd := some (mouse.column, mouse.row) }
+              let updated := { updated with copyPending := none }
+              some { updated with statusNotice := none }
     | .drag =>
         if app.selectionStart.isNone || mouse.button != .left then none
         else some { app with selectionEnd := some (mouse.column, mouse.row) }
@@ -929,6 +963,21 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
                 let app := focusContext { app with panelFocus := .drawer } index
                 some (if header then toggleFocusedContext app else app)
         | _ => none
+
+private def reportTestApp : App := {
+  entries := [{
+    cell := 1
+    input := "/check"
+    output := "full prover output"
+    ok := false
+    report := some (Report.error "prover needs attention")
+  }]
+}
+
+#guard match handleMouse reportTestApp { columns := 110, rows := 28 }
+    { button := .left, action := .press, column := 5, row := 3 } with
+  | some app => app.entries.head?.map (·.reportExpanded) == some true
+  | none => false
 
 #guard match handleMouse ({ stateOpen := true } : App) { columns := 110, rows := 28 }
     { button := .none, action := .scrollUp, column := 1, row := 3 } with
