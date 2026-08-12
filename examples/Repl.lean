@@ -77,11 +77,18 @@ private def noteDiagnostic (app : App) (cell : Nat) (input source message : Stri
 private def clearDerived (app : App) : App :=
   { app with goal := none, translation := none, term := none, leanGoal := none }
 
+private def invalidateContext (app : App) : App :=
+  { clearDerived app with
+    runRows := #[]
+    runOpen := false
+    runFocus := 0
+    contextItemFocus := none }
+
 private def changesContext (input : String) : Bool :=
   match OATP.Repl.parseInput input with
   | .source _ => true
   | .command command => match command with
-      | .parse _ | .axiom _ _ | .conjecture _ _ | .clear | .reset => true
+      | .parse _ | .axiom _ _ | .conjecture _ _ | .remove _ | .update _ _ | .clear | .reset => true
       | _ => false
 
 private def lastHistory (session : OATP.Repl.Session) : String :=
@@ -552,7 +559,7 @@ private def submitTheoryFormula (app : App) (cell : Nat) (input : String)
       let role := match command with | .axiom _ _ => "axiom" | _ => "conjecture"
       let source := s!"{app.theory}({name}, {role}, {formula})."
       match OATP.Repl.parseSource app.session input source with
-      | .ok session => pure (some (note { app with session } cell input
+      | .ok session => pure (some (note (invalidateContext { app with session }) cell input
           s!"parsed 1 statement using {app.theory}" true))
       | .error message => pure (some (note app cell input message false))
   | _ => pure none
@@ -603,7 +610,7 @@ private def applyPureCommand (app : App) (cell : Nat) (input : String) : IO App 
   match OATP.Repl.apply app.session input with
   | .ok session =>
       let output := lastHistory session
-      let app := if changesContext input then clearDerived { app with session }
+      let app := if changesContext input then invalidateContext { app with session }
         else { app with session }
       let app := if input == "/reset" then { app with entries := [] } else app
       let entryCell := if input == "/reset" then 1 else cell
@@ -618,7 +625,7 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       try
         let source ← IO.FS.readFile path
         match OATP.Repl.parseSource app.session input source with
-        | .ok session => pure (appendEntry (clearDerived { app with session }) cell input
+        | .ok session => pure (appendEntry (invalidateContext { app with session }) cell input
             (lastHistory session) true)
         | .error message => pure (note app cell input message false)
       catch error => pure (note app cell input s!"could not read `{path}`: {error}" false)
@@ -756,6 +763,8 @@ private def submitCore (app : App) (input : String) : IO App := do
   let firstWord := (OATP.Repl.splitWords input).headD ""
   if app.busy && backendLine input then
     return note app cell input "a prover run is already active; inspect it with Ctrl-R" false
+  if app.busy && changesContext input then
+    return note app cell input "finish the active prover run before changing context" false
   if !input.startsWith "/" && OATP.Repl.commandNames.any (· == firstWord) then
     return note app cell input "commands start with `/`; try `/help`" false
   if input.startsWith "/" then
@@ -836,8 +845,10 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
     | .proverPrevious => focusPreviousProver app
     | .toggleProver => toggleFocusedProver app
     | .closeState => { app with panelFocus := .main }
-    | .contextNext => focusNextContext app
-    | .contextPrevious => focusPreviousContext app
+    | .contextNext => focusNextContextEntry app
+    | .contextPrevious => focusPreviousContextEntry app
+    | .prepareRemoveContext => removeContextItem app
+    | .prepareUpdateContext => editContextItem app
     | .toggleContext => toggleFocusedContext app
     | .expandContext => expandFocusedContext app
     | .collapseContext => collapseFocusedContext app
@@ -851,7 +862,6 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
 #guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .history,
     AppContext.keyContext .historyInput] .escape ==
   some AppKeyAction.closeHistory
-<<<<<<< HEAD
 #guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .default,
     AppContext.keyContext .stateInput] .escape == some AppKeyAction.closeState
 #guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .default,
@@ -861,6 +871,13 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
 #guard appKeyLabel .openRun .default == "Ctrl-R/Ctrl-r"
 #guard match backgroundJobs.start ({} : App) "/run" with
   | app => app.busy && app.runOpen && app.panelFocus == .main
+#guard (removeContextItem { contextItemFocus := some 2 } : App).repl.input.value == "/remove 2"
+#guard (editContextItem { contextItemFocus := some 2 } : App).repl.input.value == "/update 2 "
+#guard (removeContextItem { contextItemFocus := some 2 } : App).panelFocus == .main
+#guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .state] .delete ==
+  some AppKeyAction.prepareRemoveContext
+#guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .state] (.char 'e') ==
+  some AppKeyAction.prepareUpdateContext
 
 private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option App :=
   if app.runOpen then
@@ -957,11 +974,13 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
         | .scrollDown => some (focusNextContext { app with panelFocus := .drawer })
         | .press =>
             if mouse.button != .left then none
-            else match contextHitAtRow app rightWidth mouse.row with
-            | none => none
-            | some (index, header) =>
-                let app := focusContext { app with panelFocus := .drawer } index
-                some (if header then toggleFocusedContext app else app)
+            else match contextFormulaAtRow app rightWidth mouse.row with
+            | some id => some (focusContextItem { app with panelFocus := .drawer } id)
+            | none => match contextHitAtRow app rightWidth mouse.row with
+              | none => none
+              | some (index, header) =>
+                  let app := focusContext { app with panelFocus := .drawer } index
+                  some (if header then toggleFocusedContext app else app)
         | _ => none
 
 private def reportTestApp : App := {

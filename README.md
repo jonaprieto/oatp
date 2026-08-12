@@ -45,6 +45,17 @@ non-interactive session. `/to-lean` currently accepts the propositional TPTP fra
 quantifiers remain available for `/parse` and prover execution and return an explicit diagnostic
 when a Lean signature is required.
 
+Context entries have stable `#` indices in the state drawer. Remove or replace them without
+rebuilding the session:
+
+```text
+/remove #2
+/update #2 fof(goal, conjecture, q => q).
+```
+
+The command cell shown in brackets is the input that created the entry; it is not its context
+index. Includes are indexed too, but can only be removed, not replaced by a formula.
+
 Use `/check` for a beginner-friendly check with the configured default prover and any selected
 provers. Its transcript result is collapsed by default: click the `▸` report header to expand it;
 press `Ctrl-R` to open the run drawer with the full multiline output.

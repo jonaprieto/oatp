@@ -101,6 +101,8 @@ inductive AppKeyAction
   | closeState
   | contextNext
   | contextPrevious
+  | prepareRemoveContext
+  | prepareUpdateContext
   | toggleContext
   | expandContext
   | collapseContext
@@ -162,6 +164,8 @@ def appBindings : List (BindingSpec AppKeyAction) :=
   , appBinding [.char 'K', .char 'k', .up] .proverPrevious (some .provers) "previous prover"
   , appBinding [.enter, .char ' '] .toggleProver (some .provers) "toggle the selected prover"
   , appBinding [.char 'H', .char 'h', .escape] .closeState (some .stateInput) "return to input"
+  , appBinding [.delete] .prepareRemoveContext (some .state) "prepare removal of selected item"
+  , appBinding [.char 'e', .char 'E'] .prepareUpdateContext (some .state) "edit selected item"
   , appBinding [.char 'J', .char 'j', .down] .contextNext (some .state) "next context section"
   , appBinding [.char 'K', .char 'k', .up] .contextPrevious (some .state) "previous context section"
   , appBinding [.enter, .char ' '] .toggleContext (some .state) "toggle the selected section"
@@ -303,6 +307,7 @@ structure App where
   selectionEnd : Option (Nat × Nat) := none
   copyPending : Option String := none
   contextFocus : Nat := 0
+  contextItemFocus : Option Nat := none
   contextExpanded : Array Bool := Array.replicate contextSectionCount true
   running : Bool := true
   statusNotice : Option String := none
@@ -483,8 +488,10 @@ private def semanticText (scheme : ColorScheme) (symbols : Array Symbol) (value 
 private def semanticFormula (scheme : ColorScheme) (formula : FormulaView) : Text :=
   semanticText scheme formula.symbols formula.formula
 
-private def formulaLine (scheme : ColorScheme) (formula : FormulaView) : Text :=
-  Text.styled s!"#{formula.id} [{formula.cell}] {formula.role} "
+private def formulaLine (scheme : ColorScheme) (selected : Option Nat)
+    (formula : FormulaView) : Text :=
+  let marker := if selected == some formula.id then "▸ " else "  "
+  Text.styled s!"{marker}#{formula.id} [{formula.cell}] {formula.role} "
       (Style.dim <+> Style.fg scheme.comment) ++
     Text.styled formula.name (Style.bold <+> Style.fg scheme.cyan) ++
     Text.styled ": " (Style.dim <+> Style.fg scheme.comment) ++ semanticFormula scheme formula
@@ -649,10 +656,11 @@ private def contextWidgetConfig (scheme : ColorScheme) : CollapsibleConfig where
 private def contextSections (app : App) : List (Text × Text) :=
   let formulas := app.session.formulas.toList.reverse.take 8
   let symbols := app.session.symbols.toList.take 12
-  let problem := if app.session.problemSource.isEmpty then
+  let problem := if app.session.context.isEmpty then
       "(no problem)"
     else
-      String.intercalate "\n" (app.session.problemSource.splitOn "\n" |>.take 3)
+      String.intercalate "\n" (app.session.context.toList.take 3 |>.map fun item =>
+        s!"#{item.id} {item.value.render}")
   let goal := match app.goal with
     | none => Text.plain "(no Lean goal)"
     | some goal => joinLines <| goal.context.toList.map
@@ -666,7 +674,8 @@ private def contextSections (app : App) : List (Text × Text) :=
     | some source => String.intercalate "\n" (source.splitOn "\n" |>.take 3)
   let render : ContextTarget → Text × Text
     | .formulas => (Text.plain s!"{ContextTarget.label .formulas} ({app.session.formulas.size})",
-        joinLines (if formulas.isEmpty then [] else formulas.map (formulaLine app.theme)))
+        joinLines (if formulas.isEmpty then [] else
+          formulas.map (formulaLine app.theme app.contextItemFocus)))
     | .symbols => (Text.plain s!"{ContextTarget.label .symbols} ({app.session.symbols.size})",
         joinLines (symbols.map (symbolLine app.theme)))
     | .problem => (Text.plain (ContextTarget.label .problem),
@@ -709,6 +718,18 @@ def contextHitAtRow (app : App) (width row : Nat) : Option (Nat × Bool) :=
           else find renders (index + 1) (offset + widget.lineCount)
     find (contextRenders app width) 0 0
 
+def contextFormulaAtRow (app : App) (width row : Nat) : Option Nat :=
+  match contextHitAtRow app width row with
+  | some (0, false) =>
+      let relativeRow := row - 2
+      match contextRenders app width with
+      | widget :: _ =>
+          let bodyRow := relativeRow - widget.hitHeaderHeight
+          let formulas := app.session.formulas.toList.reverse.take 8
+          formulas[bodyRow]?.map (·.id)
+      | [] => none
+  | _ => none
+
 private def updateContextExpanded (app : App) (index : Nat) (expanded : Bool) : App :=
   { app with contextExpanded := app.contextExpanded.set! index expanded }
 
@@ -720,6 +741,51 @@ def focusNextContext (app : App) : App :=
 
 def focusPreviousContext (app : App) : App :=
   focusContext app (if app.contextFocus == 0 then contextSectionCount - 1 else app.contextFocus - 1)
+
+private def formulaIds (app : App) : List Nat :=
+  app.session.formulas.toList.reverse.map (·.id)
+
+private def indexOfFormula : Nat → Nat → List Nat → Option Nat
+  | _, _, [] => none
+  | wanted, index, id :: ids =>
+      if wanted == id then some index else indexOfFormula wanted (index + 1) ids
+
+private def nextFormulaId (app : App) (forward : Bool) : Option Nat :=
+  let ids := formulaIds app
+  match ids with
+  | [] => none
+  | first :: _ =>
+      match app.contextItemFocus with
+      | none => some first
+      | some current =>
+          let index := (indexOfFormula current 0 ids).getD 0
+          if forward then ids[(index + 1) % ids.length]?
+          else ids[(index + ids.length - 1) % ids.length]?
+
+def focusContextItem (app : App) (id : Nat) : App :=
+  if app.session.formulas.any (·.id == id) then
+    { app with contextFocus := 0, contextItemFocus := some id }
+  else app
+
+def focusNextContextItem (app : App) : App :=
+  match nextFormulaId app true with
+  | some id => focusContextItem app id
+  | none => { app with contextItemFocus := none }
+
+def focusPreviousContextItem (app : App) : App :=
+  match nextFormulaId app false with
+  | some id => focusContextItem app id
+  | none => { app with contextItemFocus := none }
+
+def focusNextContextEntry (app : App) : App :=
+  if app.contextFocus == 0 && app.session.formulas.isEmpty == false then
+    focusNextContextItem app
+  else focusNextContext app
+
+def focusPreviousContextEntry (app : App) : App :=
+  if app.contextFocus == 0 && app.session.formulas.isEmpty == false then
+    focusPreviousContextItem app
+  else focusPreviousContext app
 
 def toggleFocusedContext (app : App) : App :=
   updateContextExpanded app app.contextFocus (!contextExpandedAt app app.contextFocus)
@@ -768,14 +834,36 @@ def contextTargetNames : List String :=
 def contextTargetOfString (value : String) : Option Nat :=
   ContextTarget.indexOfString value
 
+private def prepareContextCommand (app : App) (command : String) : App :=
+  match app.contextItemFocus with
+  | none => { app with statusNotice := some "select a formula in the FORMULAS box first" }
+  | some id =>
+      if !app.repl.input.value.isEmpty then
+        { app with statusNotice := some "clear the input before preparing a context edit" }
+      else
+        let value := s!"/{command} {id}" ++ if command == "update" then " " else ""
+        { app with
+          repl := { app.repl with
+            input := { value, cursor := value.toList.length }
+            historyIndex := none
+            completion := none }
+          stateOpen := false
+          panelFocus := .main
+          statusNotice := none }
+
+def removeContextItem (app : App) : App := prepareContextCommand app "remove"
+
+def editContextItem (app : App) : App := prepareContextCommand app "update"
+
 def openContextTarget (app : App) (target : String) : Option App :=
   if target.toLower == "all" then
     let app := { app with stateOpen := true }
     some { app with contextExpanded := Array.replicate contextSectionCount true }
   else
     match contextTargetOfString target with
-    | some index => some <| expandFocusedContext <| focusContext
-        { app with stateOpen := true } index
+    | some index =>
+        let app := expandFocusedContext <| focusContext { app with stateOpen := true } index
+        some (if index == 0 then focusNextContextItem app else app)
     | none => none
 
 private def contextPanel (app : App) (width height : Nat) : Text :=
