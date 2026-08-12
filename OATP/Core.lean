@@ -18,6 +18,26 @@ def defaultTimeoutSeconds : Nat := 30
 
 def defaultMaxOutputBytes : Nat := 4 * 1024 * 1024
 
+inductive RunStrategy where
+  | all
+  | firstSuccess
+  deriving BEq, DecidableEq, Repr
+
+namespace RunStrategy
+
+def name : RunStrategy → String
+  | .all => "all"
+  | .firstSuccess => "first-success"
+
+def ofString : String → Option RunStrategy
+  | "all" => some .all
+  | "first-success" => some .firstSuccess
+  | _ => none
+
+def choices : List String := [name .all, name .firstSuccess]
+
+end RunStrategy
+
 structure Prover where
   name : String
   version : Option String := none

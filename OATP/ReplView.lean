@@ -294,6 +294,7 @@ structure App where
   repl : Repl.State := {}
   stateOpen : Bool := true
   historyOpen : Bool := false
+  historyExpanded : Array Nat := #[]
   proversOpen : Bool := false
   runOpen : Bool := false
   panelFocus : PanelFocus := .main
@@ -314,6 +315,7 @@ structure App where
   theme : ColorScheme := aurora
   themeName : String := defaultThemeName
   theory : String := OATP.TPTP.defaultTheory
+  strategy : OATP.RunStrategy := .all
   defaultProver : Option ProverReference := none
   enabledProvers : Array ProverReference := #[]
   proverSelectionSet : Bool := false
@@ -877,23 +879,66 @@ private def contextPanel (app : App) (width height : Nat) : Text :=
            , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
            , maxWidth := some width }
 
+private def historyWidgetConfig (scheme : ColorScheme) : CollapsibleConfig where
+  collapsedMarker := Text.styled "▸ " (Style.fg scheme.comment)
+  expandedMarker := Text.styled "▾ " (Style.fg scheme.orange)
+  summaryStyle := Style.bold <+> Style.fg scheme.purple
+  bodyStyle := Style.fg scheme.foreground
+  bodyPrefix := Text.plain "    "
+  maxBodyLines := 18
+  overflowText := Text.styled "… more" (Style.dim <+> Style.fg scheme.comment)
+  emptyText := Text.styled "(empty help)" (Style.dim <+> Style.fg scheme.comment)
+
+private def historyWidget (app : App) (width : Nat) (entry : OATP.Repl.HistoryEntry) :
+    Option CollapsibleRender :=
+  if entry.input.startsWith "/help" then
+    let expanded := app.historyExpanded.any (· == entry.cell)
+    let lines := entry.result.splitOn "\n" |>.length
+    let summary := Text.styled s!"help output • {lines} lines • click to expand"
+      (Style.bold <+> Style.fg app.theme.purple)
+    some <| renderCollapsible (historyWidgetConfig app.theme)
+      (max 1 (boxInnerWidth width - 2)) summary (Text.plain entry.result) { expanded }
+  else none
+
+private def historyLine (app : App) (width : Nat) (entry : OATP.Repl.HistoryEntry) : Text :=
+  let input := Text.styled s!"[{entry.cell}] " (Style.dim <+> Style.fg app.theme.comment) ++
+    semanticText app.theme app.session.symbols entry.input false
+  match historyWidget app width entry with
+  | some widget => input ++ Text.plain "\n  = " ++ widget.text
+  | none => input ++ Text.plain "\n" ++
+      Text.styled "  = " (Style.bold <+> Style.fg app.theme.green) ++
+      semanticText app.theme app.session.symbols
+        (fitText (max 1 (width - 6)) entry.result).plainText false
+
 private def historyPanel (app : App) (width height : Nat) : Text :=
   let rows := app.session.history.toList.reverse.take 18
   let body := if rows.isEmpty then
       Text.styled "No commands yet." (Style.dim <+> Style.fg app.theme.comment)
-    else
-      joinLines (rows.map fun entry =>
-        Text.styled s!"[{entry.cell}] " (Style.dim <+> Style.fg app.theme.comment) ++
-          semanticText app.theme app.session.symbols entry.input false ++
-          Text.plain "\n" ++
-          Text.styled "  = " (Style.bold <+> Style.fg app.theme.green) ++
-          semanticText app.theme app.session.symbols
-            (fitText (max 1 (width - 6)) entry.result).plainText false)
+    else joinLines (rows.map (historyLine app width))
   let innerWidth := boxInnerWidth width
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
   box body { title := some (Text.styled "history • active"
       (Style.bold <+> Style.fg app.theme.cyan))
            , borderStyle := Style.fg app.theme.selection, maxWidth := some width }
+
+def historyCellAtRow (app : App) (width row : Nat) : Option Nat :=
+  let rows := app.session.history.toList.reverse.take 18
+  let rec find : List OATP.Repl.HistoryEntry → Nat → Option Nat
+    | [], _ => none
+    | entry :: rest, offset =>
+        let line := historyLine app width entry
+        let headerStart := offset + 1
+        let hit := match historyWidget app width entry with
+          | some widget => headerStart ≤ row && row < headerStart + widget.hitHeaderHeight
+          | none => false
+        if hit then some entry.cell else find rest (offset + line.height + 1)
+  find rows 0
+
+def toggleHistoryCell (app : App) (cell : Nat) : App :=
+  let expanded := if app.historyExpanded.any (· == cell) then
+      app.historyExpanded.filter (· != cell)
+    else app.historyExpanded.push cell
+  { app with historyExpanded := expanded }
 
 def proverVisibleStart (app : App) (height : Nat) : Nat :=
   let visible := max 1 (height - 2)
@@ -928,6 +973,14 @@ private def runStatusStyle (scheme : ColorScheme) : RunStatus → Style
   | .result .error | .failed => Style.bold <+> Style.fg scheme.red
   | _ => Style.fg scheme.comment
 
+private def runDetail (row : RunRow) : String :=
+  if !row.detail.isEmpty then row.detail else match row.status with
+    | .queued => "queued; waiting for the previous prover"
+    | .running => "waiting for the prover result"
+    | .result status => s!"completed with {status}"
+    | .failed => "the prover failed without additional output"
+    | .cancelled => "run cancelled"
+
 private def runPanel (app : App) (width height : Nat) : Text :=
   let innerWidth := boxInnerWidth width
   let rows := if app.runRows.isEmpty then
@@ -943,9 +996,10 @@ private def runPanel (app : App) (width height : Nat) : Text :=
       let line := Text.plain marker ++
         Text.styled row.name (if focused then Style.reverse else {}) ++
         Text.plain "  " ++ status ++ Text.plain elapsed
-      if row.detail.isEmpty || !focused then line
+      if !focused then line
       else
-        let details := splitLines (wrapLines (max 1 (innerWidth - 2)) (Text.plain row.detail))
+        let details := splitLines (wrapLines (max 1 (innerWidth - 2))
+          (Text.plain (runDetail row)))
         line ++ Text.plain "\n  " ++ joinLines details
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) (joinLines rows))
   let active := app.panelFocus == .drawer
@@ -1076,7 +1130,8 @@ private def footer (app : App) (width : Nat) : Text :=
   let notice := app.statusNotice.map (fun value => s!"  • {value}") |>.getD ""
   let prover := app.defaultProver.map ProverReference.display |>.getD "auto"
   let metadata := if outer < stateDrawerMinWidth then s!"  theory={app.theory}{notice}"
-    else s!"  theory={app.theory} • prover={prover}{notice}"
+    else s!"  theory={app.theory} • strategy={OATP.RunStrategy.name app.strategy} • " ++
+      s!"prover={prover}{notice}"
   let left := Text.styled state
       (Style.bold <+> Style.fg (if app.busy then app.theme.yellow else app.theme.green)) ++
     Text.styled metadata

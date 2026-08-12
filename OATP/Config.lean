@@ -15,6 +15,7 @@ structure Preferences where
   defaultProver : String := ""
   enabledProvers : Array String := #[]
   proverSelectionSet : Bool := false
+  strategy : String := "all"
   theme : String := "aurora"
   deriving BEq, DecidableEq, Repr
 
@@ -59,6 +60,7 @@ private def fromJson : Json → Preferences
       proverSelectionSet := match field json "proverSelectionSet" with
         | some (.bool value) => value
         | _ => default.proverSelectionSet
+      strategy := stringField json "strategy" default.strategy
       theme := stringField json "theme" default.theme
     }
 
@@ -68,6 +70,7 @@ private def toJson (preferences : Preferences) : Json :=
     ("defaultProver", .str preferences.defaultProver),
     ("enabledProvers", .arr (preferences.enabledProvers.map Json.str)),
     ("proverSelectionSet", .bool preferences.proverSelectionSet),
+    ("strategy", .str preferences.strategy),
     ("theme", .str preferences.theme)
   ]
 

@@ -106,4 +106,24 @@ def runWith (problem : Problem) (attempts : Array Attempt)
 def run (problem : Problem) (attempts : Array Attempt) : IO (Array Result) :=
   runWith problem attempts
 
+private def successful : Result → Bool
+  | .artifact _ artifact => SZSStatus.isSuccess artifact.status
+  | .failed _ _ => false
+
+private def runUntilSuccess (problem : Problem) (attempts : List Attempt)
+    (results : Array Result) (onResult : Result → IO Unit) : IO (Array Result) := do
+  match attempts with
+  | [] => pure results
+  | attempt :: rest =>
+      let result ← execute problem attempt
+      onResult result
+      if successful result then pure (results.push result)
+      else runUntilSuccess problem rest (results.push result) onResult
+
+def runWithStrategy (problem : Problem) (attempts : Array Attempt) (strategy : RunStrategy)
+    (onResult : Result → IO Unit := fun _ => pure ()) : IO (Array Result) :=
+  match strategy with
+  | .all => runWith problem attempts onResult
+  | .firstSuccess => runUntilSuccess problem attempts.toList #[] onResult
+
 end OATP.Portfolio

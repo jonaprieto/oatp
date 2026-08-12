@@ -34,6 +34,8 @@ def grammarTopics : List String := OATP.TPTP.supportedTheories
 
 def roleFormats : List String := OATP.TPTP.supportedTheories
 
+def runStrategyChoices : List String := OATP.RunStrategy.choices
+
 def completionParam (typeName : String) (values : List String) : Param String :=
   Param.named typeName (Param.enum (values.map fun value => (value, value)))
 
@@ -45,6 +47,7 @@ def staticCompletionValues (typeName : String) : List String :=
   | "TOPIC" => helpTopics
   | "FORMAT" => roleFormats
   | "THEORY" => OATP.TPTP.theoryChoices
+  | "STRATEGY" => runStrategyChoices
   | "STEP" => OATP.Proof.stepNames
   | _ => []
 
@@ -99,6 +102,7 @@ inductive Command where
   | version
   | clear
   | reset
+  | strategy (value : Option String)
   | parse (source : String)
   | axiom (name formula : String)
   | conjecture (name formula : String)
@@ -264,6 +268,10 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "clear" (Spec.const .clear) (description := "Clear the transcript")
     , Argus.cmd "reset" (Spec.const .reset)
         (description := "Reset the session context and transcript")
+    , Argus.cmd "strategy" (Spec.map Command.strategy
+        (Spec.opt (Spec.arg "STRATEGY" "Prover run strategy"
+          (completionParam "STRATEGY" runStrategyChoices))))
+        (description := "Show or select the prover run strategy")
     , Argus.cmd "parse" (Spec.map Command.parse (textSpec "SOURCE" "TPTP source"))
         (description := "Parse TPTP source")
     , Argus.cmd "axiom" (Spec.map2 Command.axiom
@@ -517,6 +525,7 @@ private def runHelp : String :=
     "/run [--prover NAME] [--all] [--timeout SEC] [--max-output BYTES]",
     "     [--refresh] [--no-cache] [--endpoint URL]",
     "/run --all              run every installed local prover",
+    "/strategy [all|first-success]  choose portfolio stopping behavior",
     "/local EXECUTABLE [--timeout SEC] [--max-output BYTES] [-- ARGUMENTS...]",
     "/online SYSTEM [--endpoint URL] [--timeout SEC] [--max-output BYTES]",
     "  online-vampire names the matching SystemOnTPTP Vampire version",
@@ -560,7 +569,8 @@ private def commandHelp (command : Argus.Command Command) : String :=
   let details := match command.name with
     | "goal" | "to-lean" | "translate-to-lean" | "snapshot" | "to-tptp" | "reconstruct" | "term" =>
         leanHelp
-    | "run" | "local" | "online" | "prover" | "provers" | "systems" | "doctor" => runHelp
+    | "run" | "strategy" | "local" | "online" | "prover" | "provers" | "systems" | "doctor" =>
+        runHelp
     | "state" | "history" => contextHelp
     | "parse" | "axiom" | "conjecture" | "grammar" | "roles" => grammarHelp
     | _ => ""
@@ -580,7 +590,7 @@ def helpFor : Option String → String
       | "fof" => fofHelp
       | "tff" => tffHelp
       | "lean" => leanHelp
-      | "run" | "provers" => runHelp
+      | "run" | "strategy" | "provers" => runHelp
       | "context" | "state" => contextHelp
       | "grammar" => grammarHelp
       | "roles" => roleHelp none
@@ -615,6 +625,8 @@ def apply (session : Session) (input : String) : Except String Session :=
       | .version => pure (note session input s!"oatp {OATP.version}")
       | .clear => pure (note session input "transcript cleared")
       | .reset => pure (note {} input "session reset")
+      | .strategy none => pure (note session input "strategy requested")
+      | .strategy (some value) => pure (note session input s!"strategy requested: {value}")
       | .parse source => parseSource session input source
       | .axiom name formula => addFormulaCommand session input name "axiom" formula
       | .conjecture name formula => addFormulaCommand session input name "conjecture" formula

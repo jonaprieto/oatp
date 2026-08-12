@@ -38,6 +38,7 @@ goals, translated problems, prover artifacts, and kernel-checked terms in one se
 /online online-vampire       # use the matching SystemOnTPTP version
 /systems --online
 /info online-vampire
+/strategy                 # show the current portfolio strategy
 /doctor
 ```
 
@@ -55,6 +56,11 @@ context.
 checks installed local executables first, then the cached SystemOnTPTP catalogue. Use names such as
 `online-vampire` without spelling out a version; `/systems --online --refresh` refreshes the
 catalogue cache.
+
+Prover runs use the `all` strategy by default, so every selected prover is checked. Set
+`/strategy first-success` for a sequential fallback portfolio that stops after the first
+`Theorem` or `Unsatisfiable` result; `/strategy all` restores parallel execution. A first failure
+is not a useful stopping strategy because one prover timing out should not hide a later success.
 
 Context entries have stable `#` indices in the state drawer. Remove or replace them without
 rebuilding the session:
@@ -102,7 +108,7 @@ The standalone CLI is available in release archives. The Lean library can be ins
 
 ```lean
 require oatp from git
-  "https://github.com/jonaprieto/oatp.git" @ "v0.6.0"
+  "https://github.com/jonaprieto/oatp.git" @ "v0.7.0"
 ```
 
 ## Build
