@@ -152,8 +152,12 @@ def submit (config : Config) (problem : Problem) :
   let response ← Http.requestWithTransport request
   for run in artifacts do
     match response with
-    | .ok response => OATP.Artifacts.write run "response.html" response.body
-    | .error _ => OATP.Artifacts.write run "response.error" "HTTP request failed\n"
+    | .ok response => do
+        OATP.Artifacts.write run "response.html" response.body
+        OATP.Artifacts.write run "response.meta"
+          s!"status: {response.statusCode}\nstderr: {response.stderr}"
+    | .error error => do
+        OATP.Artifacts.write run "response.error" (Http.Error.message error)
   pure response
 
 private def stripHtmlTags (source : String) : String :=

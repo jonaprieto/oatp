@@ -51,15 +51,21 @@ private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (c
   for run in artifacts do
     OATP.Artifacts.writeCommand run
       (String.intercalate " " (command.executable :: command.arguments.toList))
-  let child ← IO.Process.spawn {
-    cmd := command.executable
-    args := command.arguments
-    cwd := command.cwd
-    stdin := .piped
-    stdout := .piped
-    stderr := .piped
-    setsid := true
-  }
+  let child ← try
+    IO.Process.spawn {
+      cmd := command.executable
+      args := command.arguments
+      cwd := command.cwd
+      stdin := .piped
+      stdout := .piped
+      stderr := .piped
+      setsid := true
+    }
+  catch error => do
+    for run in artifacts do
+      OATP.Artifacts.write run "error.txt" s!"{error}"
+      OATP.Artifacts.write run "result.txt" "error\n"
+    return .error (.io s!"{error}")
   let (stdin, child) ← child.takeStdin
   let stdoutTask ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
   let stderrTask ← IO.asTask child.stderr.readToEnd Task.Priority.dedicated
@@ -75,10 +81,18 @@ private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (c
     OATP.Artifacts.write run "stdout.txt" stdout
     OATP.Artifacts.write run "stderr.txt" stderr
   if stderr.startsWith "could not execute external process" then
-    return .error (.io stderr.trimAscii.toString)
+    let message := stderr.trimAscii.toString
+    for run in artifacts do
+      OATP.Artifacts.write run "error.txt" message
+      OATP.Artifacts.write run "result.txt" "error\n"
+    return .error (.io message)
   let elapsedMs := (← IO.monoMsNow) - started
   let actual := stdout.toUTF8.size + stderr.toUTF8.size
   if actual > limits.maxOutputBytes then
+    let message := s!"local prover output exceeded {limits.maxOutputBytes} bytes ({actual} captured)"
+    for run in artifacts do
+      OATP.Artifacts.write run "error.txt" message
+      OATP.Artifacts.write run "result.txt" "error\n"
     return .error (.outputTooLarge actual limits.maxOutputBytes)
   let status := if timedOut then .timeout else if exitCode == 0 then
       (SZSStatus.ofOutput stdout).getD .unknown
