@@ -807,11 +807,13 @@ private def runPanel (app : App) (width height : Nat) : Text :=
            , maxWidth := some width }
 
 private def mascot (scheme : ColorScheme) : Text :=
-  joinLines [ Text.styled "    ◇    " (Style.fg scheme.yellow)
-            , Text.styled "  ╱ │ ╲  " (Style.fg scheme.cyan)
-            , Text.styled "◆───┼───◆" (Style.fg scheme.green)
-            , Text.styled "  ╲ │ ╱  " (Style.fg scheme.blue)
-            , Text.styled "    ◇    " (Style.fg scheme.purple) ]
+  let arrow := Text.styled "──▶" (Style.fg scheme.cyan)
+  joinLines [ Text.styled "TPTP" (Style.fg scheme.yellow) ++ Text.plain " " ++ arrow ++
+                Text.plain " " ++ Text.styled "OATP" (Style.bold <+> Style.fg scheme.green) ++
+                Text.plain " " ++ arrow ++ Text.styled " ATPs" (Style.fg scheme.purple)
+            , Text.plain "          " ++ Text.styled "│" (Style.fg scheme.cyan)
+            , Text.plain "          " ++ Text.styled "▼" (Style.fg scheme.cyan)
+            , Text.plain "         " ++ Text.styled "LEAN ✓" (Style.fg scheme.blue) ]
 
 private def banner (scheme : ColorScheme) (width : Nat) : Text :=
   let outer := frameWidth width
@@ -820,7 +822,7 @@ private def banner (scheme : ColorScheme) (width : Nat) : Text :=
     Text.styled "OATP REPL" (Style.bold <+> Style.fg scheme.foreground) ++
       Text.plain "\n" ++ Text.styled "ORCHESTRATED ATP" (Style.dim <+> Style.fg scheme.comment) ++
       Text.plain "\n\n" ++ mascot scheme ++ Text.plain "\n\n" ++
-      Text.styled "TPTP • LEAN • ATP" (Style.fg scheme.comment)
+      Text.styled "INPUT • ORCHESTRATE • CHECK" (Style.fg scheme.comment)
   let compactRight :=
     Text.styled "/to-lean  /state  /run  /help" (Style.fg scheme.cyan) ++
       Text.plain "\n" ++
@@ -828,7 +830,7 @@ private def banner (scheme : ColorScheme) (width : Nat) : Text :=
   let compactLeft :=
     Text.styled "OATP REPL" (Style.bold <+> Style.fg scheme.foreground) ++
       Text.plain "\n\n" ++ mascot scheme ++ Text.plain "\n\n" ++
-      Text.styled "TPTP • LEAN • ATP" (Style.fg scheme.comment)
+      Text.styled "INPUT • ORCHESTRATE • CHECK" (Style.fg scheme.comment)
   let rightContent :=
     Text.styled "START HERE" (Style.bold <+> Style.fg scheme.orange) ++
       Text.plain "\n" ++ Text.styled "/to-lean p => p" (Style.fg scheme.cyan) ++

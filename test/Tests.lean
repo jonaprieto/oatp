@@ -168,7 +168,7 @@ open OATP OATP.TPTP
   "ORCHESTRATED ATP"
 #guard (OATP.ReplView.screen { stateOpen := false }
     { columns := 100, rows := 24 }).plainText.contains
-  "◆───┼───◆"
+  "TPTP ──▶ OATP ──▶ ATPs"
 #guard (OATP.ReplView.screen { stateOpen := false }
     { columns := 100, rows := 24 }).plainText.contains
   "create a Lean goal"
