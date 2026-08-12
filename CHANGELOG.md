@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- add indexed context editing and deterministic state-drawer toggling;
+- add `all` and `first-success` prover run strategies;
+- collapse `/help` history entries while keeping full output expandable;
+- preserve local and online prover artifacts for each request;
+- clarify run status, cached online prover information, and REPL workflow.
+
 ## 0.6.0
 
 - use published Git dependencies for Argus `v0.5.0` and TermColor REPL

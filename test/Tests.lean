@@ -19,6 +19,8 @@ open OATP OATP.TPTP
 #guard SZSStatus.ofOutput "% SZS status Timeout for fixture\n" == some .timeout
 #guard SZSStatus.ofOutput
     "% RESULT: fixture - Vampire says Timeout - CPU = 2 WC = 2\n" == some .timeout
+#guard OATP.RunStrategy.ofString "first-success" == some .firstSuccess
+#guard OATP.RunStrategy.name .all == "all"
 #guard (parseStatement "fof(goal, conjecture, p)." |>.isOk)
 #guard (parseStatement "cnf(c1, axiom, p | ~q)." |>.isOk)
 #guard match _root_.TPTP.TFF.parseFormulaString "#[X:$i] : p(X)" with
@@ -211,9 +213,10 @@ open OATP OATP.TPTP
   | .ok session =>
       match OATP.Repl.apply session "/clear" with
       | .ok cleared =>
+          cleared.formulas.toList.map (·.name) == ["a"] &&
           match OATP.Repl.parseSource cleared "fof(b, axiom, q)."
               "fof(b, axiom, q)." with
-          | .ok updated => updated.formulas[0]?.map (·.id) == some 2
+          | .ok updated => updated.formulas.toList.map (·.id) == [1, 2]
           | .error _ => false
       | .error _ => false
   | .error _ => false
@@ -346,6 +349,12 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
       session := { history := #[{ cell := 1, input := "/help", result := "commands" }] } }
     { columns := 100, rows := 24 }).plainText.contains "history • active"
 #guard (OATP.ReplView.screen { historyOpen := true } { columns := 100, rows := 24 }).height == 24
+#guard match OATP.ReplView.toggleHistoryCell
+    ({ historyExpanded := #[] } : OATP.ReplView.App) 3 with
+  | app => app.historyExpanded == #[3]
+#guard match OATP.ReplView.toggleHistoryCell
+    ({ historyExpanded := #[3] } : OATP.ReplView.App) 3 with
+  | app => app.historyExpanded.isEmpty
 #guard (OATP.ReplView.screen
     { entries := [{ cell := 1, input := "/snapshot", output := "first\nsecond" }] }
     { columns := 100, rows := 24 }).plainText.contains "second"
@@ -354,8 +363,23 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
       let help := (session.history.toList.getLast?.map (·.result)).getD ""
       help.contains "/help [<TOPIC>]" && help.contains "/goal <FORMULA> [<FORMULA>...]" &&
         help.contains "/axiom <NAME> <FORMULA> [<FORMULA>...]" && help.contains "/check" &&
-        help.contains "grammar"
+        help.contains "Clear the transcript" &&
+        help.contains "with THEME, select it" &&
+        !help.contains "Commands start with `/`"
   | .error _ => false
+#guard match OATP.Repl.parseCommand "/run --prover online-vampire" with
+  | .run request => request.references == [OATP.ProverReference.fromOnline "vampire"]
+  | _ => false
+#guard match OATP.Repl.parseCommand "/strategy first-success" with
+  | .strategy (some value) => value == "first-success"
+  | _ => false
+#guard match OATP.Repl.parseCommand "/state" with
+  | .state => true
+  | _ => false
+#guard match OATP.Runtime.resolveOnline "oatp" #[{ id := "Vampire---5.0.1" }]
+    ["online-vampire"] with
+  | .ok #[system] => system.id == "Vampire---5.0.1"
+  | _ => false
 #guard (OATP.ReplView.clearSelection
     { selectionStart := some (1, 2), selectionEnd := some (3, 4) }).selectionStart.isNone
 def main : IO UInt32 := do
@@ -487,6 +511,30 @@ def main : IO UInt32 := do
   ]
   if portfolio.size != 2 then
     throw <| IO.userError "portfolio runner did not collect concurrent attempts"
+  let strategyProblem : Problem := {
+    name := "strategy"
+    source := "fof(goal, conjecture, p).\n"
+  }
+  let strategyResults ← OATP.Portfolio.runWithStrategy strategyProblem #[
+    { name := "unknown"
+      backend := .local { executable := "sh", arguments := #[
+        "-c", "echo '# SZS status Unknown for strategy'" ] } },
+    { name := "success"
+      backend := .local { executable := "sh", arguments := #[
+        "-c", "echo '# SZS status Theorem for strategy'" ] } },
+    { name := "not-run"
+      backend := .local { executable := "definitely-not-installed-oatp-prover" } }
+  ] .firstSuccess
+  if strategyResults.size != 2 then
+    throw <| IO.userError "first-success did not stop after the first successful result"
+  match strategyResults[1]? with
+  | some result =>
+      match result with
+      | OATP.Portfolio.Result.artifact _ artifact =>
+          if artifact.status != .theorem then
+            throw <| IO.userError "first-success accepted a non-successful result"
+      | _ => throw <| IO.userError "first-success did not return an artifact"
+  | _ => throw <| IO.userError "first-success did not return the successful result"
   let largeProblem : Problem := {
     name := "large-stdin"
     source := String.join (List.replicate 200000 "x")
