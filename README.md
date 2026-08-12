@@ -26,17 +26,18 @@ lake exe tests
 goals, translated problems, prover artifacts, and kernel-checked terms in one session:
 
 ```text
-/to-lean p => p
+/goal p => p
 /load problem.p
-/snapshot
+/snapshot                 # refresh the current Lean goal
 /to-tptp
 /reconstruct implication-intro h exact h
 /term
 /check
 /run --prover eprover
 /local ./my-prover -- --arg
-/online --system online-vampire
-/systems
+/online online-vampire       # use the matching SystemOnTPTP version
+/systems --online
+/info online-vampire
 /doctor
 ```
 
@@ -44,6 +45,16 @@ Use `/state` for the context drawer, `/history` for the transcript, and `--scrip
 non-interactive session. `/to-lean` currently accepts the propositional TPTP fragment; terms and
 quantifiers remain available for `/parse` and prover execution and return an explicit diagnostic
 when a Lean signature is required.
+
+`/snapshot` refreshes the local context and target after `/goal`; `/goal` already prints the first
+snapshot, so use `/snapshot` when the Lean context may have changed. `/clear` clears the visible
+transcript but keeps the TPTP context. `/reset` clears the transcript and resets the session
+context.
+
+`/theme` shows the current theme; `/theme NAME` selects one. `/info PROVER` requires a name and
+checks installed local executables first, then the cached SystemOnTPTP catalogue. Use names such as
+`online-vampire` without spelling out a version; `/systems --online --refresh` refreshes the
+catalogue cache.
 
 Context entries have stable `#` indices in the state drawer. Remove or replace them without
 rebuilding the session:

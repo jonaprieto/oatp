@@ -261,8 +261,9 @@ def commandSpec : Argus.Command Command :=
         (Spec.opt (Spec.arg "FORMAT" "TPTP format" (completionParam "FORMAT" roleFormats))))
         (description := "Show role help")
     , Argus.cmd "version" (Spec.const .version) (description := "Show the OATP version")
-    , Argus.cmd "clear" (Spec.const .clear) (description := "Clear the session context")
-    , Argus.cmd "reset" (Spec.const .reset) (description := "Reset the complete session")
+    , Argus.cmd "clear" (Spec.const .clear) (description := "Clear the transcript")
+    , Argus.cmd "reset" (Spec.const .reset)
+        (description := "Reset the session context and transcript")
     , Argus.cmd "parse" (Spec.map Command.parse (textSpec "SOURCE" "TPTP source"))
         (description := "Parse TPTP source")
     , Argus.cmd "axiom" (Spec.map2 Command.axiom

@@ -355,11 +355,16 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
       let help := (session.history.toList.getLast?.map (·.result)).getD ""
       help.contains "/help [<TOPIC>]" && help.contains "/goal <FORMULA> [<FORMULA>...]" &&
         help.contains "/axiom <NAME> <FORMULA> [<FORMULA>...]" && help.contains "/check" &&
+        help.contains "Clear the transcript" &&
         help.contains "with THEME, select it" &&
         !help.contains "Commands start with `/`"
   | .error _ => false
 #guard match OATP.Repl.parseCommand "/run --prover online-vampire" with
   | .run request => request.references == [OATP.ProverReference.fromOnline "vampire"]
+  | _ => false
+#guard match OATP.Runtime.resolveOnline "oatp" #[{ id := "Vampire---5.0.1" }]
+    ["online-vampire"] with
+  | .ok #[system] => system.id == "Vampire---5.0.1"
   | _ => false
 #guard (OATP.ReplView.clearSelection
     { selectionStart := some (1, 2), selectionEnd := some (3, 4) }).selectionStart.isNone

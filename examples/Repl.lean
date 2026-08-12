@@ -507,7 +507,8 @@ private def infoText (app : App) (query : String) : IO (String × Bool) := do
     ], false)
   | .ok systems =>
       let online := systems.filter (fun system =>
-        fuzzy query system.id || fuzzy query (SystemOnTPTP.Catalogue.baseName system.id))
+        fuzzy query (SystemOnTPTP.onlineReference system.id) ||
+          fuzzy query system.id || fuzzy query (SystemOnTPTP.Catalogue.baseName system.id))
       match online.toList with
       | [] => pure (String.intercalate "\n" [
           s!"no local or online prover matched `{query}`",
@@ -1063,7 +1064,7 @@ private def staticOutput (app : App) : IO Unit := do
 private def usage : String :=
   "oatp repl — interactive theorem-proving workbench\n\n" ++
   "usage:\n  lake exe oatp repl\n  lake exe oatp repl --script FILE\n\n" ++
-  "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  /to-tptp\n  " ++
+  "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot  # refresh the current Lean goal\n  /to-tptp\n  " ++
   "/reconstruct implication-intro h exact h\n  /term"
 
 private def scriptExitCode (app : App) : UInt32 :=
