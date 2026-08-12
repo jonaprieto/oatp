@@ -89,7 +89,8 @@ private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (c
   let elapsedMs := (← IO.monoMsNow) - started
   let actual := stdout.toUTF8.size + stderr.toUTF8.size
   if actual > limits.maxOutputBytes then
-    let message := s!"local prover output exceeded {limits.maxOutputBytes} bytes ({actual} captured)"
+    let message :=
+      s!"local prover output exceeded {limits.maxOutputBytes} bytes ({actual} captured)"
     for run in artifacts do
       OATP.Artifacts.write run "error.txt" message
       OATP.Artifacts.write run "result.txt" "error\n"

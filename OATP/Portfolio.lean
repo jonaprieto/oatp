@@ -44,6 +44,7 @@ private def responseErrorMessage : SystemOnTPTP.ResponseError → String
   | .httpStatus status => s!"SystemOnTPTP returned HTTP {status}"
   | .missingStatus => "SystemOnTPTP response did not contain an SZS status"
   | .unsupportedStatus status => s!"SystemOnTPTP returned unsupported SZS status `{status}`"
+  | .malformedBody message => s!"SystemOnTPTP response was not valid HTML: {message}"
 
 private def httpErrorMessage : Http.Error → String
   | .io message => s!"HTTP IO failed: {message}"

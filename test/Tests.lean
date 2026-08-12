@@ -86,6 +86,9 @@ open OATP OATP.TPTP
 #guard OATP.SystemOnTPTP.responseText
     "<html><body>% upload error<BR><PRE>&lt;bad&gt;</PRE></body></html>" ==
   "% upload error\n\n<bad>"
+#guard match OATP.SystemOnTPTP.parseResponseText "<html><body" with
+  | .error _ => true
+  | .ok _ => false
 #guard match OATP.Http.Form.encodeMultipart "oatp-boundary" #[
     { name := "problem", value := "fof(goal, conjecture, p)." }
   ] with

@@ -7,6 +7,7 @@ Authors: Jonathan Prieto-Cubides
 import OATP.Core
 import OATP.Artifacts
 import OATP.Http
+import Grip
 
 /-!
 # OATP.SystemOnTPTP: typed form adapter
@@ -114,7 +115,14 @@ inductive ResponseError where
   | httpStatus (statusCode : Nat)
   | missingStatus
   | unsupportedStatus (value : String)
+  | malformedBody (message : String)
   deriving Repr
+
+def ResponseError.message : ResponseError → String
+  | .httpStatus status => s!"SystemOnTPTP returned HTTP {status}"
+  | .missingStatus => "SystemOnTPTP response did not contain an SZS status"
+  | .unsupportedStatus status => s!"SystemOnTPTP returned unsupported SZS status `{status}`"
+  | .malformedBody message => s!"SystemOnTPTP response was not valid HTML: {message}"
 
 def fields (config : Config) (problem : Problem) : Array Field :=
   let base : Array Field := #[
@@ -160,25 +168,64 @@ def submit (config : Config) (problem : Problem) :
         OATP.Artifacts.write run "response.error" (Http.Error.message error)
   pure response
 
-private def stripHtmlTags (source : String) : String :=
-  let rec loop : List Char → Bool → List Char
-    | [], _ => []
-    | '<' :: rest, false => loop rest true
-    | '>' :: rest, true => loop rest false
-    | _ :: rest, true => loop rest true
-    | character :: rest, false => character :: loop rest false
-  String.ofList (loop source.toList false)
+private inductive HtmlPart where
+  | tag (value : String)
+  | text (value : String)
+
+open Grip GParser
+
+private def htmlTag : GParser conditional HtmlPart :=
+  HtmlPart.tag <$> GParser.capture (GParser.ch '<' *> GParser.takeWhile (· != 62) <* GParser.ch '>')
+
+private def htmlText : GParser conditional HtmlPart :=
+  HtmlPart.text <$> GParser.capture (GParser.takeWhile1 (· != 60))
+
+private def htmlPart : GParser conditional HtmlPart :=
+  GParser.chooseG htmlTag [htmlText]
+
+private def htmlDocument : Grip.Parser (List HtmlPart) :=
+  GParser.seqL (GParser.many htmlPart) GParser.eof
+
+private def tagStarts (needle : String) (tag : String) : Bool :=
+  tag.toLower.startsWith needle
+
+private def bodyText (parts : List HtmlPart) : String :=
+  let hasBody := parts.any fun part => match part with
+    | .tag tag => tagStarts "<body" tag
+    | .text _ => false
+  let rec collect (inside : Bool) : List HtmlPart → List String
+    | [] => []
+    | part :: rest =>
+        match part with
+        | .text value => if inside then value :: collect inside rest else collect inside rest
+        | .tag tag =>
+            let opening := tagStarts "<body" tag
+            let closing := tagStarts "</body" tag
+            let lineBreak := tagStarts "<br" tag || tagStarts "<pre" tag ||
+              tagStarts "</pre" tag
+            if closing then []
+            else if opening then collect true rest
+            else if inside && lineBreak then "\n" :: collect inside rest
+            else collect inside rest
+  String.intercalate "" (collect (!hasBody) parts)
+
+private def decodeHtmlEntities (value : String) : String :=
+  value.replace "&gt;" ">" |>.replace "&lt;" "<" |>.replace "&amp;" "&"
+    |>.replace "&quot;" "\"" |>.replace "&#39;" "'"
+
+def parseResponseText (body : String) : Except Grip.ParseError String :=
+  let body := body.trimAscii.toString
+  if !body.startsWith "<!DOCTYPE" && !body.toLower.startsWith "<html" then
+    .ok body
+  else
+    match htmlDocument.parse body.toUTF8 with
+    | .error error => .error error
+    | .ok parts => .ok <| decodeHtmlEntities (bodyText parts).trimAscii.toString
 
 def responseText (body : String) : String :=
-  let body := body.trimAscii.toString
-  if body.startsWith "<!DOCTYPE" || body.startsWith "<html" then
-    let body := body.splitOn "<body>" |>.reverse.headD body
-    let body := body.replace "<BR>" "\n" |>.replace "<br>" "\n"
-    let body := body.replace "<PRE>" "\n" |>.replace "</PRE>" "\n"
-    let body := stripHtmlTags body
-    body.replace "&gt;" ">" |>.replace "&lt;" "<" |>.replace "&amp;" "&"
-      |>.replace "&quot;" "\"" |>.replace "&#39;" "'" |>.trimAscii.toString
-  else body
+  match parseResponseText body with
+  | .ok text => text
+  | .error _ => body
 
 def catalogueRequest (endpoint : String) : Http.Request where
   method := .get
@@ -200,11 +247,14 @@ def parseResponse (config : Config) (problem : Problem) (response : Http.Respons
   let status ← match SZSStatus.ofString token with
     | some status => Except.ok status
     | none => Except.error (.unsupportedStatus token)
+  let stdout ← match parseResponseText response.body with
+    | .ok text => Except.ok text
+    | .error error => Except.error (.malformedBody error.message)
   pure {
     prover := { name := String.intercalate ", " (labels config).toList }
     status
     problemName := some problem.name
-    stdout := responseText response.body
+    stdout
     stderr := response.stderr
   }
 
