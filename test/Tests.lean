@@ -116,6 +116,12 @@ open OATP OATP.TPTP
 #guard match OATP.Repl.parseInput "/state goal" with
   | .command (.stateTarget "goal") => true
   | _ => false
+#guard match OATP.Repl.parseCommand "/remove 2 4" with
+  | .remove [2, 4] => true
+  | _ => false
+#guard match OATP.Repl.parseCommand "/update 2 fof(goal, conjecture, q)." with
+  | .update 2 "fof(goal, conjecture, q)." => true
+  | _ => false
 #guard match OATP.Repl.parseInput "/grammar cnf" with
   | .command (.grammar "cnf") => true
   | _ => false
@@ -160,6 +166,39 @@ open OATP OATP.TPTP
       session.formulas.size == 1 &&
       session.symbols.any (fun symbol => symbol.kind == .predicate && symbol.name == "p") &&
       session.symbols.any (fun symbol => symbol.kind == .variable && symbol.name == "X")
+  | .error _ => false
+#guard match OATP.Repl.parseSource {} "fof(a, axiom, p).\nfof(b, axiom, q).\nfof(c, axiom, r)."
+    "fof(a, axiom, p).\nfof(b, axiom, q).\nfof(c, axiom, r)." with
+  | .ok session =>
+      match OATP.Repl.apply session "/remove 2" with
+      | .ok updated => updated.formulas.toList.map (·.id) == [1, 3]
+      | .error _ => false
+  | .error _ => false
+#guard match OATP.Repl.parseSource {} "fof(a, axiom, p)."
+    "fof(a, axiom, p)." with
+  | .ok session =>
+      match OATP.Repl.apply session "/update 1 fof(b, axiom, q)." with
+      | .ok updated => updated.formulas[0]?.map (fun formula =>
+          formula.id == 1 && formula.name == "b" && formula.formula == "q") == some true
+      | .error _ => false
+  | .error _ => false
+#guard match OATP.Repl.parseSource {} "fof(a, axiom, p)."
+    "fof(a, axiom, p)." with
+  | .ok session =>
+      match OATP.Repl.apply session "/update 1 not-tptp" with
+      | .error _ => true
+      | .ok _ => false
+  | .error _ => false
+#guard match OATP.Repl.parseSource {} "fof(a, axiom, p)."
+    "fof(a, axiom, p)." with
+  | .ok session =>
+      match OATP.Repl.apply session "/clear" with
+      | .ok cleared =>
+          match OATP.Repl.parseSource cleared "fof(b, axiom, q)."
+              "fof(b, axiom, q)." with
+          | .ok updated => updated.formulas[0]?.map (·.id) == some 2
+          | .error _ => false
+      | .error _ => false
   | .error _ => false
 #guard match OATP.Repl.parseSource {} "cnf(goal, conjecture, p(a))."
     "cnf(goal, conjecture, p(a))." with

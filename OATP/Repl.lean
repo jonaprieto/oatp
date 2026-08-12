@@ -97,6 +97,8 @@ inductive Command where
   | parse (source : String)
   | axiom (name formula : String)
   | conjecture (name formula : String)
+  | remove (indices : List Nat)
+  | update (index : Nat) (source : String)
   | load (path : String)
   | goal (formula : String)
   | toLean (formula : String)
@@ -264,6 +266,15 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "conjecture" (Spec.map2 Command.conjecture
         (Spec.arg "NAME" "Statement name" Param.str) (textSpec "FORMULA" "Formula"))
         (description := "Add a conjecture")
+    , Argus.cmd "remove"
+        (Spec.map2 (fun index indices => Command.remove (index :: indices))
+          (Spec.arg "INDEX" "Context item index" Param.nat)
+          (Spec.many (Spec.arg "INDEX" "Context item index" Param.nat)))
+        (description := "Remove indexed context items")
+    , Argus.cmd "update" (Spec.map2 Command.update
+        (Spec.arg "INDEX" "Context item index" Param.nat)
+        (textSpec "SOURCE" "Replacement TPTP statement"))
+        (description := "Replace an indexed context statement")
     , Argus.cmd "load" (Spec.map Command.load (Spec.arg "PATH" "TPTP file" Param.path))
         (description := "Load a TPTP file")
     , Argus.cmd "goal" (Spec.map Command.goal (textSpec "FORMULA" "Lean formula"))
@@ -392,6 +403,7 @@ structure Symbol where
   deriving BEq, DecidableEq, Repr
 
 structure FormulaView where
+  id : Nat
   cell : Nat
   name : String
   kind : String
@@ -399,6 +411,12 @@ structure FormulaView where
   source : String
   formula : String
   symbols : Array Symbol := #[]
+  deriving Repr
+
+structure ContextItem where
+  id : Nat
+  cell : Nat
+  value : _root_.TPTP.Item
   deriving Repr
 
 structure HistoryEntry where
@@ -409,9 +427,11 @@ structure HistoryEntry where
 
 structure Session where
   nextCell : Nat := 1
+  nextContextId : Nat := 1
   problemSource : String := ""
   formulas : Array FormulaView := #[]
   symbols : Array Symbol := #[]
+  context : Array ContextItem := #[]
   history : Array HistoryEntry := #[]
   deriving Repr
 
@@ -455,10 +475,10 @@ private partial def collectFormula (formula : _root_.TPTP.Formula.Expr)
         addSymbol symbols { kind := .variable, name }) symbols
       collectFormula body symbols
 
-private def formulaView (cell : Nat) (statement : _root_.TPTP.Statement) : FormulaView :=
+private def formulaView (id cell : Nat) (statement : _root_.TPTP.Statement) : FormulaView :=
   match OATP.TPTP.Statement.parseFormula statement with
   | .ok formula =>
-      { cell
+      { id, cell
         name := s!"{statement.name}"
         kind := s!"{statement.kind}"
         role := s!"{statement.role}"
@@ -468,22 +488,36 @@ private def formulaView (cell : Nat) (statement : _root_.TPTP.Statement) : Formu
           | .error _ => statement.formula
         symbols := collectFormula formula #[] }
   | .error _ =>
-      { cell
+      { id, cell
         name := s!"{statement.name}"
         kind := s!"{statement.kind}"
         role := s!"{statement.role}"
         source := statement.render
         formula := statement.formula }
 
-private def viewsOf (cell : Nat) (document : _root_.TPTP.Document) : Array FormulaView :=
-  let views := document.items.toList.filterMap fun item =>
-    match item with
-    | .statement statement => some (formulaView cell statement)
-    | .include _ => none
-  views.toArray
+private def contextItems (nextId cell : Nat) (document : _root_.TPTP.Document) :
+    Array ContextItem × Nat :=
+  document.items.foldl (fun (items, nextId) item =>
+    (items.push { id := nextId, cell, value := item }, nextId + 1)) (#[], nextId)
 
-private def appendSource (old source : String) : String :=
-  if old.isEmpty then source else old ++ "\n" ++ source
+private def viewsOf (items : Array ContextItem) : Array FormulaView :=
+  items.foldl (fun views item =>
+    match item.value with
+    | .statement statement => views.push (formulaView item.id item.cell statement)
+    | .include _ => views) #[]
+
+private def symbolsOf (views : Array FormulaView) : Array Symbol :=
+  views.foldl (fun symbols view => view.symbols.foldl addSymbol symbols) #[]
+
+private def problemSourceOf (items : Array ContextItem) : String :=
+  String.intercalate "\n" (items.toList.map (fun item => item.value.render))
+
+private def rebuildContext (session : Session) : Session :=
+  let formulas := viewsOf session.context
+  { session with
+    problemSource := problemSourceOf session.context
+    formulas
+    symbols := symbolsOf formulas }
 
 private def record (session : Session) (input result : String) : Session :=
   { session with
@@ -494,15 +528,11 @@ def note (session : Session) (input result : String) : Session :=
   record session input result
 
 def addDocument (session : Session) (input : String) (document : _root_.TPTP.Document) : Session :=
-  let views := viewsOf session.nextCell document
-  let symbols := views.foldl (fun symbols view =>
-    view.symbols.foldl addSymbol symbols) session.symbols
-  let rendered := document.render
-  let session := { session with
-    problemSource := appendSource session.problemSource rendered
-    formulas := session.formulas ++ views
-    symbols }
-  record session input s!"parsed {views.size} statement(s)"
+  let (items, nextContextId) := contextItems session.nextContextId session.nextCell document
+  let session := rebuildContext { session with
+    context := session.context ++ items
+    nextContextId }
+  record session input s!"parsed {viewsOf items |>.size} statement(s)"
 
 def helpText : String :=
   commandHelpText ++ "\n" ++ String.intercalate "\n" [
@@ -706,12 +736,56 @@ private def validateDocument (document : _root_.TPTP.Document) : Except String U
     | _root_.TPTP.Item.statement statement => validateStatement statement
     | _root_.TPTP.Item.include _ => pure ()) |>.map (fun _ => ())
 
-def parseSource (session : Session) (input source : String) : Except String Session :=
+private def parseDocument (source : String) : Except String _root_.TPTP.Document := do
   match OATP.TPTP.parse source with
-  | .ok document => do
-      validateDocument document
-      pure (addDocument session input document)
   | .error error => .error (error.pretty source.toUTF8)
+  | .ok document =>
+      validateDocument document
+      pure document
+
+def parseSource (session : Session) (input source : String) : Except String Session :=
+  match parseDocument source with
+  | .ok document => pure (addDocument session input document)
+  | .error message => .error message
+
+private def contextIndexText (index : Nat) : String := s!"#{index}"
+
+private def missingContextIndices (session : Session) (indices : List Nat) : List Nat :=
+  indices.filter (fun index => !session.context.any (·.id == index))
+
+def removeContext (session : Session) (input : String) (indices : List Nat) :
+    Except String Session :=
+  let indices := indices.eraseDups
+  if indices.isEmpty then
+    .error "remove expects at least one context index"
+  else
+    match missingContextIndices session indices with
+    | missing :: rest =>
+        let missing := String.intercalate ", " (missing :: rest |>.map contextIndexText)
+        .error s!"unknown context index {missing}"
+    | [] =>
+        let context := session.context.filter (fun item => !indices.contains item.id)
+        let session := rebuildContext { session with context }
+        let removed := String.intercalate ", " (indices.map contextIndexText)
+        .ok (record session input s!"removed {removed}")
+
+private def singleStatement (source : String) : Except String _root_.TPTP.Statement := do
+  let document ← parseDocument source
+  match document.items.toList with
+  | [.statement statement] => pure statement
+  | [] => .error "update expects one TPTP statement"
+  | _ => .error "update expects exactly one TPTP statement"
+
+def updateContext (session : Session) (input : String) (index : Nat) (source : String) :
+    Except String Session := do
+  let statement ← singleStatement source
+  if !session.context.any (·.id == index) then
+    .error s!"unknown context index {contextIndexText index}"
+  else
+    let context := session.context.map fun item =>
+      if item.id == index then { item with value := .statement statement } else item
+    let session := rebuildContext { session with context }
+    pure (record session input s!"updated {contextIndexText index}")
 
 private def addFormulaCommand (session : Session) (input name role formula : String) :
     Except String Session :=
@@ -730,12 +804,14 @@ def apply (session : Session) (input : String) : Except String Session :=
       | .grammar topic => pure (record session input (helpFor (some topic)))
       | .roles topic => pure (record session input (roleHelp topic))
       | .version => pure (record session input s!"oatp {OATP.version}")
-      | .clear => pure (record { session with formulas := #[], symbols := #[], problemSource := "" }
+      | .clear => pure (record (rebuildContext { session with context := #[] })
           input "session context cleared")
       | .reset => pure (record {} input "session reset")
       | .parse source => parseSource session input source
       | .axiom name formula => addFormulaCommand session input name "axiom" formula
       | .conjecture name formula => addFormulaCommand session input name "conjecture" formula
+      | .remove indices => removeContext session input indices
+      | .update index source => updateContext session input index source
       | .load path => pure (record session input s!"load requested: {path}")
       | .goal _ | .toLean _ => pure (record session input "Lean goal requested")
       | .snapshot => pure (record session input "Lean snapshot requested")

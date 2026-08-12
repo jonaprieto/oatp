@@ -484,7 +484,8 @@ private def semanticFormula (scheme : ColorScheme) (formula : FormulaView) : Tex
   semanticText scheme formula.symbols formula.formula
 
 private def formulaLine (scheme : ColorScheme) (formula : FormulaView) : Text :=
-  Text.styled s!"{formula.cell} {formula.role} " (Style.dim <+> Style.fg scheme.comment) ++
+  Text.styled s!"#{formula.id} [{formula.cell}] {formula.role} "
+      (Style.dim <+> Style.fg scheme.comment) ++
     Text.styled formula.name (Style.bold <+> Style.fg scheme.cyan) ++
     Text.styled ": " (Style.dim <+> Style.fg scheme.comment) ++ semanticFormula scheme formula
 
