@@ -32,6 +32,7 @@ goals, translated problems, prover artifacts, and kernel-checked terms in one se
 /to-tptp
 /reconstruct implication-intro h exact h
 /term
+/check
 /run --prover eprover
 /local ./my-prover -- --arg
 /online --system online-vampire
@@ -43,6 +44,9 @@ Use `/state` for the context drawer, `/history` for the transcript, and `--scrip
 non-interactive session. `/to-lean` currently accepts the propositional TPTP fragment; terms and
 quantifiers remain available for `/parse` and prover execution and return an explicit diagnostic
 when a Lean signature is required.
+
+Use `/check` for a beginner-friendly check with the configured default prover and any selected
+provers. Use `/run` when choosing an explicit prover or portfolio.
 
 Run a local problem or select an online system explicitly:
 

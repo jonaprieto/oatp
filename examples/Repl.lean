@@ -90,18 +90,24 @@ private def lastHistory (session : OATP.Repl.Session) : String :=
 private def artifactText : Portfolio.Result → (String × Bool)
   | .artifact attempt artifact =>
       let head := s!"{attempt.name}: {artifact.status} ({artifact.elapsedMs}ms)"
-      let stdout := if artifact.stdout.isEmpty then ""
-        else "\n" ++ artifact.stdout.trimAscii.toString
-      let stderr := if artifact.stderr.isEmpty then ""
-        else "\nstderr: " ++ artifact.stderr.trimAscii.toString
-      (head ++ stdout ++ stderr, SZSStatus.isSuccess artifact.status)
+      let details := if artifact.stderr.contains "no input problem files" then
+          "\n  this prover needs an input file; try `/check` or `/run --prover eprover`"
+        else
+          let stdout := if artifact.stdout.isEmpty then "" else
+            "\n" ++ artifact.stdout.trimAscii.toString
+          let stderr := if artifact.stderr.isEmpty then "" else
+            "\nstderr: " ++ artifact.stderr.trimAscii.toString
+          stdout ++ stderr
+      (head ++ details, SZSStatus.isSuccess artifact.status)
   | .failed attempt failure => (s!"{attempt.name}: failed: {failure.message}", false)
 
 private def runRow : Portfolio.Result → RunRow
   | .artifact attempt artifact =>
       { name := attempt.name
         status := .result artifact.status
-        detail := if !artifact.stderr.isEmpty then artifact.stderr.trimAscii.toString
+        detail := if artifact.stderr.contains "no input problem files" then
+            "this prover needs an input file; try `/check` or `/run --prover eprover`"
+          else if !artifact.stderr.isEmpty then artifact.stderr.trimAscii.toString
           else artifact.stdout.trimAscii.toString
         elapsedMs := some artifact.elapsedMs }
   | .failed attempt failure =>
@@ -161,10 +167,25 @@ private def selectableProvers : IO (Array OATP.ProverReference × Option String)
   | .ok online => pure (installed ++ online, none)
   | .error message => pure (installed, some message)
 
-private def selectedProvers (app : App) (all : Bool) : IO (Array OATP.ProverReference) := do
+private def defaultProvers (app : App) : IO (Array OATP.ProverReference) := do
   let installed ← installedProverReferences
-  if all then pure installed
-  else if app.proverSelectionSet then
+  match app.defaultProver with
+  | some reference => match reference.kind with
+      | .online =>
+          match ← onlineProverNames with
+          | .ok online => pure <| if online.any (· == reference) then #[reference] else #[]
+          | .error _ => pure #[]
+      | .local => pure <| if installed.any (· == reference) then #[reference] else #[]
+  | none => match OATP.Runtime.defaultLocalProver (installed.map (·.name)) with
+      | some name => pure #[OATP.ProverReference.fromLocal name]
+      | none => pure #[]
+
+private def selectedProvers (app : App) (all includeDefault : Bool := false) :
+    IO (Array OATP.ProverReference) := do
+  let installed ← installedProverReferences
+  let selected ← if all then
+      pure installed
+    else if app.proverSelectionSet then
     if app.enabledProvers.any (fun reference => reference.kind == .online) then
       match ← onlineProverNames with
       | .ok online =>
@@ -175,18 +196,17 @@ private def selectedProvers (app : App) (all : Bool) : IO (Array OATP.ProverRefe
           installed.any (· == reference)
     else
       pure <| app.enabledProvers.filter (fun reference => installed.any (· == reference))
-  else match app.defaultProver with
-    | some reference => match reference.kind with
-        | .online =>
-            match ← onlineProverNames with
-            | .ok online => pure <| if online.any (· == reference) then #[reference] else #[]
-            | .error _ => pure #[]
-        | .local => pure <| if installed.any (· == reference) then #[reference] else #[]
-    | none => match OATP.Runtime.defaultLocalProver (installed.map (·.name)) with
-        | some name => pure #[OATP.ProverReference.fromLocal name]
-        | none => pure #[]
+    else
+      defaultProvers app
+  if !includeDefault then
+    pure selected
+  else
+    let defaults ← defaultProvers app
+    pure <| defaults.foldl (fun selected reference =>
+      if selected.any (· == reference) then selected else selected.push reference) selected
 
-private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String × Bool) := do
+private def runRequest (app : App) (request : OATP.Repl.RunRequest)
+    (includeDefault : Bool := false) : IO (String × Bool) := do
   match currentProblem app with
   | none =>
       let message :=
@@ -195,7 +215,7 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
       pure (message, false)
   | some problem =>
       let references ← if request.references.isEmpty then
-        pure (← selectedProvers app request.all).toList
+        pure (← selectedProvers app request.all includeDefault).toList
       else pure request.references
       let localReferences := references.filterMap fun reference =>
         match reference.kind with
@@ -271,30 +291,33 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest) : IO (String
 private def backendLine (input : String) : Bool :=
   match OATP.Repl.parseCommandSpec input with
   | .ok command => match command with
-      | .run _ | .local _ | .online _ => true
+      | .run _ | .local _ | .online _ | .check => true
       | _ => false
   | .error _ => false
 
-private def backendRequest (input : String) : Except String OATP.Repl.RunRequest :=
+private def backendRequest (input : String) :
+    Except String (OATP.Repl.RunRequest × Bool) :=
   match OATP.Repl.parseCommandSpec input with
-  | .ok (.run request) => pure request
-  | .ok (.local request) => pure {
+  | .ok (.run request) => pure (request, false)
+  | .ok (.local request) => pure ({
       references := [OATP.ProverReference.fromLocal request.executable]
       timeout := request.timeout
       maxOutput := request.maxOutput
-      arguments := request.arguments }
-  | .ok (.online request) => pure {
+      arguments := request.arguments }, false)
+  | .ok (.online request) => pure ({
       references := [OATP.ProverReference.fromOnline request.system]
       endpoint := request.endpoint
       timeout := request.timeout
-      maxOutput := request.maxOutput }
+      maxOutput := request.maxOutput }, false)
+  | .ok .check => pure ({}, true)
   | .ok _ => .error "not a prover command"
   | .error message => .error message
 
 private def startingRunRows (input : String) : Array RunRow :=
   match backendRequest input with
-  | .ok request =>
-      if request.references.isEmpty then #[{ name := "selected provers", status := .running }]
+  | .ok (request, includeDefault) =>
+      if request.references.isEmpty then #[{ name := if includeDefault then
+          "default + selected provers" else "selected provers", status := .running }]
       else request.references.toArray.map fun reference =>
         { name := OATP.ProverReference.display reference, status := .running }
   | .error _ => #[{ name := "run", status := .running }]
@@ -325,10 +348,10 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
         pure { app with jobResult := some {
           cell := app.session.nextCell, input, output := message, ok := false,
           elapsedMs := some ((← IO.monoMsNow) - started) } }
-    | .ok request =>
+    | .ok (request, includeDefault) =>
         -- partiality: portfolio execution has no process-cancellation seam yet; keep the UI
         -- responsive and add cancellation at Portfolio once process ownership is exposed.
-        let (output, ok) ← runRequest app request
+        let (output, ok) ← runRequest app request includeDefault
         let rows ← currentRunRows app
         pure { app with runRows := rows, jobResult := some {
           cell := app.session.nextCell, input, output, ok,
@@ -690,6 +713,9 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
         timeout := request.timeout
         maxOutput := request.maxOutput }
       let (output, ok) ← runRequest app run
+      pure (notePlain app cell input output ok)
+  | .check => do
+      let (output, ok) ← runRequest app {} true
       pure (notePlain app cell input output ok)
   | _ => applyPureCommand app cell input
 

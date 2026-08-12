@@ -107,6 +107,7 @@ inductive Command where
   | run (request : RunRequest)
   | local (request : LocalRequest)
   | online (request : OnlineRequest)
+  | check
   | theory (value : Option String)
   | prover (value : Option String)
   | provers
@@ -279,6 +280,8 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "term" (Spec.const .term) (description := "Show the checked term")
     , Argus.cmd "run" (Spec.map (fun options => .run (runRequestOf options)) RunOptions.spec)
         (description := "Run selected provers")
+    , Argus.cmd "check" (Spec.const .check)
+        (description := "Check with the default and selected provers in parallel")
     , Argus.cmd "local"
         (Spec.map (fun options => .local (localRequestOf options)) LocalOptions.spec)
         (description := "Run a local prover")
@@ -737,7 +740,7 @@ def apply (session : Session) (input : String) : Except String Session :=
       | .toTptp => pure (record session input "TPTP translation requested")
       | .reconstruct _ => pure (record session input "proof reconstruction requested")
       | .term => pure (record session input "checked term requested")
-      | .run _ | .local _ | .online _ => pure (record session input "prover run requested")
+      | .run _ | .local _ | .online _ | .check => pure (record session input "prover run requested")
       | .theory none => pure (record session input "theory requested")
       | .theory (some value) => pure (record session input s!"theory requested: {value}")
       | .prover none => pure (record session input "prover requested")

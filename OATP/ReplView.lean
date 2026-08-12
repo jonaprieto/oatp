@@ -824,9 +824,9 @@ private def banner (scheme : ColorScheme) (width : Nat) : Text :=
       Text.plain "\n\n" ++ mascot scheme ++ Text.plain "\n\n" ++
       Text.styled "INPUT • ORCHESTRATE • CHECK" (Style.fg scheme.comment)
   let compactRight :=
-    Text.styled "/to-lean  /state  /run  /help" (Style.fg scheme.cyan) ++
+    Text.styled "/check  /run  /help" (Style.fg scheme.cyan) ++
       Text.plain "\n" ++
-      Text.styled "↑/↓ history • Enter submit" (Style.dim <+> Style.fg scheme.comment)
+      Text.styled "check default • run portfolio" (Style.dim <+> Style.fg scheme.comment)
   let compactLeft :=
     Text.styled "OATP REPL" (Style.bold <+> Style.fg scheme.foreground) ++
       Text.plain "\n\n" ++ mascot scheme ++ Text.plain "\n\n" ++
@@ -837,8 +837,10 @@ private def banner (scheme : ColorScheme) (width : Nat) : Text :=
         Text.styled "  create a Lean goal" (Style.dim <+> Style.fg scheme.comment) ++
       Text.plain "\n" ++ Text.styled "/state" (Style.fg scheme.cyan) ++
         Text.styled "           inspect context" (Style.dim <+> Style.fg scheme.comment) ++
+      Text.plain "\n" ++ Text.styled "/check" (Style.fg scheme.cyan) ++
+        Text.styled "               check with default" (Style.dim <+> Style.fg scheme.comment) ++
       Text.plain "\n" ++ Text.styled "/run --prover eprover" (Style.fg scheme.cyan) ++
-        Text.styled "  invoke ATP" (Style.dim <+> Style.fg scheme.comment) ++
+        Text.styled "  run one prover" (Style.dim <+> Style.fg scheme.comment) ++
       Text.plain "\n\n" ++ Text.styled "ENTER" (Style.bold <+> Style.fg scheme.foreground) ++
         Text.styled " submit  •  " (Style.dim <+> Style.fg scheme.comment) ++
         Text.styled "CTRL-N" (Style.bold <+> Style.fg scheme.foreground) ++

@@ -250,6 +250,9 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
 #guard match OATP.Repl.parseCommandSpec "/run" with
   | .ok (.run request) => request.references.isEmpty && !request.all
   | _ => false
+#guard match OATP.Repl.parseCommandSpec "/check" with
+  | .ok .check => true
+  | _ => false
 #guard match OATP.Repl.parseCommandSpec "local" with
   | .error message => message.contains "commands start with"
   | .ok _ => false
@@ -288,7 +291,8 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
   | .ok session =>
       let help := (session.history.toList.getLast?.map (·.result)).getD ""
       help.contains "/help [<TOPIC>]" && help.contains "/goal <FORMULA> [<FORMULA>...]" &&
-        help.contains "/axiom <NAME> <FORMULA> [<FORMULA>...]" && help.contains "grammar"
+        help.contains "/axiom <NAME> <FORMULA> [<FORMULA>...]" && help.contains "/check" &&
+        help.contains "grammar"
   | .error _ => false
 #guard (OATP.ReplView.clearSelection
     { selectionStart := some (1, 2), selectionEnd := some (3, 4) }).selectionStart.isNone
