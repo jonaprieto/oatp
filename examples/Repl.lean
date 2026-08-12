@@ -84,11 +84,20 @@ private def invalidateContext (app : App) : App :=
     runFocus := 0
     contextItemFocus := none }
 
+private def clearTranscript (app : App) : App :=
+  { app with
+    entries := []
+    transcriptScroll := 0
+    selectionStart := none
+    selectionEnd := none
+    copyPending := none
+    repl := { app.repl with input := {}, historyIndex := none, completion := none } }
+
 private def changesContext (input : String) : Bool :=
   match OATP.Repl.parseInput input with
   | .source _ => true
   | .command command => match command with
-      | .parse _ | .axiom _ _ | .conjecture _ _ | .remove _ | .update _ _ | .clear | .reset => true
+      | .parse _ | .axiom _ _ | .conjecture _ _ | .remove _ | .update _ _ | .reset => true
       | _ => false
 
 private def lastHistory (session : OATP.Repl.Session) : String :=
@@ -470,16 +479,15 @@ private def proverMatches (query : String) (reference : OATP.ProverReference) : 
   fuzzy query (OATP.ProverReference.display reference) || fuzzy query reference.name
 
 private def infoText (app : App) (query : String) : IO (String × Bool) := do
-  let candidates ← OATP.Runtime.localProverCandidates
-  let found := candidates.filter (fuzzy query)
+  let installed ← OATP.Runtime.installedProvers
+  let found := installed.filter (fuzzy query)
   if found.size == 1 then
     let name := found[0]!
     let reference := OATP.ProverReference.fromLocal name
     let version := (← Http.commandVersion name).getD "not installed"
-    let installed := (← OATP.Runtime.installedProvers).any (· == name)
     let enabled := if app.proverSelectionSet then
         app.enabledProvers.any (· == reference)
-      else installed
+      else true
     return (String.intercalate "\n" [
       s!"prover: {name}",
       s!"kind:   local executable",
@@ -491,16 +499,26 @@ private def infoText (app : App) (query : String) : IO (String × Bool) := do
     return (s!"`{query}` matches local provers: {String.intercalate ", " found.toList}", false)
   let endpoint := SystemOnTPTP.defaultCatalogueEndpoint
   match ← OATP.Runtime.loadCatalogue catalogueNamespace endpoint .normal with
-  | .error _ => pure (s!"no prover matched `{query}`; local candidates: {
-      String.intercalate ", " candidates.toList}", false)
+  | .error message => pure (String.intercalate "\n" [
+      s!"no local prover matched `{query}`",
+      s!"online catalogue unavailable: {message}",
+      s!"installed local provers: {if installed.isEmpty then "none" else
+        String.intercalate ", " installed.toList}"
+    ], false)
   | .ok systems =>
       let online := systems.filter (fun system =>
         fuzzy query system.id || fuzzy query (SystemOnTPTP.Catalogue.baseName system.id))
       match online.toList with
-      | [] => pure (s!"no prover matched `{query}`", false)
+      | [] => pure (String.intercalate "\n" [
+          s!"no local or online prover matched `{query}`",
+          s!"installed local provers: {if installed.isEmpty then "none" else
+            String.intercalate ", " installed.toList}"
+        ], false)
       | [system] => pure (String.intercalate "\n" [
           s!"prover: {SystemOnTPTP.onlineReference system.id}",
-          "kind:   SystemOnTPTP catalogue",
+          "kind:   online SystemOnTPTP prover",
+          "local:  not installed",
+          s!"system: {system.id}",
           s!"command: {if system.command.isEmpty then "catalogue default" else system.command}",
           s!"time limit: {system.timeLimit}s"
         ], true)
@@ -573,7 +591,9 @@ private def submitLeanCommand (app : App) (cell : Nat) (input : String)
     match app.leanRuntime, app.leanGoal with
     | some runtime, some goal =>
         let (runtime, snapshot) ← OATP.Lean.Repl.snapshot runtime goal
-        let output := String.intercalate "\n" snapshot.context.toList ++ "\n⊢ " ++ snapshot.target
+        let context := if snapshot.context.isEmpty then "(no local hypotheses)" else
+          String.intercalate "\n" snapshot.context.toList
+        let output := "Lean goal snapshot\n" ++ context ++ "\n⊢ " ++ snapshot.target
         return some <| note { app with leanRuntime := some runtime, goal := some snapshot }
           cell input output true
     | _, _ => return some (note app cell input "no Lean goal" false)
@@ -609,12 +629,12 @@ private def submitLeanCommand (app : App) (cell : Nat) (input : String)
 private def applyPureCommand (app : App) (cell : Nat) (input : String) : IO App := do
   match OATP.Repl.apply app.session input with
   | .ok session =>
-      let output := lastHistory session
       let app := if changesContext input then invalidateContext { app with session }
         else { app with session }
-      let app := if input == "/reset" then { app with entries := [] } else app
-      let entryCell := if input == "/reset" then 1 else cell
-      pure <| appendEntry app entryCell input output true
+      if input == "/clear" || input == "/reset" then
+        pure (clearTranscript app)
+      else
+        pure <| appendEntry app cell input (lastHistory session) true
   | .error message => pure (note app cell input message false)
 
 private def submitCommand (app : App) (cell : Nat) (input : String)
@@ -1004,25 +1024,26 @@ private def reportTestApp : App := {
   | none => false
 
 private def interactive (initial : App) : IO Unit := do
-  clearScreen
-  TermColor.Repl.Terminal.run {
-    initial
-    inputConfig := inputConfig
-    multiline := some multilineConfig
-    fallbackSize := fallbackSize
-    tickMs := 16
-    mouse := true
-    view := fun app size => screen app size
-    complete := complete
-    keymap := some appKeymap
-    handleMouse := handleMouse
-    getState := fun app => app.repl
-    setState := fun app repl => { (clearSelection app) with repl }
-    submit := submit
-    jobs := some backgroundJobs
-    isRunning := fun app => app.running
-    quit := fun app => { app with running := false }
-  }
+  withAlternateScreen do
+    clearScreen
+    TermColor.Repl.Terminal.run {
+      initial
+      inputConfig := inputConfig
+      multiline := some multilineConfig
+      fallbackSize := fallbackSize
+      tickMs := 16
+      mouse := true
+      view := fun app size => screen app size
+      complete := complete
+      keymap := some appKeymap
+      handleMouse := handleMouse
+      getState := fun app => app.repl
+      setState := fun app repl => { (clearSelection app) with repl }
+      submit := submit
+      jobs := some backgroundJobs
+      isRunning := fun app => app.running
+      quit := fun app => { app with running := false }
+    }
 
 private def runScript (app : App) (lines : List String) : IO App := do
   let mut app := app

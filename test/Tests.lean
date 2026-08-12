@@ -211,9 +211,10 @@ open OATP OATP.TPTP
   | .ok session =>
       match OATP.Repl.apply session "/clear" with
       | .ok cleared =>
+          cleared.formulas.toList.map (·.name) == ["a"] &&
           match OATP.Repl.parseSource cleared "fof(b, axiom, q)."
               "fof(b, axiom, q)." with
-          | .ok updated => updated.formulas[0]?.map (·.id) == some 2
+          | .ok updated => updated.formulas.toList.map (·.id) == [1, 2]
           | .error _ => false
       | .error _ => false
   | .error _ => false
@@ -354,8 +355,12 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
       let help := (session.history.toList.getLast?.map (·.result)).getD ""
       help.contains "/help [<TOPIC>]" && help.contains "/goal <FORMULA> [<FORMULA>...]" &&
         help.contains "/axiom <NAME> <FORMULA> [<FORMULA>...]" && help.contains "/check" &&
-        help.contains "grammar"
+        help.contains "with THEME, select it" &&
+        !help.contains "Commands start with `/`"
   | .error _ => false
+#guard match OATP.Repl.parseCommand "/run --prover online-vampire" with
+  | .run request => request.references == [OATP.ProverReference.fromOnline "vampire"]
+  | _ => false
 #guard (OATP.ReplView.clearSelection
     { selectionStart := some (1, 2), selectionEnd := some (3, 4) }).selectionStart.isNone
 def main : IO UInt32 := do

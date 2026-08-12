@@ -289,7 +289,8 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "translate-to-lean"
         (Spec.map Command.toLean (textSpec "FORMULA" "Lean formula"))
         (description := "Create a Lean goal")
-    , Argus.cmd "snapshot" (Spec.const .snapshot) (description := "Show the current Lean goal")
+    , Argus.cmd "snapshot" (Spec.const .snapshot)
+        (description := "Refresh and show the current Lean goal")
     , Argus.cmd "to-tptp" (Spec.const .toTptp) (description := "Translate the Lean goal to TPTP")
     , Argus.cmd "reconstruct" (Spec.map Command.reconstruct (textSpec "STEP" "Proof step"))
         (description := "Reconstruct and check a proof step")
@@ -314,10 +315,10 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "provers" (Spec.const .provers) (description := "Select enabled provers")
     , Argus.cmd "info" (Spec.map Command.info
         (Spec.arg "PROVER" "Prover name" (Param.named "PROVER" Param.str)))
-        (description := "Show prover information")
+        (description := "Show local or cached online prover information")
     , Argus.cmd "theme" (Spec.map Command.theme
         (Spec.opt (Spec.arg "THEME" "Color theme" (Param.named "THEME" Param.str))))
-        (description := "Show or select the color theme")
+        (description := "Show the current theme; with THEME, select it")
     , Argus.cmd "systems"
         (Spec.map (fun options => .systems (systemsRequestOf options)) SystemsOptions.spec)
         (description := "List available provers")
@@ -407,14 +408,7 @@ def parseInput (source : String) : Submission :=
     .source source
 
 def helpText : String :=
-  commandHelpText ++ "\n" ++ String.intercalate "\n" [
-    "Commands start with `/`; <ARG> is required and [ARG] is optional.",
-    "  TAB completes command names, options, and paths",
-    "examples: /run   /local eprover   /online online-vampire   /to-lean p => p",
-    "topics: /help cnf   /help fof   /help tff   /help lean",
-    "        /help run   /help context   /help grammar   /help roles",
-    "grammar: ~p  p & q  p | q  p => q  p <=> q  ![X] : p(X)"
-  ]
+  commandHelpText
 
 private def cnfHelp : String :=
   String.intercalate "\n" [
@@ -506,7 +500,7 @@ private def leanHelp : String :=
   String.intercalate "\n" [
     "Lean bridge",
     "1. /goal p => p              create a Lean goal",
-    "2. /snapshot                  show variables and target",
+    "2. /snapshot                  refresh and show variables and target",
     "3. /to-tptp                   translate the goal to TPTP",
     "4. /reconstruct implication-intro h exact h",
     "5. /term                      show the kernel-checked term",
@@ -524,6 +518,7 @@ private def runHelp : String :=
     "/run --all              run every installed local prover",
     "/local EXECUTABLE [--timeout SEC] [--max-output BYTES] [-- ARGUMENTS...]",
     "/online SYSTEM [--endpoint URL] [--timeout SEC] [--max-output BYTES]",
+    "  online-vampire names the matching SystemOnTPTP Vampire version",
     "/provers                local + online selection drawer; online starts unchecked",
     "/systems [--online] [--refresh] [--no-cache] [--endpoint URL]",
     "/doctor                  check transports and local provers",
@@ -617,8 +612,7 @@ def apply (session : Session) (input : String) : Except String Session :=
       | .grammar topic => pure (note session input (helpFor (some topic)))
       | .roles topic => pure (note session input (roleHelp topic))
       | .version => pure (note session input s!"oatp {OATP.version}")
-      | .clear => pure (note (clearContext session)
-          input "session context cleared")
+      | .clear => pure (note session input "transcript cleared")
       | .reset => pure (note {} input "session reset")
       | .parse source => parseSource session input source
       | .axiom name formula => addFormulaCommand session input name "axiom" formula
