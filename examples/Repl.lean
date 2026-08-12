@@ -752,17 +752,11 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
         [AppContext.keyContext .provers, AppContext.keyContext .proversInput]
       else if app.stateOpen then
         [AppContext.keyContext .state, AppContext.keyContext .stateInput]
-      else if app.historyOpen then
+    else if app.historyOpen then
         [AppContext.keyContext .history, AppContext.keyContext .historyInput]
       else []
     if app.panelFocus == .drawer then drawerContexts
-    else
-      let inputContext := if app.runOpen then some (AppContext.keyContext .runInput)
-        else if app.proversOpen then some (AppContext.keyContext .proversInput)
-        else if app.stateOpen then some (AppContext.keyContext .stateInput)
-        else if app.historyOpen then some (AppContext.keyContext .historyInput)
-        else none
-      AppContext.keyContext .default :: inputContext.toList
+    else [AppContext.keyContext .default]
   handle := fun app action => some (clearSelection (match action with
     | .openRun =>
         if app.runRows.isEmpty then { app with statusNotice := some "no prover run to inspect" }
@@ -784,13 +778,13 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
     | .proverNext => focusNextProver app
     | .proverPrevious => focusPreviousProver app
     | .toggleProver => toggleFocusedProver app
-    | .closeState => { app with stateOpen := false, panelFocus := .main }
+    | .closeState => { app with panelFocus := .main }
     | .contextNext => focusNextContext app
     | .contextPrevious => focusPreviousContext app
     | .toggleContext => toggleFocusedContext app
     | .expandContext => expandFocusedContext app
     | .collapseContext => collapseFocusedContext app
-    | .closeHistory => { app with historyOpen := false, panelFocus := .main }
+    | .closeHistory => { app with panelFocus := .main }
       | .transcriptPageUp => scrollTranscriptPageUp app
     | .transcriptPageDown => scrollTranscriptPageDown app))
 
@@ -800,11 +794,12 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
 #guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .history,
     AppContext.keyContext .historyInput] .escape ==
   some AppKeyAction.closeHistory
+<<<<<<< HEAD
 #guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .default,
     AppContext.keyContext .stateInput] .escape == some AppKeyAction.closeState
 #guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .default,
     AppContext.keyContext .stateInput] (.char 'j') == none
-#guard appKeymap.contexts {} == [AppContext.keyContext .default, AppContext.keyContext .stateInput]
+#guard appKeymap.contexts {} == [AppContext.keyContext .default]
 #guard (Keymap.fromSpecs appBindings).conflicts == []
 #guard appKeyLabel .openRun .default == "Ctrl-R/Ctrl-r"
 #guard match backgroundJobs.start ({} : App) "/run" with
@@ -849,7 +844,7 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
                 some (toggleFocusedProver (focusProver { app with panelFocus := .drawer } index))
               else none
         | _ => none
-  else if !app.stateOpen then
+  else if app.panelFocus == .main then
     match mouse.action with
     | .scrollUp => some (clearSelection (scrollTranscriptUp app))
     | .scrollDown => some (clearSelection (scrollTranscriptDown app))
@@ -874,6 +869,16 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
               let updated := { app with selectionEnd := some (mouse.column, mouse.row) }
               let updated := { updated with copyPending := some selected }
               some { updated with statusNotice := some s!"copied {selected.length} chars" }
+  else if app.historyOpen then
+    match drawerWidths size.columns with
+    | none => none
+    | some (leftWidth, rightWidth) =>
+        let panelLeft := leftWidth + 3
+        let panelRight := panelLeft + rightWidth - 1
+        if mouse.column < panelLeft || mouse.column > panelRight then
+          some { app with panelFocus := .main }
+        else
+          some app
   else
     match drawerWidths size.columns with
     | none => none

@@ -300,7 +300,7 @@ structure App where
   selectionEnd : Option (Nat × Nat) := none
   copyPending : Option String := none
   contextFocus : Nat := 0
-  contextExpanded : Array Bool := Array.replicate contextSectionCount false
+  contextExpanded : Array Bool := Array.replicate contextSectionCount true
   running : Bool := true
   statusNotice : Option String := none
   theme : ColorScheme := aurora
@@ -620,7 +620,7 @@ private def contextSections (app : App) : List (Text × Text) :=
   ContextTarget.all.map render
 
 private def contextExpandedAt (app : App) (index : Nat) : Bool :=
-  app.contextExpanded.getD index false
+  app.contextExpanded.getD index true
 
 private def contextState (app : App) (index : Nat) : CollapsibleState :=
   { expanded := contextExpandedAt app index
@@ -959,7 +959,8 @@ private def calcContent (app : App) (size : Size) : Text :=
 def screen (app : App) (size : Size) : Text :=
   let width := frameWidth size.columns
   let size := { size with columns := width }
-  let drawerOpen := app.stateOpen || app.historyOpen || app.proversOpen || app.runOpen
+  let drawerOpen := app.runOpen || app.proversOpen ||
+    (app.panelFocus == .drawer && (app.stateOpen || app.historyOpen))
   let content := match drawerOpen, stateDrawerWidths width with
     | true, some (leftWidth, rightWidth) =>
         let left := calcContent app { size with columns := leftWidth }

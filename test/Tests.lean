@@ -174,6 +174,12 @@ open OATP OATP.TPTP
   "create a Lean goal"
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "/help"
 #guard ({} : OATP.ReplView.App).stateOpen && ({} : OATP.ReplView.App).panelFocus == .main
+#guard ({} : OATP.ReplView.App).contextExpanded ==
+  Array.replicate OATP.ReplView.contextSectionCount true
+#guard !(OATP.ReplView.screen { stateOpen := true, panelFocus := .main }
+    { columns := 100, rows := 24 }).plainText.contains "state •"
+#guard (OATP.ReplView.screen { stateOpen := true, panelFocus := .drawer }
+    { columns := 100, rows := 24 }).plainText.contains "state • active"
 def completionApp : OATP.ReplView.App :=
   { repl := { input := { value := "/st", cursor := 3 }
               completion := some { candidates := #[{ replacement := "/state" }] } } }
@@ -208,17 +214,17 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
         ({ cell := 1, input := "/help cnf", output := "old" } : OATP.ReplView.TranscriptEntry)] }
     { columns := 100, rows := 10 }).plainText.contains "old"
 #guard (OATP.ReplView.screen
-    { stateOpen := true, translation := some "fof(goal, conjecture, p)." }
+    { stateOpen := true, panelFocus := .drawer, translation := some "fof(goal, conjecture, p)." }
     { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
-#guard
-  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
-  "▸ FORMULAS (0)"
-#guard
-  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
-  "state • inactive • Ctrl-] focus"
-#guard
-  (OATP.ReplView.screen { stateOpen := true } { columns := 110, rows := 24 }).plainText.contains
-  "input • Ctrl-]"
+#guard (OATP.ReplView.screen { stateOpen := true, panelFocus := .drawer }
+    { columns := 110, rows := 24 }).plainText.contains
+  "▾ FORMULAS (0)"
+#guard (OATP.ReplView.screen { stateOpen := true, panelFocus := .drawer }
+    { columns := 110, rows := 24 }).plainText.contains
+  "state • active • H main"
+#guard (OATP.ReplView.screen { stateOpen := true }
+    { columns := 110, rows := 24 }).plainText.contains
+  "input active • Ctrl-]"
 #guard (OATP.ReplView.screen
     { runOpen := true, panelFocus := .drawer,
       runRows := #[({ name := "eprover", status := .running } : OATP.ReplView.RunRow)] }
@@ -252,7 +258,7 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
   | _ => false
 #guard OATP.Runtime.defaultLocalProver #[] == none
 #guard OATP.Runtime.defaultLocalProver #["eprover", "vampire"] == some "eprover"
-#guard (OATP.ReplView.toggleFocusedContext {}).contextExpanded.getD 0 false
+#guard !(OATP.ReplView.toggleFocusedContext {}).contextExpanded.getD 0 true
 #guard OATP.ReplView.contextTargetOfString "form" == some 0
 #guard OATP.ReplView.contextTargetOfString "tptp" == some 4
 #guard (OATP.ReplView.openContextTarget {} "goal").map
@@ -271,6 +277,7 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
 #guard OATP.ReplView.contextHitAtRow {} 40 2 == some (0, true)
 #guard (OATP.ReplView.screen
     { historyOpen := true
+      panelFocus := .drawer
       session := { history := #[{ cell := 1, input := "/help", result := "commands" }] } }
     { columns := 100, rows := 24 }).plainText.contains "history • active"
 #guard (OATP.ReplView.screen { historyOpen := true } { columns := 100, rows := 24 }).height == 24
