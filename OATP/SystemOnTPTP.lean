@@ -54,6 +54,27 @@ structure Config where
   maxBodyBytes : Nat := OATP.defaultMaxOutputBytes
   deriving BEq, DecidableEq, Repr
 
+private inductive HtmlPart where
+  | tag (value : String)
+  | text (value : String)
+
+open Grip GParser
+
+private def htmlTag : GParser conditional HtmlPart :=
+  HtmlPart.tag <$> GParser.capture (GParser.ch '<' *> GParser.takeWhile (· != 62) <* GParser.ch '>')
+
+private def htmlText : GParser conditional HtmlPart :=
+  HtmlPart.text <$> GParser.capture (GParser.takeWhile1 (· != 60))
+
+private def htmlPart : GParser conditional HtmlPart :=
+  GParser.chooseG htmlTag [htmlText]
+
+private def htmlDocument : Grip.Parser (List HtmlPart) :=
+  GParser.seqL (GParser.many htmlPart) GParser.eof
+
+private def parseHtml (source : String) : Except Grip.ParseError (List HtmlPart) :=
+  htmlDocument.parse source.toUTF8
+
 namespace Catalogue
 
 structure SystemInfo where
@@ -85,11 +106,18 @@ private def updateInfo (line : String) (system : SystemInfo) : SystemInfo :=
   { system with command, timeLimit }
 
 def parse (html : String) : Array SystemInfo :=
-  html.splitOn "\n" |>.foldl (init := #[]) fun systems line =>
-    let systems := systems.map (updateInfo line)
-    match systemId line with
-    | some id => if id.isEmpty || systems.any (·.id == id) then systems else systems.push { id }
-    | none => systems
+  match parseHtml html with
+  | .error _ => #[]
+  | .ok parts => parts.foldl (init := #[]) fun systems part =>
+      match part with
+      | .text _ => systems
+      | .tag tag =>
+          let systems := systems.map (updateInfo tag)
+          match systemId tag with
+          | some id =>
+              if id.isEmpty || systems.any (·.id == id) then systems else
+                systems.push { id }
+          | none => systems
 
 def baseName (id : String) : String := id.splitOn "---" |>.headD id
 
@@ -167,24 +195,6 @@ def submit (config : Config) (problem : Problem) :
     | .error error => do
         OATP.Artifacts.write run "response.error" (Http.Error.message error)
   pure response
-
-private inductive HtmlPart where
-  | tag (value : String)
-  | text (value : String)
-
-open Grip GParser
-
-private def htmlTag : GParser conditional HtmlPart :=
-  HtmlPart.tag <$> GParser.capture (GParser.ch '<' *> GParser.takeWhile (· != 62) <* GParser.ch '>')
-
-private def htmlText : GParser conditional HtmlPart :=
-  HtmlPart.text <$> GParser.capture (GParser.takeWhile1 (· != 60))
-
-private def htmlPart : GParser conditional HtmlPart :=
-  GParser.chooseG htmlTag [htmlText]
-
-private def htmlDocument : Grip.Parser (List HtmlPart) :=
-  GParser.seqL (GParser.many htmlPart) GParser.eof
 
 private def tagStarts (needle : String) (tag : String) : Bool :=
   tag.toLower.startsWith needle
