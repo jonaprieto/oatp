@@ -34,13 +34,18 @@ private def roots : IO (List System.FilePath) := do
 def start (label : String) (problem : Problem) : IO (Option Run) := do
   let stamp ← IO.monoMsNow
   for root in ← roots do
-    let directory := System.FilePath.join root s!"run-{stamp}-{safeName label}"
-    try
-      IO.FS.createDirAll directory
-      IO.FS.writeFile (System.FilePath.join directory "problem.tptp") problem.source
-      IO.FS.writeFile (System.FilePath.join directory "prover.txt") label
-      return some { directory }
-    catch _ => pure ()
+    -- ponytail: 64 bounded suffixes cover same-millisecond concurrent runs;
+    -- use a platform UUID if this ever becomes a high-throughput service.
+    for index in List.range 64 do
+      let suffix := if index == 0 then "" else s!"-{index}"
+      let directory := System.FilePath.join root s!"run-{stamp}{suffix}-{safeName label}"
+      try
+        IO.FS.createDirAll root
+        IO.FS.createDir directory
+        IO.FS.writeFile (System.FilePath.join directory "problem.tptp") problem.source
+        IO.FS.writeFile (System.FilePath.join directory "prover.txt") label
+        return some { directory }
+      catch _ => pure ()
   pure none
 
 def write (run : Run) (name content : String) : IO Unit := do

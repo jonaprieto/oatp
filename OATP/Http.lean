@@ -142,6 +142,15 @@ inductive Error where
   | bodyTooLarge (actual limit : Nat)
   deriving Repr
 
+def Error.message : Error → String
+  | .io message => s!"HTTP IO failed: {message}"
+  | .invalidRequest message => s!"invalid HTTP request: {message}"
+  | .transport message => s!"HTTP transport failed: {message}"
+  | .malformedStatus output => s!"HTTP response had no usable status: {output}"
+  | .requestBodyTooLarge actual limit =>
+      s!"HTTP request exceeded {limit} bytes ({actual} captured)"
+  | .bodyTooLarge actual limit => s!"HTTP response exceeded {limit} bytes ({actual} captured)"
+
 inductive Transport where
   | curl
   | wget
