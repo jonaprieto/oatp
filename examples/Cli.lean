@@ -164,6 +164,7 @@ private def doctorIssueKind : Portfolio.Failure → DoctorIssueKind
   | .response .missingStatus _ => .noSZSStatus
   | .response (.httpStatus _) _ => .httpError
   | .response (.unsupportedStatus _) _ => .requestFailure
+  | .response (.malformedBody _) _ => .requestFailure
 
 private def doctorIssue : Portfolio.Result → Option DoctorIssue
   | .artifact _ _ => none
@@ -200,8 +201,9 @@ private def writeDoctorIssues (issues : List DoctorIssue) : IO (Option String) :
 private def printDiagnostic (message : String) : IO UInt32 := do
   let stderr ← IO.getStderr
   let target ← TermColor.targetWithTty .auto (← stderr.isTty)
-  let diagnostic := TermColor.Diagnostics.render #[] (Diagnostic.error message)
-  stderr.putStr (Text.render target diagnostic)
+  let report := (Report.error "command failed").withCode "cli"
+    |>.withField "detail" message
+  stderr.putStr (Text.render target (renderReport report))
   stderr.putStr "\n"
   pure 1
 
@@ -276,6 +278,7 @@ private def responseErrorMessage : SystemOnTPTP.ResponseError → String
   | .httpStatus status => s!"SystemOnTPTP returned HTTP {status}"
   | .missingStatus => "SystemOnTPTP response did not contain an SZS status"
   | .unsupportedStatus status => s!"SystemOnTPTP returned unsupported SZS status `{status}`"
+  | .malformedBody message => s!"SystemOnTPTP response was not valid HTML: {message}"
 
 private def showPortfolioResult : Portfolio.Result → IO Bool
   | .artifact _ artifact => do
@@ -286,7 +289,11 @@ private def showPortfolioResult : Portfolio.Result → IO Bool
       unless artifact.stderr.isEmpty do IO.eprint artifact.stderr
       pure (SZSStatus.isSuccess artifact.status)
   | .failed attempt failure => do
-      IO.eprintln s!"! {attempt.name}: {failure.message}"
+      let report := (Report.error "prover run failed").withCode "prover"
+        |>.withField "prover" attempt.name
+        |>.withField "detail" failure.message
+      IO.eprintln (renderReport report).plainText
+      unless failure.output.isEmpty do IO.eprint failure.output
       pure false
 
 private def portfolioView (total : Nat) (progress : Widgets.IndeterminateProgressState)
