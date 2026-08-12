@@ -28,9 +28,11 @@ private def configRoot : IO (Option System.FilePath) := do
       | some path => pure (some (System.FilePath.join ⟨path⟩ ".config"))
       | none => pure none
 
+def directory : IO (Option System.FilePath) := do
+  pure <| (← configRoot).map fun root => System.FilePath.join root "oatp"
+
 def path : IO (Option System.FilePath) := do
-  pure <| (← configRoot).map fun root =>
-    System.FilePath.join (System.FilePath.join root "oatp") "config.json"
+  pure <| (← directory).map fun root => System.FilePath.join root "config.json"
 
 private def field (json : Json) (name : String) : Option Json := json.get? name
 

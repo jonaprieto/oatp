@@ -28,8 +28,7 @@ private def safeName (value : String) : String :=
 
 private def roots : IO (List System.FilePath) := do
   let current ← IO.currentDir
-  let fallback := (← OATP.Config.path).map fun path =>
-    path.parent.getD (⟨"."⟩ : System.FilePath)
+  let fallback ← OATP.Config.directory
   pure <| System.FilePath.join current ".oatp" :: fallback.toList
 
 def start (label : String) (problem : Problem) : IO (Option Run) := do
