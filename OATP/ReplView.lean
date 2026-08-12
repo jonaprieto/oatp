@@ -818,7 +818,7 @@ private def banner (scheme : ColorScheme) (width : Nat) : Text :=
   let inner := boxInnerWidth outer
   let leftContent :=
     Text.styled "OATP REPL" (Style.bold <+> Style.fg scheme.foreground) ++
-      Text.plain "\n" ++ Text.styled "ATP ORCHESTRATION" (Style.dim <+> Style.fg scheme.comment) ++
+      Text.plain "\n" ++ Text.styled "ORCHESTRATED ATP" (Style.dim <+> Style.fg scheme.comment) ++
       Text.plain "\n\n" ++ mascot scheme ++ Text.plain "\n\n" ++
       Text.styled "TPTP • LEAN • ATP" (Style.fg scheme.comment)
   let compactRight :=

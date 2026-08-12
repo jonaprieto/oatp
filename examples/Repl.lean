@@ -941,7 +941,7 @@ private def staticOutput (app : App) : IO Unit := do
     IO.println s!"    {(if entry.ok then "=" else "!")} {entry.output}{timing}"
 
 private def usage : String :=
-  "oatp repl — interactive TPTP/Lean ATP workbench\n\n" ++
+  "oatp repl — interactive theorem-proving workbench\n\n" ++
   "usage:\n  lake exe oatp repl\n  lake exe oatp repl --script FILE\n\n" ++
   "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  /to-tptp\n  " ++
   "/reconstruct implication-intro h exact h\n  /term"

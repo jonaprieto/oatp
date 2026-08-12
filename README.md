@@ -4,8 +4,8 @@
 [![Lean 4](https://img.shields.io/badge/Lean%204-library-5f5f5f)](lean-toolchain)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
-ATP orchestration for Lean 4 with TPTP parsing, local and online prover runners, reproducible
-artifacts, diagnostics, and explicit trust boundaries.
+Orchestrated automated theorem proving for Lean 4 with TPTP parsing, local and online prover
+runners, reproducible artifacts, diagnostics, and explicit trust boundaries.
 
 External ATP output is a candidate result, not a Lean proof. Kernel-checked reconstruction is
 available for the supported propositional calculus.

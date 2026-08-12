@@ -78,11 +78,11 @@ def cli (identity : CliIdentity) : Argus.Command Action :=
     , Argus.cmd "systems" (Spec.map Action.systems SystemsOptions.spec)
         (description := "List installed local and available online provers")
     , Argus.cmd "repl" (Spec.const Action.repl)
-        (description := "Open the interactive TPTP/Lean ATP workbench")
+        (description := "Open the interactive theorem-proving workbench")
     , Argus.cmd "doctor" (Spec.const Action.doctor)
         (description := "Check local tools and online prover readiness") ]
     (version := some identity.version)
-    (description := "Run TPTP problems with local and explicitly selected online provers")
+    (description := "Orchestrated automated theorem proving for Lean 4")
 
 private def doctorPalette : ColorScheme := ColorScheme.catppuccin
 

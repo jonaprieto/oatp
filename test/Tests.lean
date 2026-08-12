@@ -165,7 +165,7 @@ open OATP OATP.TPTP
 #guard (OATP.ReplView.screen {} { columns := 100, rows := 24 }).plainText.contains "OATP REPL"
 #guard (OATP.ReplView.screen { stateOpen := false }
     { columns := 100, rows := 24 }).plainText.contains
-  "ATP ORCHESTRATION"
+  "ORCHESTRATED ATP"
 #guard (OATP.ReplView.screen { stateOpen := false }
     { columns := 100, rows := 24 }).plainText.contains
   "◆───┼───◆"
