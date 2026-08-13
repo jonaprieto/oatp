@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 — 2026-08-12
+
+- expose effective configuration through the CLI and REPL;
+- add deterministic drawer toggles and improve state navigation;
+- clarify indexed context editing and empty state sections.
+
 ## 0.7.0
 
 - add indexed context editing and deterministic state-drawer toggling;
