@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.7 — 2026-08-13
+
+- Pin `grip-json` to its newest release and document the direct relationship.
+
 ## 0.7.6 — 2026-08-13
 
 - Pin every first-party dependency to its newest released tag.
