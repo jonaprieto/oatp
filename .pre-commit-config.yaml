@@ -19,7 +19,7 @@ repos:
   - id: detect-private-key
 
 - repo: https://github.com/jonaprieto/precommit-lean
-  rev: v0.1.5
+  rev: v0.1.6
   hooks:
   - id: lean-style
   - id: lean-axioms
