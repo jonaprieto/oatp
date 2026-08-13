@@ -171,6 +171,9 @@ lake exe tests
 
 ## Related projects
 
+OATP grew out of the archived Haskell [`online-atps`](https://github.com/jonaprieto/online-atps)
+project, which remains a historical reference for its online-prover integration.
+
 [`oatp-proofwidgets`](https://github.com/jonaprieto/oatp-proofwidgets) provides optional Infoview
 views. [`argus`](https://github.com/jonaprieto/lean-argus) provides typed CLI parsing;
 [`grip`](https://github.com/jonaprieto/lean-grip) and [`termcolor`](https://github.com/jonaprieto/lean-termcolor)
