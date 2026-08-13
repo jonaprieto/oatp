@@ -65,6 +65,11 @@ private def runMeta {α : Type} (runtime : Runtime) (action : MetaM α) :
 private def addAtom (atoms : Array String) (name : String) : Array String :=
   if atoms.contains name then atoms else atoms.push name
 
+private abbrev TranslationM := ExceptT String MetaM
+
+private def translationError {α : Type} (message : String) : TranslationM α :=
+  ExceptT.mk (pure (.error message))
+
 private partial def atomNames (formula : _root_.TPTP.Formula.Expr) (atoms : Array String) :
     Array String :=
   match formula with
@@ -77,56 +82,54 @@ private partial def atomNames (formula : _root_.TPTP.Formula.Expr) (atoms : Arra
   | .forall _ body | .exists _ body => atomNames body atoms
 
 private def withAtoms {α : Type} (atoms : List String)
-    (action : Array (String × Expr) → MetaM α) : MetaM α :=
+    (action : Array (String × Expr) → TranslationM α) : MetaM (Except String α) :=
   match atoms with
-  | [] => action #[]
+  | [] => (action #[]).run
   | atom :: rest =>
-      withLocalDeclD (Name.mkSimple atom) (mkSort .zero) fun fvar =>
-        withAtoms rest fun locals => action (locals.push (atom, fvar))
+    withLocalDeclD (Name.mkSimple atom) (mkSort .zero) fun fvar =>
+      withAtoms rest fun locals => action (locals.push (atom, fvar))
 
 private def lookupAtom (atoms : Array (String × Expr)) (name : String) : Option Expr :=
   atoms.find? (·.1 == name) |>.map Prod.snd
 
 private partial def toLean (atoms : Array (String × Expr))
-    (formula : _root_.TPTP.Formula.Expr) : MetaM (Except String Expr) := do
+    (formula : _root_.TPTP.Formula.Expr) : TranslationM Expr := do
   match formula with
   | .atom predicate arguments =>
       if !arguments.isEmpty then
-        pure (.error s!"predicate `{predicate}` has terms; Lean translation supports propositions")
+        translationError
+          s!"predicate `{predicate}` has terms; Lean translation supports propositions"
       else
         match lookupAtom atoms predicate with
-        | some atom => pure (.ok atom)
-        | none => pure (.error s!"missing Lean atom `{predicate}`")
-  | .truth => pure (.ok (mkConst ``True))
-  | .falsity => pure (.ok (mkConst ``False))
+        | some atom => pure atom
+        | none => translationError s!"missing Lean atom `{predicate}`"
+  | .truth => pure (mkConst ``True)
+  | .falsity => pure (mkConst ``False)
   | .not body =>
-      match ← toLean atoms body with
-      | .ok body => pure (.ok (← mkAppM ``Not #[body]))
-      | .error message => pure (.error message)
+      let body ← toLean atoms body
+      ExceptT.lift <| mkAppM ``Not #[body]
   | .and left right => binary ``And left right
   | .or left right => binary ``Or left right
   | .implies left right => do
-      match ← toLean atoms left, ← toLean atoms right with
-      | .ok left, .ok right => pure (.ok (← mkArrow left right))
-      | .error message, _ | _, .error message => pure (.error message)
+      let left ← toLean atoms left
+      let right ← toLean atoms right
+      ExceptT.lift <| mkArrow left right
   | .iff left right => binary ``Iff left right
   | .forall _ _ | .exists _ _ =>
-      pure (.error "quantified TPTP formulas need a declared Lean signature")
+      translationError "quantified TPTP formulas need a declared Lean signature"
 where
-  binary (name : Name) (left right : _root_.TPTP.Formula.Expr) : MetaM (Except String Expr) := do
-    match ← toLean atoms left, ← toLean atoms right with
-    | .ok left, .ok right => pure (.ok (← mkAppM name #[left, right]))
-    | .error message, _ | _, .error message => pure (.error message)
+  binary (name : Name) (left right : _root_.TPTP.Formula.Expr) : TranslationM Expr := do
+    let left ← toLean atoms left
+    let right ← toLean atoms right
+    ExceptT.lift <| mkAppM name #[left, right]
 
 private def makeGoal (source : String) (formula : _root_.TPTP.Formula.Expr) :
     MetaM (Except String Goal) := do
   let atoms := atomNames formula #[]
   withAtoms atoms.toList fun locals => do
-    match ← toLean locals formula with
-    | .error message => pure (.error message)
-    | .ok target =>
-        let goal ← mkFreshExprMVar (some target)
-        pure (.ok { mvarId := goal.mvarId!, source, atoms })
+    let target ← toLean locals formula
+    let goal ← ExceptT.lift <| mkFreshExprMVar (some target)
+    pure { mvarId := goal.mvarId!, source, atoms }
 
 def goalFromFormula (runtime : Runtime) (source : String) :
     IO (Except String (Runtime × Goal)) := do
