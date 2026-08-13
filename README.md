@@ -29,6 +29,19 @@ portability, performance, documentation, and real-world use. Please use the
 [issue tracker](https://github.com/jonaprieto/oatp/issues) or open a PR with a reproducible
 example and the expected behavior.
 
+## Install the binary
+
+Install the latest release binary with [`jpillora/installer`](https://github.com/jpillora/installer):
+
+```sh
+curl https://i.jpillora.com/jonaprieto/oatp! | bash
+oatp --help
+```
+
+The `!` installs the executable into `/usr/local/bin/`. For this private repository, configure
+`GITHUB_TOKEN` on the installer server and client as described by its private-repository
+instructions. To inspect the generated script before running it, omit `| bash`.
+
 ## Quick start
 
 ```sh
@@ -146,7 +159,7 @@ The standalone CLI is available in release archives. The Lean library can be ins
 
 ```lean
 require oatp from git
-  "https://github.com/jonaprieto/oatp.git" @ "v0.7.1"
+  "https://github.com/jonaprieto/oatp.git" @ "v0.7.4"
 ```
 
 ## Build
