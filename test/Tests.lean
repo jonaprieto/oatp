@@ -569,6 +569,11 @@ def main : IO UInt32 := do
   let (leanRuntime, goal) ← match ← OATP.Lean.Repl.goalFromFormula leanRuntime "p => p" with
     | .ok value => pure value
     | .error message => throw <| IO.userError s!"Lean REPL goal creation failed: {message}"
+  match ← OATP.Lean.Repl.goalFromFormula leanRuntime "p(a)" with
+  | .error message =>
+      if !message.contains "has terms" then
+        throw <| IO.userError "Lean REPL translation error lost its diagnostic"
+  | .ok _ => throw <| IO.userError "Lean REPL accepted a predicate with unsupported terms"
   let (_, snapshot) ← OATP.Lean.Repl.snapshot leanRuntime goal
   if snapshot.target.isEmpty || snapshot.context.isEmpty then
     throw <| IO.userError "Lean REPL snapshot omitted target or local atom"
