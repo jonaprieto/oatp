@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.5 — 2026-08-13
+
+- Use a local error transformer for recursive Lean formula translation.
+
 ## 0.7.4 — 2026-08-13
 
 - Publish the dependency-graph README cleanup.
