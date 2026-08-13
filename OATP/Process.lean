@@ -23,6 +23,13 @@ structure Command where
   cwd : Option System.FilePath := none
   deriving BEq, DecidableEq, Repr
 
+/-- Add the stdin filename expected by local provers that require one. -/
+def Command.withStdinProblem (command : Command) : Command :=
+  let executable := (command.executable.splitOn "/").getLast?.getD command.executable
+  if executable == "metis" && !command.arguments.any (· == "-") then
+    { command with arguments := command.arguments.push "-" }
+  else command
+
 inductive Error where
   | io (message : String)
   | outputTooLarge (actual limit : Nat)
@@ -47,6 +54,7 @@ private partial def waitForExit {cfg : IO.Process.StdioConfig}
 
 private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (command : Command) :
     IO (Except Error Artifact) := do
+  let command := command.withStdinProblem
   let artifacts ← OATP.Artifacts.start s!"local {command.executable}" problem
   for run in artifacts do
     OATP.Artifacts.writeCommand run
