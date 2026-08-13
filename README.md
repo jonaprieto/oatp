@@ -176,8 +176,10 @@ project, which remains a historical reference for its online-prover integration.
 
 [`oatp-proofwidgets`](https://github.com/jonaprieto/oatp-proofwidgets) provides optional Infoview
 views. [`argus`](https://github.com/jonaprieto/lean-argus) provides typed CLI parsing;
-[`grip`](https://github.com/jonaprieto/lean-grip) and [`termcolor`](https://github.com/jonaprieto/lean-termcolor)
-provide parsing and text foundations; [`termcolor-diagnostics`](https://github.com/jonaprieto/lean-termcolor-diagnostics),
+[`grip`](https://github.com/jonaprieto/lean-grip) and
+[`grip-json`](https://github.com/jonaprieto/lean-grip-json) provide parsing foundations;
+[`termcolor`](https://github.com/jonaprieto/lean-termcolor) provides text foundations;
+[`termcolor-diagnostics`](https://github.com/jonaprieto/lean-termcolor-diagnostics),
 [`termcolor-terminal`](https://github.com/jonaprieto/lean-termcolor-terminal),
 [`termcolor-widgets`](https://github.com/jonaprieto/lean-termcolor-widgets), and
 [`termcolor-repl`](https://github.com/jonaprieto/lean-termcolor-repl) provide the application stack.

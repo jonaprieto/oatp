@@ -2,7 +2,7 @@ import Lake
 open Lake DSL
 
 package «oatp» where
-  version := v!"0.7.6"
+  version := v!"0.7.7"
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`relaxedAutoImplicit, false⟩]
 
 require grip from git
@@ -11,7 +11,7 @@ require grip from git
 
 require «grip-json» from git
   "https://github.com/jonaprieto/lean-grip-json.git"
-  @ "v0.1.4"
+  @ "v0.1.5"
 
 require tptp from git
   "https://github.com/jonaprieto/lean-grip-tptp.git"
