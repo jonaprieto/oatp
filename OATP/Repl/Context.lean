@@ -191,7 +191,7 @@ def removeContext (session : Session) (input : String) (indices : List Nat) :
     match missingContextIndices session indices with
     | missing :: rest =>
         let missing := String.intercalate ", " (missing :: rest |>.map contextIndexText)
-        .error s!"unknown context index {missing}"
+        .error s!"unknown context index {missing}; use /state to see available # indices"
     | [] =>
         let context := session.context.filter (fun item => !indices.contains item.id)
         let session := rebuildContext { session with context }

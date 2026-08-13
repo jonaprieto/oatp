@@ -88,7 +88,9 @@ def semanticColors (scheme : ColorScheme) : SemanticColors where
   predicateColor := scheme.cyan
 
 inductive AppKeyAction
-  | openRun
+  | toggleRun
+  | toggleHistory
+  | toggleState
   | focusDrawer
   | closeProvers
   | proverNext
@@ -153,7 +155,9 @@ private def appBinding (keys : List Key) (action : AppKeyAction)
     description }
 
 def appBindings : List (BindingSpec AppKeyAction) :=
-  [ appBinding [.ctrl 'R', .ctrl 'r'] .openRun none "open the run drawer"
+  [ appBinding [.ctrl 'R', .ctrl 'r'] .toggleRun none "toggle the run drawer"
+  , appBinding [.ctrl 'H', .ctrl 'h'] .toggleHistory none "toggle the history drawer"
+  , appBinding [.ctrl 'S', .ctrl 's'] .toggleState none "toggle the state drawer"
   , appBinding [.ctrl ']'] .focusDrawer none "focus the open drawer"
   , appBinding [.char 'H', .char 'h', .escape] .closeRun (some .runInput) "return to input"
   , appBinding [.char 'J', .char 'j', .down] .runNext (some .run) "next run"
@@ -164,7 +168,8 @@ def appBindings : List (BindingSpec AppKeyAction) :=
   , appBinding [.char 'K', .char 'k', .up] .proverPrevious (some .provers) "previous prover"
   , appBinding [.enter, .char ' '] .toggleProver (some .provers) "toggle the selected prover"
   , appBinding [.char 'H', .char 'h', .escape] .closeState (some .stateInput) "return to input"
-  , appBinding [.delete] .prepareRemoveContext (some .state) "prepare removal of selected item"
+  , appBinding [.delete, .char 'd', .char 'D'] .prepareRemoveContext (some .state)
+      "prepare removal of selected item"
   , appBinding [.char 'e', .char 'E'] .prepareUpdateContext (some .state) "edit selected item"
   , appBinding [.char 'J', .char 'j', .down] .contextNext (some .state) "next context section"
   , appBinding [.char 'K', .char 'k', .up] .contextPrevious (some .state) "previous context section"
@@ -493,7 +498,7 @@ private def semanticFormula (scheme : ColorScheme) (formula : FormulaView) : Tex
 private def formulaLine (scheme : ColorScheme) (selected : Option Nat)
     (formula : FormulaView) : Text :=
   let marker := if selected == some formula.id then "▸ " else "  "
-  Text.styled s!"{marker}#{formula.id} [{formula.cell}] {formula.role} "
+  Text.styled s!"{marker}index #{formula.id} • cell {formula.cell} • {formula.role} "
       (Style.dim <+> Style.fg scheme.comment) ++
     Text.styled formula.name (Style.bold <+> Style.fg scheme.cyan) ++
     Text.styled ": " (Style.dim <+> Style.fg scheme.comment) ++ semanticFormula scheme formula
@@ -655,7 +660,7 @@ private def contextWidgetConfig (scheme : ColorScheme) : CollapsibleConfig where
   overflowText := Text.styled "… more" (Style.dim <+> Style.fg scheme.comment)
   emptyText := Text.styled "(none)" (Style.dim <+> Style.fg scheme.comment)
 
-private def contextSections (app : App) : List (Text × Text) :=
+private def contextSections (app : App) : List (Nat × Text × Text) :=
   let formulas := app.session.formulas.toList.reverse.take 8
   let symbols := app.session.symbols.toList.take 12
   let problem := if app.session.context.isEmpty then
@@ -674,19 +679,29 @@ private def contextSections (app : App) : List (Text × Text) :=
   let translation := match app.translation with
     | none => "(no Lean → TPTP translation)"
     | some source => String.intercalate "\n" (source.splitOn "\n" |>.take 3)
-  let render : ContextTarget → Text × Text
-    | .formulas => (Text.plain s!"{ContextTarget.label .formulas} ({app.session.formulas.size})",
-        joinLines (if formulas.isEmpty then [] else
-          formulas.map (formulaLine app.theme app.contextItemFocus)))
-    | .symbols => (Text.plain s!"{ContextTarget.label .symbols} ({app.session.symbols.size})",
-        joinLines (symbols.map (symbolLine app.theme)))
-    | .problem => (Text.plain (ContextTarget.label .problem),
-        semanticText app.theme app.session.symbols problem)
-    | .goal => (Text.plain (ContextTarget.label .goal), goal)
-    | .translation => (Text.plain (ContextTarget.label .translation),
-        semanticText app.theme app.session.symbols translation)
-    | .term => (Text.plain (ContextTarget.label .term), term)
-  ContextTarget.all.map render
+  let render : Nat → ContextTarget → Option (Nat × Text × Text)
+    | 0, .formulas =>
+        if formulas.isEmpty then none else some (0,
+          Text.plain s!"FORMULAS ({app.session.formulas.size}) • ↑/↓ select • Delete/d remove",
+          joinLines (formulas.map (formulaLine app.theme app.contextItemFocus)))
+    | 1, .symbols =>
+        if symbols.isEmpty then none else some (1,
+          Text.plain s!"{ContextTarget.label .symbols} ({app.session.symbols.size})",
+          joinLines (symbols.map (symbolLine app.theme)))
+    | 2, .problem =>
+        if app.session.context.isEmpty then none else some (2,
+          Text.plain (ContextTarget.label .problem),
+          semanticText app.theme app.session.symbols problem)
+    | 3, .goal => app.goal.map fun _ => (3, Text.plain (ContextTarget.label .goal), goal)
+    | 4, .translation => app.translation.map fun _ =>
+        (4, Text.plain (ContextTarget.label .translation),
+          semanticText app.theme app.session.symbols translation)
+    | 5, .term => app.term.map fun _ => (5, Text.plain (ContextTarget.label .term), term)
+    | _, _ => none
+  [render 0 .formulas, render 1 .symbols, render 2 .problem, render 3 .goal,
+    render 4 .translation, render 5 .term].filterMap id
+
+#guard (contextSections ({} : App)).isEmpty
 
 private def contextExpandedAt (app : App) (index : Nat) : Bool :=
   app.contextExpanded.getD index true
@@ -695,37 +710,36 @@ private def contextState (app : App) (index : Nat) : CollapsibleState :=
   { expanded := contextExpandedAt app index
     focused := app.contextFocus == index }
 
-private def contextRenders (app : App) (width : Nat) : List CollapsibleRender :=
+private def contextRenders (app : App) (width : Nat) : List (Nat × CollapsibleRender) :=
   let innerWidth := max 1 (boxInnerWidth width)
-  let rec go : List (Text × Text) → Nat → List CollapsibleRender
-    | [], _ => []
-    | (summary, body) :: sections, index =>
-        renderCollapsible (contextWidgetConfig app.theme) innerWidth summary body
-          (contextState app index) ::
-          go sections (index + 1)
-  go (contextSections app) 0
+  let rec go : List (Nat × Text × Text) → List (Nat × CollapsibleRender)
+    | [] => []
+    | (index, summary, body) :: sections =>
+        (index, renderCollapsible (contextWidgetConfig app.theme) innerWidth summary body
+          (contextState app index)) :: go sections
+  go (contextSections app)
 
 private def contextTexts (app : App) (width : Nat) : List Text :=
-  (contextRenders app width).map (fun render => render.text)
+  (contextRenders app width).map (fun (_, widget) => widget.text)
 
 def contextHitAtRow (app : App) (width row : Nat) : Option (Nat × Bool) :=
   if row < 2 then none
   else
     let relativeRow := row - 2
-    let rec find : List CollapsibleRender → Nat → Nat → Option (Nat × Bool)
-      | [], _, _ => none
-      | widget :: renders, index, offset =>
+    let rec find : List (Nat × CollapsibleRender) → Nat → Option (Nat × Bool)
+      | [], _ => none
+      | (index, widget) :: renders, offset =>
           if relativeRow < offset + widget.lineCount then
             some (index, relativeRow - offset < widget.hitHeaderHeight)
-          else find renders (index + 1) (offset + widget.lineCount)
-    find (contextRenders app width) 0 0
+          else find renders (offset + widget.lineCount)
+    find (contextRenders app width) 0
 
 def contextFormulaAtRow (app : App) (width row : Nat) : Option Nat :=
   match contextHitAtRow app width row with
   | some (0, false) =>
       let relativeRow := row - 2
       match contextRenders app width with
-      | widget :: _ =>
+      | (_, widget) :: _ =>
           let bodyRow := relativeRow - widget.hitHeaderHeight
           let formulas := app.session.formulas.toList.reverse.take 8
           formulas[bodyRow]?.map (·.id)
@@ -738,11 +752,27 @@ private def updateContextExpanded (app : App) (index : Nat) (expanded : Bool) : 
 def focusContext (app : App) (index : Nat) : App :=
   { app with contextFocus := min (contextSectionCount - 1) index }
 
+private def visibleContextIndices (app : App) : Array Nat :=
+  (contextSections app).map (fun (index, _, _) => index) |>.toArray
+
+private def moveContext (app : App) (forward : Bool) : App :=
+  let indices := visibleContextIndices app
+  if indices.isEmpty then
+    app
+  else
+    match indices.toList.findIdx? (· == app.contextFocus) with
+    | none =>
+        let index := if forward then indices[0]! else indices[indices.size - 1]!
+        focusContext app index
+    | some current =>
+        let offset := if forward then 1 else indices.size - 1
+        focusContext app (indices[(current + offset) % indices.size]?.getD app.contextFocus)
+
 def focusNextContext (app : App) : App :=
-  focusContext app ((app.contextFocus + 1) % contextSectionCount)
+  moveContext app true
 
 def focusPreviousContext (app : App) : App :=
-  focusContext app (if app.contextFocus == 0 then contextSectionCount - 1 else app.contextFocus - 1)
+  moveContext app false
 
 private def formulaIds (app : App) : List Nat :=
   app.session.formulas.toList.reverse.map (·.id)
@@ -753,16 +783,15 @@ private def indexOfFormula : Nat → Nat → List Nat → Option Nat
       if wanted == id then some index else indexOfFormula wanted (index + 1) ids
 
 private def nextFormulaId (app : App) (forward : Bool) : Option Nat :=
-  let ids := formulaIds app
+  let ids := formulaIds app |>.take 8
   match ids with
   | [] => none
-  | first :: _ =>
+    | first :: _ =>
       match app.contextItemFocus with
-      | none => some first
+      | none => if forward then some first else ids.reverse.head?
       | some current =>
           let index := (indexOfFormula current 0 ids).getD 0
-          if forward then ids[(index + 1) % ids.length]?
-          else ids[(index + ids.length - 1) % ids.length]?
+          if forward then ids[index + 1]? else if index == 0 then none else ids[index - 1]?
 
 def focusContextItem (app : App) (id : Nat) : App :=
   if app.session.formulas.any (·.id == id) then
@@ -781,12 +810,16 @@ def focusPreviousContextItem (app : App) : App :=
 
 def focusNextContextEntry (app : App) : App :=
   if app.contextFocus == 0 && app.session.formulas.isEmpty == false then
-    focusNextContextItem app
+    match nextFormulaId app true with
+    | some id => focusContextItem app id
+    | none => moveContext app true
   else focusNextContext app
 
 def focusPreviousContextEntry (app : App) : App :=
   if app.contextFocus == 0 && app.session.formulas.isEmpty == false then
-    focusPreviousContextItem app
+    match nextFormulaId app false with
+    | some id => focusContextItem app id
+    | none => moveContext app false
   else focusPreviousContext app
 
 def toggleFocusedContext (app : App) : App :=
@@ -843,7 +876,7 @@ private def prepareContextCommand (app : App) (command : String) : App :=
       if !app.repl.input.value.isEmpty then
         { app with statusNotice := some "clear the input before preparing a context edit" }
       else
-        let value := s!"/{command} {id}" ++ if command == "update" then " " else ""
+        let value := s!"/{command} #{id}" ++ if command == "update" then " " else ""
         { app with
           repl := { app.repl with
             input := { value, cursor := value.toList.length }
@@ -867,6 +900,41 @@ def openContextTarget (app : App) (target : String) : Option App :=
         let app := expandFocusedContext <| focusContext { app with stateOpen := true } index
         some (if index == 0 then focusNextContextItem app else app)
     | none => none
+
+def toggleStatePanel (app : App) : App :=
+  if app.stateOpen && app.panelFocus == .drawer then
+    { app with stateOpen := false, panelFocus := .main }
+  else
+    { app with
+      stateOpen := true
+      historyOpen := false
+      proversOpen := false
+      runOpen := false
+      panelFocus := .drawer }
+
+def toggleHistoryPanel (app : App) : App :=
+  if app.historyOpen && app.panelFocus == .drawer then
+    { app with historyOpen := false, panelFocus := .main }
+  else
+    { app with
+      historyOpen := true
+      stateOpen := false
+      proversOpen := false
+      runOpen := false
+      panelFocus := .drawer }
+
+def toggleRunPanel (app : App) : App :=
+  if app.runRows.isEmpty then
+    { app with statusNotice := some "no prover run to inspect" }
+  else if app.runOpen && app.panelFocus == .drawer then
+    { app with runOpen := false, panelFocus := .main }
+  else
+    { app with
+      runOpen := true
+      stateOpen := false
+      historyOpen := false
+      proversOpen := false
+      panelFocus := .drawer }
 
 private def contextPanel (app : App) (width height : Nat) : Text :=
   let body := joinLines (contextTexts app width)
@@ -1120,11 +1188,11 @@ private def footer (app : App) (width : Nat) : Text :=
       if outer < stateDrawerMinWidth then s!"{closeProvers} main • {next}/{previous}"
       else s!"{closeProvers} main • {next}/{previous} prover • Space toggle"
     else if app.panelFocus == .drawer && app.historyOpen then s!"{closeHistory} main"
-    else if app.busy then s!"{appKeyLabel .openRun .default} run • input"
+    else if app.busy then s!"{appKeyLabel .toggleRun .default} run • input"
     else if app.stateOpen || app.proversOpen || app.historyOpen || app.runOpen then
       if outer < stateDrawerMinWidth then s!"input • {focus}"
       else s!"input active • {focus} focus drawer"
-    else s!"/help • {pageUp}/{pageDown} scroll • {appKeyLabel .openRun .default} runs"
+    else s!"/help • {pageUp}/{pageDown} scroll • {appKeyLabel .toggleRun .default} runs"
   let leftWidth := outer * 2 / 3
   let rightWidth := outer - leftWidth
   let notice := app.statusNotice.map (fun value => s!"  • {value}") |>.getD ""

@@ -126,6 +126,7 @@ inductive Command where
   | theme (value : Option String)
   | systems (request : SystemsRequest)
   | doctor
+  | config
   | quit
   | unknown (source : String)
   deriving Repr
@@ -307,7 +308,7 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "run" (Spec.map (fun options => .run (runRequestOf options)) RunOptions.spec)
         (description := "Run selected provers")
     , Argus.cmd "check" (Spec.const .check)
-        (description := "Check with the default and selected provers in parallel")
+        (description := "Check default and selected provers; use /provers to choose")
     , Argus.cmd "local"
         (Spec.map (fun options => .local (localRequestOf options)) LocalOptions.spec)
         (description := "Run a local prover")
@@ -332,6 +333,8 @@ def commandSpec : Argus.Command Command :=
         (Spec.map (fun options => .systems (systemsRequestOf options)) SystemsOptions.spec)
         (description := "List available provers")
     , Argus.cmd "doctor" (Spec.const .doctor) (description := "Check runtime readiness")
+    , Argus.cmd "config" (Spec.const .config)
+        (description := "Show effective preferences and config path")
     , Argus.cmd "quit" (Spec.const .quit) (description := "Leave the REPL")
     , Argus.cmd "exit" (Spec.const .quit) (description := "Leave the REPL") ]
 
@@ -368,7 +371,10 @@ def parseCommandSpec (source : String) : Except String Command :=
     | .error errors =>
         let message := String.intercalate "\n" (errors.map Argus.Err.message)
         let hint := match argv with
-          | command :: _ => s!"\ntry `/help {command}` for usage and examples"
+          | command :: _ =>
+              if command == "remove" || command == "update" then
+                "\ncontext indices are shown as #N in `/state`; [N] is a transcript cell"
+              else s!"\ntry `/help {command}` for usage and examples"
           | [] => ""
         .error (message ++ hint)
 
@@ -522,6 +528,7 @@ private def runHelp : String :=
   String.intercalate "\n" [
     "Provers",
     "/run                    run the configured or first local prover",
+    "/check                  check the default and selected provers; use /provers to choose",
     "/run [--prover NAME] [--all] [--timeout SEC] [--max-output BYTES]",
     "     [--refresh] [--no-cache] [--endpoint URL]",
     "/run --all              run every installed local prover",
@@ -534,7 +541,8 @@ private def runHelp : String :=
     "/doctor                  check transports and local provers",
     "",
     "interactive run drawer:",
-    "  Ctrl-R                   open the latest run; H returns to input",
+    "  Ctrl-H/Ctrl-S/Ctrl-R    toggle history/state/latest run drawers",
+    "  H                       return to input from the active drawer",
     "  J/K or ↑/↓               focus a prover result",
     "  click ▸                  expand a collapsed check report",
     "  Ctrl-R                   show the full multiline prover output",
@@ -558,8 +566,9 @@ private def contextHelp : String :=
     "Ctrl-]                     focus the visible drawer",
     "H                          return focus to the main input",
     "Ctrl-R                     open the latest prover run",
+    "Ctrl-H/Ctrl-S              toggle history/state drawers",
     "mouse click                focus/toggle a box; scroll changes focus",
-    "Delete                     prepare removal of the selected formula",
+    "Delete/d                   prepare removal of the selected formula (use its # index)",
     "e                         prepare an update for the selected formula",
     "boxes: formulas, symbols, problem, Lean goal, Lean → TPTP, checked term",
     "theory: /theory fof|cnf|tff (tf1 alias); provers: /provers; theme: /theme NAME"
@@ -569,7 +578,8 @@ private def commandHelp (command : Argus.Command Command) : String :=
   let details := match command.name with
     | "goal" | "to-lean" | "translate-to-lean" | "snapshot" | "to-tptp" | "reconstruct" | "term" =>
         leanHelp
-    | "run" | "strategy" | "local" | "online" | "prover" | "provers" | "systems" | "doctor" =>
+    | "run" | "check" | "strategy" | "local" | "online" | "prover" | "provers" |
+        "systems" | "doctor" =>
         runHelp
     | "state" | "history" => contextHelp
     | "parse" | "axiom" | "conjecture" | "grammar" | "roles" => grammarHelp
@@ -590,7 +600,7 @@ def helpFor : Option String → String
       | "fof" => fofHelp
       | "tff" => tffHelp
       | "lean" => leanHelp
-      | "run" | "strategy" | "provers" => runHelp
+      | "run" | "check" | "strategy" | "provers" => runHelp
       | "context" | "state" => contextHelp
       | "grammar" => grammarHelp
       | "roles" => roleHelp none
@@ -649,6 +659,7 @@ def apply (session : Session) (input : String) : Except String Session :=
       | .theme (some value) => pure (note session input s!"theme requested: {value}")
       | .systems _ => pure (note session input "systems requested")
       | .doctor => pure (note session input "doctor requested")
+      | .config => pure (note session input "configuration requested")
       | .quit => pure (note session input "quit requested")
       | .unknown source => .error s!"unknown REPL command `{source}`"
 

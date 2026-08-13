@@ -118,6 +118,9 @@ open OATP OATP.TPTP
 #guard match OATP.Repl.parseInput "/state goal" with
   | .command (.stateTarget "goal") => true
   | _ => false
+#guard match OATP.Repl.parseCommand "/config" with
+  | .config => true
+  | _ => false
 #guard match OATP.Repl.parseCommand "/remove 2 4" with
   | .remove [2, 4] => true
   | _ => false
@@ -281,9 +284,8 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
 #guard (OATP.ReplView.screen
     { stateOpen := true, panelFocus := .drawer, translation := some "fof(goal, conjecture, p)." }
     { columns := 110, rows := 24 }).plainText.contains "LEAN → TPTP"
-#guard (OATP.ReplView.screen { stateOpen := true, panelFocus := .drawer }
-    { columns := 110, rows := 24 }).plainText.contains
-  "▾ FORMULAS (0)"
+#guard !(OATP.ReplView.screen { stateOpen := true, panelFocus := .drawer }
+    { columns := 110, rows := 24 }).plainText.contains "FORMULAS (0)"
 #guard (OATP.ReplView.screen { stateOpen := true, panelFocus := .drawer }
     { columns := 110, rows := 24 }).plainText.contains
   "state • active • H main"
@@ -340,9 +342,9 @@ private def plainEntry : OATP.ReplView.TranscriptEntry :=
   some (OATP.Repl.ProverReference.fromOnline "vampire")
 #guard OATP.ProverReference.fromPersisted "local:" == none
 #guard OATP.ProverReference.fromPersisted "online:" == none
-#guard (OATP.ReplView.focusNextContext {}).contextFocus == 1
-#guard (OATP.ReplView.focusPreviousContext {}).contextFocus == 5
-#guard OATP.ReplView.contextHitAtRow {} 40 2 == some (0, true)
+#guard (OATP.ReplView.focusNextContext {}).contextFocus == 0
+#guard (OATP.ReplView.focusPreviousContext {}).contextFocus == 0
+#guard OATP.ReplView.contextHitAtRow {} 40 2 == none
 #guard (OATP.ReplView.screen
     { historyOpen := true
       panelFocus := .drawer
