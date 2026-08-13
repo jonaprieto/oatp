@@ -21,6 +21,12 @@ open OATP OATP.TPTP
     "% RESULT: fixture - Vampire says Timeout - CPU = 2 WC = 2\n" == some .timeout
 #guard OATP.RunStrategy.ofString "first-success" == some .firstSuccess
 #guard OATP.RunStrategy.name .all == "all"
+#guard (OATP.Process.Command.withStdinProblem { executable := "metis" }).arguments == #["-"]
+#guard (OATP.Process.Command.withStdinProblem
+    { executable := "/usr/bin/metis" }).arguments == #["-"]
+#guard (OATP.Process.Command.withStdinProblem
+    { executable := "metis", arguments := #["-"] }).arguments == #["-"]
+#guard (OATP.Process.Command.withStdinProblem { executable := "cat" }).arguments.isEmpty
 #guard (parseStatement "fof(goal, conjecture, p)." |>.isOk)
 #guard (parseStatement "cnf(c1, axiom, p | ~q)." |>.isOk)
 #guard match _root_.TPTP.TFF.parseFormulaString "#[X:$i] : p(X)" with

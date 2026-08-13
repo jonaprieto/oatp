@@ -1004,7 +1004,15 @@ private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option 
     | some (leftWidth, rightWidth) =>
         let drawerLeft := leftWidth + 3
         let drawerRight := drawerLeft + rightWidth - 1
-        if mouse.column < drawerLeft || mouse.column > drawerRight then
+        if mouse.column < drawerLeft then
+          match mouse.action with
+          | .press =>
+              if mouse.button != .left then none
+              else match reportAtScreenRow app { size with columns := leftWidth } mouse.row with
+              | some cell => some (clearSelection (toggleReportCell app cell))
+              | none => some { app with panelFocus := .main }
+          | _ => some { app with panelFocus := .main }
+        else if mouse.column > drawerRight then
           some { app with panelFocus := .main }
         else match mouse.action with
         | .scrollUp => some (focusPreviousRun { app with panelFocus := .drawer })
@@ -1117,6 +1125,14 @@ private def reportTestApp : App := {
 }
 
 #guard match handleMouse reportTestApp { columns := 110, rows := 28 }
+    { button := .left, action := .press, column := 5, row := 3 } with
+  | some app => app.entries.head?.map (·.reportExpanded) == some true
+  | none => false
+
+#guard match handleMouse ({ reportTestApp with
+    runOpen := true
+    runRows := #[{ name := "metis", status := .result .theorem }] } : App)
+    { columns := 110, rows := 28 }
     { button := .left, action := .press, column := 5, row := 3 } with
   | some app => app.entries.head?.map (·.reportExpanded) == some true
   | none => false
