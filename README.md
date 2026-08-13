@@ -182,6 +182,23 @@ provide parsing and text foundations; [`termcolor-diagnostics`](https://github.c
 [`termcolor-widgets`](https://github.com/jonaprieto/lean-termcolor-widgets), and
 [`termcolor-repl`](https://github.com/jonaprieto/lean-termcolor-repl) provide the application stack.
 
+### Project snapshots
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/jonaprieto/lean-termcolor"><img src="docs/assets/termcolor.png" alt="TermColor" width="180"></a><br><sub>TermColor</sub></td>
+    <td align="center"><a href="https://github.com/jonaprieto/lean-termcolor-layout"><img src="docs/assets/termcolor-layout.png" alt="TermColor layout" width="180"></a><br><sub>Layout</sub></td>
+    <td align="center"><a href="https://github.com/jonaprieto/lean-termcolor-widgets"><img src="docs/assets/termcolor-widgets.png" alt="TermColor widgets" width="180"></a><br><sub>Widgets</sub></td>
+    <td align="center"><a href="https://github.com/jonaprieto/lean-termcolor-diagnostics"><img src="docs/assets/termcolor-diagnostics-1.png" alt="TermColor diagnostics" width="180"></a><br><sub>Diagnostics</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/jonaprieto/lean-termcolor-terminal"><img src="docs/assets/termcolor-terminal.png" alt="TermColor terminal" width="180"></a><br><sub>Terminal</sub></td>
+    <td align="center"><a href="https://github.com/jonaprieto/lean-argus"><img src="docs/assets/argus-1.png" alt="Argus" width="180"></a><br><sub>Argus</sub></td>
+    <td align="center"><a href="https://github.com/jonaprieto/lean-calc-chat"><img src="docs/assets/calc-chat.png" alt="Calc Chat" width="180"></a><br><sub>Calc Chat</sub></td>
+    <td align="center"><a href="https://github.com/jonaprieto/oatp"><img src="docs/assets/oatp-repl-workbench.png" alt="OATP REPL" width="180"></a><br><sub>OATP</sub></td>
+  </tr>
+</table>
+
 The CLI and REPL share `OATP.Argus` resource, catalogue, and online-service option specs; their
 different problem/session positionals remain frontend-specific.
 
