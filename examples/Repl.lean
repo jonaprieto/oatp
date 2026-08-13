@@ -209,6 +209,46 @@ private def preferences (app : App) : OATP.Config.Preferences := {
   theme := app.themeName
 }
 
+private def configProverName (value : String) : String :=
+  OATP.ProverReference.fromPersisted value |>.map OATP.ProverReference.display |>.getD value
+
+private def configOutput (app : App) : IO (String × Report) := do
+  let path := (← OATP.Config.path).map (fun value => s!"{value}") |>.getD "unavailable"
+  let (_, warning) ← OATP.Config.load
+  let current := preferences app
+  let selected := if !current.proverSelectionSet then
+      "automatic"
+    else if current.enabledProvers.isEmpty then
+      "none"
+    else
+      String.intercalate ", " (current.enabledProvers.toList.map configProverName)
+  let default := if current.defaultProver.isEmpty then "auto"
+    else configProverName current.defaultProver
+  let report := match warning with
+    | some _ => Report.warning "REPL configuration (using a fallback)"
+    | none => Report.info "REPL configuration"
+  let report := report.withCode "config"
+    |>.withField "path" path
+    |>.withField "consumer" "REPL startup"
+    |>.withField "theory" current.theory
+    |>.withField "default prover" default
+    |>.withField "selected provers" selected
+    |>.withField "strategy" current.strategy
+    |>.withField "theme" current.theme
+    |>.withHelp "configuration is read at REPL startup"
+  let output := String.intercalate "\n" <| [
+    "CONFIGURATION",
+    s!"  path:             {path}",
+    "  consumer:         REPL startup",
+    s!"  theory:           {current.theory}",
+    s!"  default prover:   {default}",
+    s!"  selected provers: {selected}",
+    s!"  strategy:         {current.strategy}",
+    s!"  theme:            {current.theme}"] ++ match warning with
+      | some message => ["  warning:          " ++ message]
+      | none => []
+  pure (output, report)
+
 private def savePreferences (before after : App) : IO App := do
   if preferences before == preferences after then
     pure after
@@ -419,7 +459,7 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
   start := fun app input => { app with
     busy := true
     jobResult := none
-    runOpen := true
+    runOpen := (currentProblem app).isSome
     stateOpen := false
     historyOpen := false
     proversOpen := false
@@ -707,17 +747,12 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       | some app => pure app
       | none => pure (note app cell input "invalid Lean command" false)
   | .state =>
-      let close := app.stateOpen && app.panelFocus == .drawer
-      let message := if close then "state drawer closed" else "state drawer focused"
+      let updated := toggleStatePanel app
+      let message := if updated.panelFocus == .drawer then
+          "state drawer focused"
+        else "state drawer closed"
       let session := OATP.Repl.note app.session input message
-      let updated := { app with
-        session := session
-        stateOpen := !close
-        historyOpen := false
-        proversOpen := false
-        runOpen := false
-        panelFocus := if close then .main else .drawer }
-      pure (appendEntry updated cell input message true)
+      pure (appendEntry { updated with session } cell input message true)
   | .strategy none => pure (note app cell input
       s!"strategy: {OATP.RunStrategy.name app.strategy}; available: {
         String.intercalate ", " OATP.RunStrategy.choices}" true)
@@ -813,6 +848,9 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
   | .doctor => do
       let output ← doctorText
       pure (note app cell input output true)
+  | .config => do
+      let (output, report) ← configOutput app
+      pure (notePlain app cell input output true none (some report))
   | .run request => do
       let result ← runRequest app request
       pure (notePlain app cell input result.text result.ok none (some result.report))
@@ -905,14 +943,9 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
     if app.panelFocus == .drawer then drawerContexts
     else [AppContext.keyContext .default]
   handle := fun app action => some (clearSelection (match action with
-    | .openRun =>
-        if app.runRows.isEmpty then { app with statusNotice := some "no prover run to inspect" }
-        else { app with
-          runOpen := true
-          stateOpen := false
-          historyOpen := false
-          proversOpen := false
-          panelFocus := .drawer }
+    | .toggleRun => toggleRunPanel app
+    | .toggleHistory => toggleHistoryPanel app
+    | .toggleState => toggleStatePanel app
     | .focusDrawer =>
         if app.runOpen || app.stateOpen || app.historyOpen || app.proversOpen then
           { app with panelFocus := .drawer }
@@ -949,11 +982,15 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
     AppContext.keyContext .stateInput] (.char 'j') == none
 #guard appKeymap.contexts {} == [AppContext.keyContext .default]
 #guard (Keymap.fromSpecs appBindings).conflicts == []
-#guard appKeyLabel .openRun .default == "Ctrl-R/Ctrl-r"
+#guard appKeyLabel .toggleRun .default == "Ctrl-R/Ctrl-r"
+#guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .default] (.ctrl 'h') ==
+  some AppKeyAction.toggleHistory
+#guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .default] (.ctrl 's') ==
+  some AppKeyAction.toggleState
 #guard match backgroundJobs.start ({} : App) "/run" with
-  | app => app.busy && app.runOpen && app.panelFocus == .main
-#guard (removeContextItem { contextItemFocus := some 2 } : App).repl.input.value == "/remove 2"
-#guard (editContextItem { contextItemFocus := some 2 } : App).repl.input.value == "/update 2 "
+  | app => app.busy && !app.runOpen && app.panelFocus == .main
+#guard (removeContextItem { contextItemFocus := some 2 } : App).repl.input.value == "/remove #2"
+#guard (editContextItem { contextItemFocus := some 2 } : App).repl.input.value == "/update #2 "
 #guard (removeContextItem { contextItemFocus := some 2 } : App).panelFocus == .main
 #guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .state] .delete ==
   some AppKeyAction.prepareRemoveContext

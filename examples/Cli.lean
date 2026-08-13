@@ -59,11 +59,19 @@ argus_opts SystemsOptions where
   online : Bool := Spec.switch "online" (some 'o') "Also fetch online provers";
   catalogue : OATP.Argus.CatalogueOptions := OATP.Argus.CatalogueOptions.spec
 
+inductive ConfigAction where
+  | show
+  | path
+
+private def configActionParam : Param ConfigAction :=
+  Param.named "ACTION" (Param.enum [("show", .show), ("path", .path)])
+
 inductive Action where
   | run (options : RunOptions)
   | local (options : LocalOptions)
   | online (options : OnlineOptions)
   | systems (options : SystemsOptions)
+  | config (action : ConfigAction)
   | repl
   | doctor
 
@@ -77,6 +85,9 @@ def cli (identity : CliIdentity) : Argus.Command Action :=
         (description := "Submit a problem to SystemOnTPTP")
     , Argus.cmd "systems" (Spec.map Action.systems SystemsOptions.spec)
         (description := "List installed local and available online provers")
+    , Argus.cmd "config" (Spec.map (fun action => Action.config (action.getD .show))
+        (Spec.opt (Spec.arg "ACTION" "Configuration action" configActionParam)))
+        (description := "Show effective preferences and config path")
     , Argus.cmd "repl" (Spec.const Action.repl)
         (description := "Open the interactive theorem-proving workbench")
     , Argus.cmd "doctor" (Spec.const Action.doctor)
@@ -206,6 +217,46 @@ private def printDiagnostic (message : String) : IO UInt32 := do
   stderr.putStr (Text.render target (renderReport report))
   stderr.putStr "\n"
   pure 1
+
+private def configProverName (value : String) : String :=
+  OATP.ProverReference.fromPersisted value |>.map OATP.ProverReference.display |>.getD value
+
+private def configSelectedProvers (preferences : OATP.Config.Preferences) : String :=
+  if !preferences.proverSelectionSet then
+    "automatic"
+  else if preferences.enabledProvers.isEmpty then
+    "none"
+  else
+    String.intercalate ", " (preferences.enabledProvers.toList.map configProverName)
+
+private def runConfig (identity : CliIdentity) (action : ConfigAction) : IO UInt32 := do
+  match action with
+  | .path =>
+      match ← OATP.Config.path with
+      | some path =>
+          IO.println path
+          pure 0
+      | none => printDiagnostic "cannot resolve the config path: HOME/XDG_CONFIG_HOME is unset"
+  | .show =>
+      let (preferences, warning) ← OATP.Config.load
+      writeTextLine (Text.styled s!"{identity.name} config {identity.version}"
+        (Style.bold <+> Style.fg doctorPalette.purple))
+      doctorSection "CONFIGURATION"
+      match ← OATP.Config.path with
+      | some path => doctorRow "path" (s!"{path}") true
+      | none => doctorRow "path" "unavailable (HOME/XDG_CONFIG_HOME is unset)" false
+      doctorRow "consumer" "REPL startup" true
+      doctorRow "theory" preferences.theory true
+      doctorRow "default" (if preferences.defaultProver.isEmpty then "auto"
+        else configProverName preferences.defaultProver) true
+      doctorRow "selected" (configSelectedProvers preferences) true
+      doctorRow "strategy" preferences.strategy true
+      doctorRow "theme" preferences.theme true
+      match warning with
+      | some message =>
+          doctorRow "warning" message false
+          pure 1
+      | none => pure 0
 
 -- partiality: this live UI loop runs until an external IO action sets finished.
 private partial def progressLoop (finished : IO.Ref Bool)
@@ -567,5 +618,6 @@ def main (argv : List String) : IO UInt32 := do
       | .local options => runLocal identity.name options
       | .online options => runOnline identity options
       | .systems options => runSystems identity options
+      | .config action => runConfig identity action
       | .repl => pure 0
       | .doctor => runDoctor identity

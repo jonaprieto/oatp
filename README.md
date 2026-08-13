@@ -17,6 +17,8 @@ lake build
 lake exe demo
 lake exe proof-demo
 lake exe oatp --help
+lake exe oatp config
+lake exe oatp config path
 lake exe oatp systems
 lake exe oatp repl
 lake exe tests
@@ -40,6 +42,7 @@ goals, translated problems, prover artifacts, and kernel-checked terms in one se
 /info online-vampire
 /strategy                 # show the current portfolio strategy
 /doctor
+/config
 ```
 
 Use `/state` for the context drawer, `/history` for the transcript, and `--script FILE` for a
@@ -56,6 +59,14 @@ context.
 checks installed local executables first, then the cached SystemOnTPTP catalogue. Use names such as
 `online-vampire` without spelling out a version; `/systems --online --refresh` refreshes the
 catalogue cache.
+
+`/config` and `oatp config` show the effective preferences and the resolved config path. Preferences
+are read by REPL startup; batch prover commands use their explicit options. Use `oatp config path`
+when inspecting or editing the JSON file directly. The path is `$XDG_CONFIG_HOME/oatp/config.json`,
+or `~/.config/oatp/config.json` when `XDG_CONFIG_HOME` is unset.
+
+In the REPL, Ctrl-H toggles history, Ctrl-S toggles state, and Ctrl-R toggles the latest run.
+When the state drawer has formulas, ↑/↓ selects them; Delete or `d` prepares `/remove #N`.
 
 Prover runs use the `all` strategy by default, so every selected prover is checked. Set
 `/strategy first-success` for a sequential fallback portfolio that stops after the first
