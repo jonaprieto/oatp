@@ -119,7 +119,7 @@ The standalone CLI is available in release archives. The Lean library can be ins
 
 ```lean
 require oatp from git
-  "https://github.com/jonaprieto/oatp.git" @ "v0.7.0"
+  "https://github.com/jonaprieto/oatp.git" @ "v0.7.1"
 ```
 
 ## Build
