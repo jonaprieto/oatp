@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.6 — 2026-08-13
+
+- Pin every first-party dependency to its newest released tag.
+- Adapt JSON configuration parsing to the standalone `grip-json` package.
+
 ## 0.7.5 — 2026-08-13
 
 - Use a local error transformer for recursive Lean formula translation.
