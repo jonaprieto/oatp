@@ -17,6 +17,18 @@ available for the supported propositional calculus.
   <img src="docs/assets/oatp-doctor.png" alt="OATP doctor diagnostics" width="700">
 </p>
 
+## Status and review
+
+These libraries are actively evolving and are developed with AI assistance and human review.
+CI and machine-checked proofs provide useful evidence, but do not guarantee correctness,
+soundness, portability, performance, or suitability for every use case. Validate behavior
+and assumptions before relying on a release.
+
+Reviewer feedback is welcome, especially on correctness, proofs, API design, usability,
+portability, performance, documentation, and real-world use. Please use the
+[issue tracker](https://github.com/jonaprieto/oatp/issues) or open a PR with a reproducible
+example and the expected behavior.
+
 ## Quick start
 
 ```sh
@@ -30,6 +42,14 @@ lake exe oatp systems
 lake exe oatp repl
 lake exe tests
 ```
+
+### Prover backends
+
+OATP does not bundle ATP executables. For local proving, install at least one supported prover
+such as `eprover`, `vampire`, or `metis`, and make sure its executable is on `PATH`. OATP detects
+installed local provers and uses the first available candidate by default. If you do not want to
+install local provers, select an `online-*` prover from the SystemOnTPTP catalogue instead; that
+mode requires network access and an up-to-date catalogue.
 
 `oatp repl` keeps the TPTP context, conjectures, formulas, variables, symbols, history, Lean
 goals, translated problems, prover artifacts, and kernel-checked terms in one session:
@@ -120,7 +140,7 @@ Without `--prover`, `run` uses the first installed local prover. Set
 - SystemOnTPTP catalogue and cache;
 - shared Argus option specs for the batch CLI and REPL;
 - proposition-to-TPTP translation and small kernel-checked reconstruction;
-- plain and ANSI terminal rendering through the TermColor stack.
+- plain and ANSI terminal rendering through the [TermColor stack](https://github.com/jonaprieto/lean-termcolor).
 
 The standalone CLI is available in release archives. The Lean library can be installed with:
 
