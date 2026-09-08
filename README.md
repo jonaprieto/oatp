@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/jonaprieto/oatp/actions/workflows/ci.yml/badge.svg)](https://github.com/jonaprieto/oatp/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jonaprieto/oatp?display_name=tag&sort=semver)](https://github.com/jonaprieto/oatp/releases)
-[![Lean 4](https://img.shields.io/badge/Lean%204-v4.33.0-6f42c1)](lean-toolchain)
+[![Lean 4](https://img.shields.io/badge/Lean%204-v4.33.1-6f42c1)](lean-toolchain)
 [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-4c8bf5)](https://jonaprieto.github.io/oatp/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
