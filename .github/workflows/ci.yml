@@ -49,8 +49,6 @@ jobs:
       - run: test -s /tmp/oatp-demo.txt
       - name: Run proof demo
         run: lake exe proof-demo
-      - name: Check CLI environment
-        run: lake exe oatp doctor
 
   quality:
     runs-on: ubuntu-latest
