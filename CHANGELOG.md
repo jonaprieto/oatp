@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.9 — 2026-09-09
+
+- Remove private-repository instructions and references from the public README.
+
 ## 0.7.8 — 2026-09-08
 
 - Refresh first-party dependencies for the Lean 4.33.1 ecosystem releases.
