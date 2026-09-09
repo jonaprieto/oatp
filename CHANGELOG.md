@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.8 — 2026-09-08
+
+- Refresh first-party dependencies for the Lean 4.33.1 ecosystem releases.
+
 ## 0.7.7 — 2026-08-13
 
 - Pin `grip-json` to its newest release and document the direct relationship.
