@@ -31,9 +31,8 @@ curl https://i.jpillora.com/jonaprieto/oatp! | bash
 oatp --help
 ```
 
-The `!` installs the executable into `/usr/local/bin/`. For this private repository, configure
-`GITHUB_TOKEN` on the installer server and client as described by its private-repository
-instructions. To inspect the generated script before running it, omit `| bash`.
+The `!` installs the executable into `/usr/local/bin/`. To inspect the generated script before
+running it, omit `| bash`.
 
 ## Quick start
 
@@ -167,8 +166,7 @@ lake exe tests
 OATP grew out of the archived Haskell [`online-atps`](https://github.com/jonaprieto/online-atps)
 project, which remains a historical reference for its online-prover integration.
 
-[`oatp-proofwidgets`](https://github.com/jonaprieto/oatp-proofwidgets) provides optional Infoview
-views. [`argus`](https://github.com/jonaprieto/lean-argus) provides typed CLI parsing;
+[`argus`](https://github.com/jonaprieto/lean-argus) provides typed CLI parsing;
 [`grip`](https://github.com/jonaprieto/lean-grip) and
 [`grip-json`](https://github.com/jonaprieto/lean-grip-json) provide parsing foundations;
 [`termcolor`](https://github.com/jonaprieto/lean-termcolor) provides text foundations;
