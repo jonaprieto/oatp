@@ -9,6 +9,11 @@
 Orchestrated automated theorem proving for Lean 4 with TPTP parsing, local and online prover
 runners, reproducible artifacts, diagnostics, and explicit trust boundaries.
 
+## Problem
+
+Lean goals may benefit from external provers, but their invocation, results, and trust boundaries
+need a reproducible and inspectable workflow.
+
 External ATP output is a candidate result, not a Lean proof. Kernel-checked reconstruction is
 available for the supported propositional calculus.
 
