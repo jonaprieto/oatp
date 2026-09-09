@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.10 — 2026-09-09
+
+- Refresh dependencies and document the contribution policy and package problem.
+
 ## 0.7.9 — 2026-09-09
 
 - Remove private-repository instructions and references from the public README.
