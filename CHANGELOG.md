@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.11 — 2026-09-09
+
+- Refresh TPTP to v0.5.8 for UTF-8 validation and document diagnostics.
+- Correct the compiled version and check it without an environment override.
+
 ## 0.7.10 — 2026-09-09
 
 - Refresh dependencies and document the contribution policy and package problem.
