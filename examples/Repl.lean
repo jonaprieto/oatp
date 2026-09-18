@@ -40,7 +40,8 @@ def appendEntry
     (sources : Sources := #[])
     (diagnostic : Option Diagnostic := none)
     (report : Option Report := none)
-    : App :=
+    : App
+    :=
   { app with
     entries := { cell, input, output, ok, elapsedMs, sources, diagnostic, report } :: app.entries
     transcriptScroll := 0
@@ -52,7 +53,8 @@ def appendEntry
 private
 def diagnosticFor
     (source message : String)
-    : Source × Diagnostic :=
+    : Source × Diagnostic
+    :=
   let sourceText := source
   let source := Source.fromBytes "input" source.toUTF8
   let title := message.splitOn "\n" |>.headD message
@@ -67,7 +69,8 @@ def note
     (input output : String)
     (ok : Bool)
     (elapsedMs : Option Nat := none)
-    : App :=
+    : App
+    :=
   let (sources, diagnostic) := if ok then
       (#[], none)
     else
@@ -84,7 +87,8 @@ def notePlain
     (ok : Bool)
     (elapsedMs : Option Nat := none)
     (report : Option Report := none)
-    : App :=
+    : App
+    :=
   appendEntry { app with session := OATP.Repl.note app.session input output } cell input output ok
     elapsedMs #[] none report
 
@@ -97,7 +101,8 @@ def noteDiagnostic
     (app : App)
     (cell : Nat)
     (input source message : String)
-    : App :=
+    : App
+    :=
   let (source, diagnostic) := diagnosticFor source message
   appendEntry { app with session := OATP.Repl.note app.session input message }
     cell input message false
@@ -106,13 +111,15 @@ def noteDiagnostic
 private
 def clearDerived
     (app : App)
-    : App :=
+    : App
+    :=
   { app with goal := none, translation := none, term := none, leanGoal := none }
 
 private
 def invalidateContext
     (app : App)
-    : App :=
+    : App
+    :=
   { clearDerived app with
     runRows := #[]
     runOpen := false
@@ -122,7 +129,8 @@ def invalidateContext
 private
 def clearTranscript
     (app : App)
-    : App :=
+    : App
+    :=
   { app with
     entries := []
     transcriptScroll := 0
@@ -135,7 +143,8 @@ def clearTranscript
 private
 def changesContext
     (input : String)
-    : Bool :=
+    : Bool
+    :=
   match OATP.Repl.parseInput input with
   | .source _ => true
   | .command command => match command with
@@ -145,7 +154,8 @@ def changesContext
 private
 def lastHistory
     (session : OATP.Repl.Session)
-    : String :=
+    : String
+    :=
   session.history.toList.reverse.head?.map (·.result) |>.getD "ok"
 
 private
@@ -190,7 +200,8 @@ private
 def runReport
     (strategy : OATP.RunStrategy)
     (results : List Portfolio.Result)
-    : Report :=
+    : Report
+    :=
   let issues := results.filter resultHasIssue
   let report := if strategy == .firstSuccess && results.any resultSucceeded then
       Report.info "first successful prover completed"
@@ -212,7 +223,8 @@ structure RunOutput where
 private
 def failedRunOutput
     (code message : String)
-    : RunOutput :=
+    : RunOutput
+    :=
   { text := message, ok := false, report := (Report.error message).withCode code }
 
 private
@@ -235,7 +247,8 @@ private
 def runRowsFor
     (attempts : Array Portfolio.Attempt)
     (strategy : OATP.RunStrategy)
-    : Array RunRow :=
+    : Array RunRow
+    :=
   attempts.mapIdx fun index attempt => {
     name := attempt.name
     status := if strategy == .all || index == 0 then .running else .queued }
@@ -245,7 +258,8 @@ def finishRunRows
     (rows : Array RunRow)
     (results : List Portfolio.Result)
     (strategy : OATP.RunStrategy)
-    : Array RunRow :=
+    : Array RunRow
+    :=
   let rows := results.foldl (fun rows result =>
     let completed := runRow result
     rows.map fun current => if current.name == completed.name then completed else current) rows
@@ -274,14 +288,16 @@ def currentRunRows
 private
 def currentProblem
     (app : App)
-    : Option Problem :=
+    : Option Problem
+    :=
   app.translation.map (fun source => { name := "lean-goal", source }) |>.orElse
     (fun _ => OATP.Repl.problem app.session)
 
 private
 def theoryStatus
     (theory : String)
-    : String :=
+    : String
+    :=
   s!"theory: {theory}; available: {String.intercalate ", " OATP.TPTP.supportedTheories}"
 
 #guard theoryStatus "fof" == "theory: fof; available: fof, cnf, tff"
@@ -298,7 +314,8 @@ private def preferences (app : App) : OATP.Config.Preferences := {
 private
 def configProverName
     (value : String)
-    : String :=
+    : String
+    :=
   OATP.ProverReference.fromPersisted value |>.map OATP.ProverReference.display |>.getD value
 
 private
@@ -528,7 +545,8 @@ def runRequest
 private
 def backendLine
     (input : String)
-    : Bool :=
+    : Bool
+    :=
   match OATP.Repl.parseCommandSpec input with
   | .ok command => match command with
       | .run _ | .local _ | .online _ | .check => true
@@ -538,7 +556,8 @@ def backendLine
 private
 def backendRequest
     (input : String)
-    : Except String (OATP.Repl.RunRequest × Bool) :=
+    : Except String (OATP.Repl.RunRequest × Bool)
+    :=
   match OATP.Repl.parseCommandSpec input with
   | .ok (.run request) => pure (request, false)
   | .ok (.local request) => pure ({
@@ -558,7 +577,8 @@ def backendRequest
 private
 def startingRunRows
     (input : String)
-    : Array RunRow :=
+    : Array RunRow
+    :=
   match backendRequest input with
   | .ok (request, includeDefault) =>
       if request.references.isEmpty then #[{ name := if includeDefault then
@@ -678,7 +698,8 @@ private
 def fuzzy
     (query : String)
     (value : String)
-    : Bool :=
+    : Bool
+    :=
   let query := query.toLower
   let value := value.toLower
   value == query || value.startsWith query || value.contains query
@@ -687,7 +708,8 @@ private
 def proverMatches
     (query : String)
     (reference : OATP.ProverReference)
-    : Bool :=
+    : Bool
+    :=
   fuzzy query (OATP.ProverReference.display reference) || fuzzy query reference.name
 
 private
@@ -1099,7 +1121,8 @@ private
 def complete
     (_app : App)
     (input : TextInputState)
-    : IO (List Completion) :=
+    : IO (List Completion)
+    :=
   completeCommandWith OATP.Repl.commandSpec commandValues input
 
 private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
@@ -1177,7 +1200,8 @@ def handleMouse
     (app : App)
     (size : Size)
     (mouse : MouseEvent)
-    : Option App :=
+    : Option App
+    :=
   if app.runOpen then
     match drawerWidths size.columns with
     | none => none
@@ -1379,7 +1403,8 @@ private def usage : String :=
 private
 def scriptExitCode
     (app : App)
-    : UInt32 :=
+    : UInt32
+    :=
   if app.entries.all (·.ok) then 0 else 1
 
 private

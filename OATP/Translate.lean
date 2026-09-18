@@ -31,13 +31,15 @@ structure GoalTranslation where
 private
 def hexDigit
     (value : Nat)
-    : Char :=
+    : Char
+    :=
   if value < 10 then Char.ofNat (48 + value) else Char.ofNat (97 + (value - 10))
 
 private
 def symbolName
     (raw : String)
-    : String :=
+    : String
+    :=
   let body := raw.toUTF8.toList.map fun byte =>
     let value := byte.toNat
     s!"{hexDigit (value / 16)}{hexDigit (value % 16)}"
@@ -109,12 +111,14 @@ def renderStatement
 private
 def renderFormula
     (formula : TPTP.Formula.Expr)
-    : Except String String :=
+    : Except String String
+    :=
   formula.toTPTP
 
 def translateGoal
     (mvarId : MVarId)
-    : MetaM (Except String GoalTranslation) :=
+    : MetaM (Except String GoalTranslation)
+    :=
   mvarId.withContext do
     let target ← instantiateMVars (← mvarId.getType)
     unless ← isProp target do

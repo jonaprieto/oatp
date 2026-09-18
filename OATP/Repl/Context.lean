@@ -67,7 +67,8 @@ private
 def addSymbol
     (symbols : Array Symbol)
     (symbol : Symbol)
-    : Array Symbol :=
+    : Array Symbol
+    :=
   if symbols.any (· == symbol) then symbols else symbols.push symbol
 
 private
@@ -75,7 +76,8 @@ partial
 def collectTerm
     (term : _root_.TPTP.Formula.Term)
     (symbols : Array Symbol)
-    : Array Symbol :=
+    : Array Symbol
+    :=
   match term with
   | .var name => addSymbol symbols { kind := .variable, name }
   | .constant name => addSymbol symbols { kind := .constant, name }
@@ -88,7 +90,8 @@ partial
 def collectFormula
     (formula : _root_.TPTP.Formula.Expr)
     (symbols : Array Symbol)
-    : Array Symbol :=
+    : Array Symbol
+    :=
   match formula with
   | .atom predicate arguments =>
       let symbols := addSymbol symbols
@@ -107,7 +110,8 @@ private
 def formulaView
     (id cell : Nat)
     (statement : _root_.TPTP.Statement)
-    : FormulaView :=
+    : FormulaView
+    :=
   match OATP.TPTP.Statement.parseFormula statement with
   | .ok formula =>
       { id, cell
@@ -131,14 +135,16 @@ private
 def contextItems
     (nextId cell : Nat)
     (document : _root_.TPTP.Document)
-    : Array ContextItem × Nat :=
+    : Array ContextItem × Nat
+    :=
   document.items.foldl (fun (items, nextId) item =>
     (items.push { id := nextId, cell, value := item }, nextId + 1)) (#[], nextId)
 
 private
 def viewsOf
     (items : Array ContextItem)
-    : Array FormulaView :=
+    : Array FormulaView
+    :=
   items.foldl (fun views item =>
     match item.value with
     | .statement statement => views.push (formulaView item.id item.cell statement)
@@ -147,19 +153,22 @@ def viewsOf
 private
 def symbolsOf
     (views : Array FormulaView)
-    : Array Symbol :=
+    : Array Symbol
+    :=
   views.foldl (fun symbols view => view.symbols.foldl addSymbol symbols) #[]
 
 private
 def problemSourceOf
     (items : Array ContextItem)
-    : String :=
+    : String
+    :=
   String.intercalate "\n" (items.toList.map (fun item => item.value.render))
 
 private
 def rebuildContext
     (session : Session)
-    : Session :=
+    : Session
+    :=
   let formulas := viewsOf session.context
   { session with
     problemSource := problemSourceOf session.context
@@ -170,7 +179,8 @@ private
 def record
     (session : Session)
     (input result : String)
-    : Session :=
+    : Session
+    :=
   { session with
     nextCell := session.nextCell + 1
     history := session.history.push { cell := session.nextCell, input, result } }
@@ -178,14 +188,16 @@ def record
 def note
     (session : Session)
     (input result : String)
-    : Session :=
+    : Session
+    :=
   record session input result
 
 def addDocument
     (session : Session)
     (input : String)
     (document : _root_.TPTP.Document)
-    : Session :=
+    : Session
+    :=
   let (items, nextContextId) := contextItems session.nextContextId session.nextCell document
   let session := rebuildContext { session with
     context := session.context ++ items
@@ -194,13 +206,15 @@ def addDocument
 
 def clearContext
     (session : Session)
-    : Session :=
+    : Session
+    :=
   rebuildContext { session with context := #[] }
 
 private
 def validateStatement
     (statement : _root_.TPTP.Statement)
-    : Except String Unit :=
+    : Except String Unit
+    :=
   match statement.kind, statement.role with
   | .cnf, .conjecture =>
       .error ("CNF does not support the `conjecture` role; use " ++
@@ -210,7 +224,8 @@ def validateStatement
 private
 def validateDocument
     (document : _root_.TPTP.Document)
-    : Except String Unit :=
+    : Except String Unit
+    :=
   document.items.toList.mapM (fun item => match item with
     | _root_.TPTP.Item.statement statement => validateStatement statement
     | _root_.TPTP.Item.include _ => pure ()) |>.map (fun _ => ())
@@ -228,7 +243,8 @@ def parseDocument
 def parseSource
     (session : Session)
     (input source : String)
-    : Except String Session :=
+    : Except String Session
+    :=
   match parseDocument source with
   | .ok document => pure (addDocument session input document)
   | .error message => .error message
@@ -239,14 +255,16 @@ private
 def missingContextIndices
     (session : Session)
     (indices : List Nat)
-    : List Nat :=
+    : List Nat
+    :=
   indices.filter (fun index => !session.context.any (·.id == index))
 
 def removeContext
     (session : Session)
     (input : String)
     (indices : List Nat)
-    : Except String Session :=
+    : Except String Session
+    :=
   let indices := indices.eraseDups
   if indices.isEmpty then
     .error "remove expects at least one context index"
@@ -292,7 +310,8 @@ def updateContext
 
 def problem
     (session : Session)
-    : Option Problem :=
+    : Option Problem
+    :=
   if session.problemSource.isEmpty then none else some {
     name := "oatp-repl"
     source := session.problemSource

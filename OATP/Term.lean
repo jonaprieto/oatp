@@ -32,12 +32,14 @@ def eventText
 
 def renderPlain
     (events : Array SearchEvent)
-    : String :=
+    : String
+    :=
   String.intercalate "\n" (events.toList.map (fun event => (eventText event).plainText))
 
 def renderAnsi16
     (events : Array SearchEvent)
-    : String :=
+    : String
+    :=
   String.intercalate "\n"
     (events.toList.map (fun event => Text.render RenderTarget.ansi16 (eventText event)))
 

@@ -35,7 +35,8 @@ private def hexDigits : Array Char :=
 private
 def isUnreserved
     (byte : UInt8)
-    : Bool :=
+    : Bool
+    :=
   (byte >= 48 && byte <= 57) ||
   (byte >= 65 && byte <= 90) ||
   (byte >= 97 && byte <= 122) ||
@@ -44,7 +45,8 @@ def isUnreserved
 private
 def encodeByte
     (byte : UInt8)
-    : String :=
+    : String
+    :=
   if isUnreserved byte then
     Char.ofNat byte.toNat |>.toString
   else
@@ -53,12 +55,14 @@ def encodeByte
 
 def encodeComponent
     (value : String)
-    : String :=
+    : String
+    :=
   String.join (value.toUTF8.toList.map encodeByte)
 
 def encodeUrlEncoded
     (fields : Array Field)
-    : String :=
+    : String
+    :=
   String.intercalate "&" <| fields.toList.map fun field =>
     s!"{encodeComponent field.name}={encodeComponent field.value}"
 
@@ -72,7 +76,8 @@ structure MultipartPart where
 private
 def validHeaderValue
     (value : String)
-    : Bool :=
+    : Bool
+    :=
   value.toList.all fun character =>
     character != '"' && character != '\\' && character != '\r' && character != '\n'
 
@@ -183,7 +188,8 @@ def statusMarker := "OATP_HTTP_STATUS:"
 private
 def statusFromOutput
     (output : String)
-    : Option (String × Nat) :=
+    : Option (String × Nat)
+    :=
   let parts := output.splitOn statusMarker
   match parts.reverse with
   | code :: before :: _ =>
@@ -226,7 +232,8 @@ def requestWithCurlUnsafe
 private
 def statusFromWgetLine
     (line : String)
-    : Option Nat :=
+    : Option Nat
+    :=
   let fields := line.trimAscii.toString.splitOn " " |>.filter (!·.isEmpty)
   match fields with
   | _ :: code :: _ => code.toNat?
@@ -235,7 +242,8 @@ def statusFromWgetLine
 private
 def statusFromWgetOutput
     (output : String)
-    : Option Nat :=
+    : Option Nat
+    :=
   let rec find : List String → Option Nat
     | [] => none
     | line :: lines =>

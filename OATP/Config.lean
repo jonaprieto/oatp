@@ -41,7 +41,8 @@ private
 def stringField
     (json : Json)
     (name fallback : String)
-    : String :=
+    : String
+    :=
   match field json name with
   | some (.str value) => value
   | _ => fallback
@@ -50,7 +51,8 @@ private
 def stringArrayField
     (json : Json)
     (name : String)
-    : Array String :=
+    : Array String
+    :=
   match field json name with
   | some (.arr values) =>
       let result : List String := values.toList.filterMap fun value =>
@@ -78,7 +80,8 @@ def fromJson
 private
 def toJson
     (preferences : Preferences)
-    : Json :=
+    : Json
+    :=
   .obj #[
     ("theory", .str preferences.theory),
     ("defaultProver", .str preferences.defaultProver),

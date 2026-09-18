@@ -51,7 +51,8 @@ namespace Prover
 
 def label
     (prover : Prover)
-    : String :=
+    : String
+    :=
   match prover.version with
   | some version => s!"{prover.name} {version}"
   | none => prover.name
@@ -75,7 +76,8 @@ private def statusPrefixes : List String := ["% SZS status ", "# SZS status "]
 
 def tokenFromLine
     (line : String)
-    : Option String :=
+    : Option String
+    :=
   let line := line.trimAscii.toString
   let rec find : List String → Option String
     | [] => none
@@ -96,7 +98,8 @@ def tokenFromLines
 private
 def resultTokenFromLine
     (line : String)
-    : Option String :=
+    : Option String
+    :=
   let line := line.trimAscii.toString
   match line.splitOn " says " with
   | _ :: result :: _ =>
@@ -106,7 +109,8 @@ def resultTokenFromLine
 
 def tokenFromOutput
     (output : String)
-    : Option String :=
+    : Option String
+    :=
   let lines := output.splitOn "\n"
   tokenFromLines lines |>.orElse fun _ =>
     lines.findSome? resultTokenFromLine
@@ -127,7 +131,8 @@ def ofString
 
 def ofOutput
     (output : String)
-    : Option SZSStatus :=
+    : Option SZSStatus
+    :=
   tokenFromOutput output >>= ofString
 
 def toString

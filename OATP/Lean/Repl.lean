@@ -70,7 +70,8 @@ private
 def addAtom
     (atoms : Array String)
     (name : String)
-    : Array String :=
+    : Array String
+    :=
   if atoms.contains name then atoms else atoms.push name
 
 private abbrev TranslationM := ExceptT String MetaM
@@ -79,7 +80,8 @@ private
 def translationError
     {α : Type}
     (message : String)
-    : TranslationM α :=
+    : TranslationM α
+    :=
   ExceptT.mk (pure (.error message))
 
 private
@@ -87,7 +89,8 @@ partial
 def atomNames
     (formula : _root_.TPTP.Formula.Expr)
     (atoms : Array String)
-    : Array String :=
+    : Array String
+    :=
   match formula with
   | .atom predicate arguments =>
       if arguments.isEmpty then addAtom atoms predicate else atoms
@@ -102,7 +105,8 @@ def withAtoms
     {α : Type}
     (atoms : List String)
     (action : Array (String × Expr) → TranslationM α)
-    : MetaM (Except String α) :=
+    : MetaM (Except String α)
+    :=
   match atoms with
   | [] => (action #[]).run
   | atom :: rest =>
@@ -113,7 +117,8 @@ private
 def lookupAtom
     (atoms : Array (String × Expr))
     (name : String)
-    : Option Expr :=
+    : Option Expr
+    :=
   atoms.find? (·.1 == name) |>.map Prod.snd
 
 private
