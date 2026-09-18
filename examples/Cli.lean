@@ -77,7 +77,8 @@ inductive Action where
 
 def cli
     (identity : CliIdentity)
-    : Argus.Command Action :=
+    : Argus.Command Action
+    :=
   Argus.group identity.name
     [ Argus.cmd "run" (Spec.map Action.run RunOptions.spec)
         (description := "Run a local or explicitly selected online portfolio")
@@ -147,7 +148,8 @@ private
 def doctorOnlineAttempts
     (endpoint : String)
     (systems : Array SystemOnTPTP.Catalogue.SystemInfo)
-    : Array Portfolio.Attempt :=
+    : Array Portfolio.Attempt
+    :=
   let timeout := OATP.Runtime.doctorTimeoutSeconds
   let outputLimit := OATP.Runtime.doctorMaxOutputBytes
   systems.map fun system => {
@@ -221,7 +223,8 @@ def portfolioName
 private
 def doctorIssueSummary
     (issues : List DoctorIssue)
-    : String :=
+    : String
+    :=
   let kinds : List DoctorIssueKind :=
     [.noSZSStatus, .transportTimeout, .transportFailure, .httpError, .requestFailure]
   String.intercalate " · " <| kinds.filterMap fun kind =>
@@ -257,13 +260,15 @@ def printDiagnostic
 private
 def configProverName
     (value : String)
-    : String :=
+    : String
+    :=
   OATP.ProverReference.fromPersisted value |>.map OATP.ProverReference.display |>.getD value
 
 private
 def configSelectedProvers
     (preferences : OATP.Config.Preferences)
-    : String :=
+    : String
+    :=
   if !preferences.proverSelectionSet then
     "automatic"
   else if preferences.enabledProvers.isEmpty then
@@ -425,7 +430,8 @@ def portfolioView
     (total : Nat)
     (progress : Widgets.IndeterminateProgressState)
     (results : List Portfolio.Result)
-    : Text :=
+    : Text
+    :=
   let latest := match results.getLast? with
     | some result => s!" · latest {portfolioName result}"
     | none => ""

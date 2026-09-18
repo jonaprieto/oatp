@@ -127,7 +127,8 @@ def runWith
 def run
     (problem : Problem)
     (attempts : Array Attempt)
-    : IO (Array Result) :=
+    : IO (Array Result)
+    :=
   runWith problem attempts
 
 private
@@ -157,7 +158,8 @@ def runWithStrategy
     (attempts : Array Attempt)
     (strategy : RunStrategy)
     (onResult : Result → IO Unit := fun _ => pure ())
-    : IO (Array Result) :=
+    : IO (Array Result)
+    :=
   match strategy with
   | .all => runWith problem attempts onResult
   | .firstSuccess => runUntilSuccess problem attempts.toList #[] onResult

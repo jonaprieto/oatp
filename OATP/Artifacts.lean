@@ -24,7 +24,8 @@ structure Run where
 private
 def safeName
     (value : String)
-    : String :=
+    : String
+    :=
   let name := String.ofList <| value.toList.map fun character =>
     if character.isAlphanum || character == '-' || character == '_' then character else '_'
   if name.isEmpty then "run" else name
@@ -64,7 +65,8 @@ def write
 def writeCommand
     (run : Run)
     (command : String)
-    : IO Unit :=
+    : IO Unit
+    :=
   write run "command.txt" command
 
 end OATP.Artifacts

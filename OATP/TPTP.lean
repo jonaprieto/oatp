@@ -35,19 +35,22 @@ def theoryChoices : List String := supportedTheories ++ theoryAliases.map Prod.f
 
 def normalizeTheory
     (value : String)
-    : Option String :=
+    : Option String
+    :=
   let value := value.toLower
   if value ∈ supportedTheories then some value
   else theoryAliases.find? (·.1 == value) |>.map Prod.snd
 
 def parse
     (source : String)
-    : Except Grip.ParseError Document :=
+    : Except Grip.ParseError Document
+    :=
   _root_.TPTP.parseString source
 
 def parseStatement
     (source : String)
-    : Except Grip.ParseError Statement :=
+    : Except Grip.ParseError Statement
+    :=
   _root_.TPTP.parseStatementString source
 
 namespace Syntax
@@ -57,7 +60,8 @@ abbrev Formula := _root_.TPTP.Formula.Expr
 
 def parseFormula
     (source : String)
-    : Except Grip.ParseError Formula :=
+    : Except Grip.ParseError Formula
+    :=
   _root_.TPTP.Formula.parseFormulaString source
 
 end Syntax
@@ -79,7 +83,8 @@ def ofFof
 
 def parseFormula
     (statement : _root_.TPTP.Statement)
-    : Except Grip.ParseError _root_.TPTP.Formula.Expr :=
+    : Except Grip.ParseError _root_.TPTP.Formula.Expr
+    :=
   _root_.TPTP.Statement.parseFormula statement
 
 end Statement

@@ -47,7 +47,8 @@ def snapshot (mvarId : MVarId) : MetaM GoalSnapshot := mvarId.withContext do
 def check
     (mvarId : MVarId)
     (candidate : Expr)
-    : MetaM (Except String CheckedProof) :=
+    : MetaM (Except String CheckedProof)
+    :=
   mvarId.withContext do
   let target ← instantiateMVars (← mvarId.getType)
   let candidate ← instantiateMVars candidate

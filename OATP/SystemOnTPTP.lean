@@ -42,7 +42,8 @@ def onlineReference (systemId : String) : String := onlineReferencePrefix ++ sys
 
 def onlineSystemId
     (reference : String)
-    : String :=
+    : String
+    :=
   if isOnlineReference reference then
     (reference.drop onlineReferencePrefix.length).toString
   else reference
@@ -77,7 +78,8 @@ private def htmlDocument : Grip.Parser (List HtmlPart) :=
 private
 def parseHtml
     (source : String)
-    : Except Grip.ParseError (List HtmlPart) :=
+    : Except Grip.ParseError (List HtmlPart)
+    :=
   htmlDocument.parse source.toUTF8
 
 namespace Catalogue
@@ -91,7 +93,8 @@ structure SystemInfo where
 private
 def quotedAfter
     (marker line : String)
-    : Option String :=
+    : Option String
+    :=
   match line.splitOn marker with
   | _ :: value :: _ => some (value.splitOn "\"" |>.headD "")
   | _ => none
@@ -99,14 +102,16 @@ def quotedAfter
 private
 def systemId
     (line : String)
-    : Option String :=
+    : Option String
+    :=
   (quotedAfter "NAME=\"System___" line).orElse fun _ =>
     quotedAfter "name=\"System___" line
 
 private
 def fieldValue
     (field id current line : String)
-    : String :=
+    : String
+    :=
   let lower := quotedAfter s!"name=\"{field}___{id}\"" line
   let upper := quotedAfter s!"NAME=\"{field}___{id}\"" line
   if lower.isSome || upper.isSome then
@@ -117,7 +122,8 @@ private
 def updateInfo
     (line : String)
     (system : SystemInfo)
-    : SystemInfo :=
+    : SystemInfo
+    :=
   let command := fieldValue "Command" system.id system.command line
   let timeLimit := (fieldValue "TimeLimit" system.id (toString system.timeLimit) line).toNat?.getD
     system.timeLimit
@@ -125,7 +131,8 @@ def updateInfo
 
 def parse
     (html : String)
-    : Array SystemInfo :=
+    : Array SystemInfo
+    :=
   match parseHtml html with
   | .error _ => #[]
   | .ok parts => parts.foldl (init := #[]) fun systems part =>
@@ -144,7 +151,8 @@ def baseName (id : String) : String := id.splitOn "---" |>.headD id
 def matchesReference
     (reference : String)
     (system : SystemInfo)
-    : Bool :=
+    : Bool
+    :=
   let reference := onlineSystemId reference
   let wanted := reference.toLower
   let id := system.id.toLower
@@ -154,21 +162,24 @@ def matchesReference
 def resolve
     (systems : Array SystemInfo)
     (reference : String)
-    : Option SystemInfo :=
+    : Option SystemInfo
+    :=
   systems.toList.find? (matchesReference reference)
 
 end Catalogue
 
 def labels
     (config : Config)
-    : Array String :=
+    : Array String
+    :=
   if config.systemLabels.isEmpty then #[config.systemLabel] else config.systemLabels
 
 private
 def command
     (config : Config)
     (label : String)
-    : String :=
+    : String
+    :=
   config.systemCommands.toList.find? (·.1 == label) |>.map (·.2) |>.getD "default"
 
 inductive ResponseError where
@@ -189,7 +200,8 @@ def ResponseError.message
 def fields
     (config : Config)
     (problem : Problem)
-    : Array Field :=
+    : Array Field
+    :=
   let base : Array Field := #[
     { name := "ProblemSource", value := "FORMULAE" },
     { name := "FORMULAEProblem", value := problem.source },
@@ -243,13 +255,15 @@ private
 def tagStarts
     (needle : String)
     (tag : String)
-    : Bool :=
+    : Bool
+    :=
   tag.toLower.startsWith needle
 
 private
 def bodyText
     (parts : List HtmlPart)
-    : String :=
+    : String
+    :=
   let hasBody := parts.any fun part => match part with
     | .tag tag => tagStarts "<body" tag
     | .text _ => false
@@ -272,13 +286,15 @@ def bodyText
 private
 def decodeHtmlEntities
     (value : String)
-    : String :=
+    : String
+    :=
   value.replace "&gt;" ">" |>.replace "&lt;" "<" |>.replace "&amp;" "&"
     |>.replace "&quot;" "\"" |>.replace "&#39;" "'"
 
 def parseResponseText
     (body : String)
-    : Except Grip.ParseError String :=
+    : Except Grip.ParseError String
+    :=
   let body := body.trimAscii.toString
   if !body.startsWith "<!DOCTYPE" && !body.toLower.startsWith "<html" then
     .ok body
@@ -289,7 +305,8 @@ def parseResponseText
 
 def responseText
     (body : String)
-    : String :=
+    : String
+    :=
   match parseResponseText body with
   | .ok text => text
   | .error _ => body
@@ -306,7 +323,8 @@ def catalogueRequest
 
 def fetchCatalogue
     (endpoint : String)
-    : IO (Except Http.Error Http.Response) :=
+    : IO (Except Http.Error Http.Response)
+    :=
   Http.requestWithTransport (catalogueRequest endpoint)
 
 def parseResponse
