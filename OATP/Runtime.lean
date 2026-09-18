@@ -56,7 +56,9 @@ def catalogueLocation (cacheNamespace endpoint : String) :
     let directory := System.FilePath.join root cacheName
     (directory, System.FilePath.join directory s!"systems-{hash normalizedEndpoint}.html")
 
-def httpErrorMessage : OATP.Http.Error → String
+def httpErrorMessage
+    : OATP.Http.Error →
+      String
   | .io message => s!"HTTP IO failed: {message}"
   | .invalidRequest message => s!"invalid HTTP request: {message}"
   | .transport message => s!"HTTP transport failed: {message}"

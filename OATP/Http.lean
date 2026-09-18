@@ -26,29 +26,41 @@ structure Field where
   value : String
   deriving BEq, DecidableEq, Repr
 
-private def hexDigits : Array Char :=
+private
+def hexDigits
+    : Array Char :=
   #[
     '0', '1', '2', '3', '4', '5', '6', '7',
     '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
   ]
 
-private def isUnreserved (byte : UInt8) : Bool :=
+private
+def isUnreserved
+    (byte : UInt8)
+    : Bool :=
   (byte >= 48 && byte <= 57) ||
   (byte >= 65 && byte <= 90) ||
   (byte >= 97 && byte <= 122) ||
   byte == 45 || byte == 46 || byte == 95 || byte == 126
 
-private def encodeByte (byte : UInt8) : String :=
+private
+def encodeByte
+    (byte : UInt8)
+    : String :=
   if isUnreserved byte then
     Char.ofNat byte.toNat |>.toString
   else
     let n := byte.toNat
     s!"%{hexDigits[n / 16]!}{hexDigits[n % 16]!}"
 
-def encodeComponent (value : String) : String :=
+def encodeComponent
+    (value : String)
+    : String :=
   String.join (value.toUTF8.toList.map encodeByte)
 
-def encodeUrlEncoded (fields : Array Field) : String :=
+def encodeUrlEncoded
+    (fields : Array Field)
+    : String :=
   String.intercalate "&" <| fields.toList.map fun field =>
     s!"{encodeComponent field.name}={encodeComponent field.value}"
 
@@ -59,7 +71,10 @@ structure MultipartPart where
   contentType : Option String := none
   deriving BEq, DecidableEq, Repr
 
-private def validHeaderValue (value : String) : Bool :=
+private
+def validHeaderValue
+    (value : String)
+    : Bool :=
   value.toList.all fun character =>
     character != '"' && character != '\\' && character != '\r' && character != '\n'
 
@@ -95,7 +110,9 @@ inductive Method where
   | post
   deriving BEq, DecidableEq, Repr
 
-def Method.toString : Method → String
+def Method.toString
+    : Method →
+      String
   | .get => "GET"
   | .post => "POST"
 
@@ -142,7 +159,9 @@ inductive Error where
   | bodyTooLarge (actual limit : Nat)
   deriving Repr
 
-def Error.message : Error → String
+def Error.message
+    : Error →
+      String
   | .io message => s!"HTTP IO failed: {message}"
   | .invalidRequest message => s!"invalid HTTP request: {message}"
   | .transport message => s!"HTTP transport failed: {message}"
@@ -158,7 +177,10 @@ inductive Transport where
 
 def statusMarker := "OATP_HTTP_STATUS:"
 
-private def statusFromOutput (output : String) : Option (String × Nat) :=
+private
+def statusFromOutput
+    (output : String)
+    : Option (String × Nat) :=
   let parts := output.splitOn statusMarker
   match parts.reverse with
   | code :: before :: _ =>
@@ -195,13 +217,19 @@ private def requestWithCurlUnsafe (request : Request) : IO (Except Error Respons
       else
         return Except.ok { statusCode := statusCode, body := body, stderr := output.stderr }
 
-private def statusFromWgetLine (line : String) : Option Nat :=
+private
+def statusFromWgetLine
+    (line : String)
+    : Option Nat :=
   let fields := line.trimAscii.toString.splitOn " " |>.filter (!·.isEmpty)
   match fields with
   | _ :: code :: _ => code.toNat?
   | _ => none
 
-private def statusFromWgetOutput (output : String) : Option Nat :=
+private
+def statusFromWgetOutput
+    (output : String)
+    : Option Nat :=
   let rec find : List String → Option Nat
     | [] => none
     | line :: lines =>

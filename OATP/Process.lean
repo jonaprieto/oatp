@@ -24,7 +24,9 @@ structure Command where
   deriving BEq, DecidableEq, Repr
 
 /-- Add the stdin filename expected by local provers that require one. -/
-def Command.withStdinProblem (command : Command) : Command :=
+def Command.withStdinProblem
+    (command : Command)
+    : Command :=
   let executable := (command.executable.splitOn "/").getLast?.getD command.executable
   if executable == "metis" && !command.arguments.any (· == "-") then
     { command with arguments := command.arguments.push "-" }

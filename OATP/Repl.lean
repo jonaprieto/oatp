@@ -27,7 +27,8 @@ open OATP.TPTP
 open _root_.Argus
 open _root_.Grip
 
-def helpTopics : List String :=
+def helpTopics
+    : List String :=
   ["cnf", "fof", "tff", "lean", "run", "context", "grammar", "roles"]
 
 def grammarTopics : List String := OATP.TPTP.supportedTheories
@@ -36,13 +37,19 @@ def roleFormats : List String := OATP.TPTP.supportedTheories
 
 def runStrategyChoices : List String := OATP.RunStrategy.choices
 
-def completionParam (typeName : String) (values : List String) : Param String :=
+def completionParam
+    (typeName : String)
+    (values : List String)
+    : Param String :=
   Param.named typeName (Param.enum (values.map fun value => (value, value)))
 
-def contextIndexParam : Param Nat :=
+def contextIndexParam
+    : Param Nat :=
   Param.ofParser "INDEX" (GParser.seqR (GParser.optional (GParser.ch '#')) GParser.nat)
 
-def staticCompletionValues (typeName : String) : List String :=
+def staticCompletionValues
+    (typeName : String)
+    : List String :=
   match typeName with
   | "TOPIC" => helpTopics
   | "FORMAT" => roleFormats
@@ -162,27 +169,41 @@ argus_opts SystemsOptions where
   online : Bool := Spec.switch "online" (some 'o') "Also fetch online provers";
   catalogue : OATP.Argus.CatalogueOptions := OATP.Argus.CatalogueOptions.spec
 
-private def parseSpec {α : Type} {g : Grade} (spec : Argus.Spec g α)
-    (args : List String) : Except String α :=
+private
+def parseSpec
+    {α : Type}
+    {g : Grade}
+    (spec : Argus.Spec g α)
+    (args : List String)
+    : Except String α :=
   match Argus.run spec args with
   | .ok value => .ok value
   | .error errors => .error (String.intercalate "\n" (errors.map Argus.Err.message))
 
-private def splitArguments : List String → List String × List String
+private
+def splitArguments
+    : List String →
+      List String × List String
   | [] => ([], [])
   | "__OATP_ARGS__" :: rest => ([], rest)
   | value :: rest =>
       let (before, after) := splitArguments rest
       (value :: before, after)
 
-private def splitTerminator : List String → List String × Option (List String)
+private
+def splitTerminator
+    : List String →
+      List String × Option (List String)
   | [] => ([], none)
   | "--" :: rest => ([], some rest)
   | value :: rest =>
       let (before, after) := splitTerminator rest
       (value :: before, after)
 
-private def runRequestOf (options : RunOptions) : RunRequest :=
+private
+def runRequestOf
+    (options : RunOptions)
+    : RunRequest :=
   let (references, arguments) := splitArguments options.references
   { references := (references ++ options.provers).map ProverReference.ofString
     all := options.all
@@ -193,46 +214,65 @@ private def runRequestOf (options : RunOptions) : RunRequest :=
     maxOutput := options.resources.maxOutput.getD OATP.defaultMaxOutputBytes
     arguments }
 
-private def localRequestOf (options : LocalOptions) : LocalRequest :=
+private
+def localRequestOf
+    (options : LocalOptions)
+    : LocalRequest :=
   let (_, arguments) := splitArguments options.arguments
   { executable := options.executable
     timeout := options.resources.timeout.getD OATP.defaultTimeoutSeconds
     maxOutput := options.resources.maxOutput.getD OATP.defaultMaxOutputBytes
     arguments := if arguments.isEmpty then options.arguments else arguments }
 
-private def onlineRequestOf (options : OnlineOptions) : OnlineRequest :=
+private
+def onlineRequestOf
+    (options : OnlineOptions)
+    : OnlineRequest :=
   { system := options.system
     endpoint := options.remote.endpoint
     timeout := options.remote.resources.timeout.getD OATP.defaultTimeoutSeconds
     maxOutput := options.remote.resources.maxOutput.getD OATP.defaultMaxOutputBytes }
 
-private def systemsRequestOf (options : SystemsOptions) : SystemsRequest :=
+private
+def systemsRequestOf
+    (options : SystemsOptions)
+    : SystemsRequest :=
   { online := options.online, endpoint := options.catalogue.endpoint,
     refresh := options.catalogue.refresh, noCache := options.catalogue.noCache }
 
-def parseRunRequest (args : List String) : Except String RunRequest :=
+def parseRunRequest
+    (args : List String)
+    : Except String RunRequest :=
   let (args, tail) := splitTerminator args
   parseSpec RunOptions.spec args |>.map fun request =>
     { runRequestOf request with arguments := tail.getD (runRequestOf request).arguments }
 
-def parseLocalRequest (args : List String) : Except String LocalRequest :=
+def parseLocalRequest
+    (args : List String)
+    : Except String LocalRequest :=
   let (args, tail) := splitTerminator args
   parseSpec LocalOptions.spec args |>.map fun request =>
     { localRequestOf request with arguments := tail.getD (localRequestOf request).arguments }
 
-def parseOnlineRequest (args : List String) : Except String OnlineRequest :=
+def parseOnlineRequest
+    (args : List String)
+    : Except String OnlineRequest :=
   let (args, tail) := splitTerminator args
   match tail with
   | some (_ :: _) => .error "online commands do not accept arguments after --"
   | _ => parseSpec OnlineOptions.spec args |>.map onlineRequestOf
 
-def parseSystemsRequest (args : List String) : Except String SystemsRequest :=
+def parseSystemsRequest
+    (args : List String)
+    : Except String SystemsRequest :=
   let (args, tail) := splitTerminator args
   match tail with
   | some (_ :: _) => .error "systems does not accept arguments after --"
   | _ => parseSpec SystemsOptions.spec args |>.map systemsRequestOf
 
-def splitWords (source : String) : List String :=
+def splitWords
+    (source : String)
+    : List String :=
   let whitespace (character : Char) : Bool := character.isWhitespace
   let (current, words) := source.toList.foldl (fun (current, words) character =>
     if whitespace character then
@@ -242,13 +282,17 @@ def splitWords (source : String) : List String :=
   let words := if current.isEmpty then words else String.ofList current.reverse :: words
   words.reverse
 
-private def textSpec (name help : String) : Spec (1 * (1 * conditional * flexible)) String :=
+private
+def textSpec
+    (name help : String)
+    : Spec (1 * (1 * conditional * flexible)) String :=
   Spec.map (fun values : List String => String.intercalate " " values)
     (Spec.map2 (fun value values => value :: values)
       (Spec.arg name help (Param.named name Param.str))
       (Spec.many (Spec.arg name help (Param.named name Param.str))))
 
-def commandSpec : Argus.Command Command :=
+def commandSpec
+    : Argus.Command Command :=
   Argus.group "oatp"
     [ Argus.cmd "help" (Spec.map Command.help (Spec.opt (Spec.arg "TOPIC" "Help topic"
         (Param.named "TOPIC" Param.str))))
@@ -338,7 +382,10 @@ def commandSpec : Argus.Command Command :=
     , Argus.cmd "quit" (Spec.const .quit) (description := "Leave the REPL")
     , Argus.cmd "exit" (Spec.const .quit) (description := "Leave the REPL") ]
 
-private def commandArgv (source : String) : List String × Option (List String) :=
+private
+def commandArgv
+    (source : String)
+    : List String × Option (List String) :=
   match splitWords source.trimAscii.toString with
   | command :: args =>
       let command := (command.drop 1).toString
@@ -346,8 +393,11 @@ private def commandArgv (source : String) : List String × Option (List String) 
       (command :: args, tail)
   | [] => ([], none)
 
-private def appendCommandArguments (command : Command) (tail : Option (List String)) :
-    Except String Command :=
+private
+def appendCommandArguments
+    (command : Command)
+    (tail : Option (List String))
+    : Except String Command :=
   match tail with
   | none => .ok command
   | some arguments =>
@@ -361,7 +411,9 @@ private def appendCommandArguments (command : Command) (tail : Option (List Stri
           if arguments.isEmpty then .ok command
           else .error "command does not accept arguments after --"
 
-def parseCommandSpec (source : String) : Except String Command :=
+def parseCommandSpec
+    (source : String)
+    : Except String Command :=
   let line := source.trimAscii.toString
   if !line.startsWith "/" then .error "commands start with `/`; try `/help`"
   else
@@ -378,15 +430,21 @@ def parseCommandSpec (source : String) : Except String Command :=
           | [] => ""
         .error (message ++ hint)
 
-private def commandChildren : List (Argus.Command Command) :=
+private
+def commandChildren
+    : List (Argus.Command Command) :=
   match commandSpec.body with
   | .subs children => children
   | .opts _ => []
 
 def commandNames : List String := commandChildren.map (·.name)
 
-private def usageArguments : {g : Grade} → {α : Type} → Spec g α →
-    List (String × Bool × Bool)
+private
+def usageArguments
+    : {g : Grade} →
+      {α : Type} →
+      Spec g α →
+      List (String × Bool × Bool)
   | _, _, .const _ | _, _, .switch _ _ _ | _, _, .flag _ _ _ _ => []
   | _, _, .arg name _ _ => [(name, false, false)]
   | _, _, .ap function argument => usageArguments function ++ usageArguments argument
@@ -396,7 +454,10 @@ private def usageArguments : {g : Grade} → {α : Type} → Spec g α →
   | _, _, .many argument => usageArguments argument |>.map fun (name, _, _) =>
       (name, true, true)
 
-private def usageLine (command : Argus.Command Command) : String :=
+private
+def usageLine
+    (command : Argus.Command Command)
+    : String :=
   let flags := if command.toMeta.flags.isEmpty then "" else " [OPTIONS]"
   let arguments := match command.body with
     | .opts spec => usageArguments spec
@@ -406,26 +467,34 @@ private def usageLine (command : Argus.Command Command) : String :=
     output ++ if optional then " [" ++ value ++ "]" else " " ++ value) ""
   command.name ++ flags ++ arguments
 
-def commandHelpText : String :=
+def commandHelpText
+    : String :=
   String.intercalate "\n" <| ["OATP REPL commands"] ++ commandChildren.map fun command =>
     "  /" ++ usageLine command ++ "  " ++ command.description
 
-def parseCommand (source : String) : Command :=
+def parseCommand
+    (source : String)
+    : Command :=
   let line := source.trimAscii.toString
   match parseCommandSpec line with
   | .ok command => command
   | .error _ => .unknown line
 
-def parseInput (source : String) : Submission :=
+def parseInput
+    (source : String)
+    : Submission :=
   if source.trimAscii.toString.startsWith "/" then
     .command (parseCommand source)
   else
     .source source
 
-def helpText : String :=
+def helpText
+    : String :=
   commandHelpText
 
-private def cnfHelp : String :=
+private
+def cnfHelp
+    : String :=
   String.intercalate "\n" [
     "CNF — clause normal form",
     "statement: cnf(NAME, ROLE, CLAUSE).",
@@ -445,7 +514,9 @@ private def cnfHelp : String :=
     "  /state formulas   /roles cnf   /run --prover eprover"
   ]
 
-private def fofHelp : String :=
+private
+def fofHelp
+    : String :=
   String.intercalate "\n" [
     "FOF — first-order formulas",
     "statement: fof(NAME, ROLE, FORMULA).",
@@ -463,7 +534,9 @@ private def fofHelp : String :=
     "use FOF when the problem needs implication, conjunction, or quantifiers"
   ]
 
-private def tffHelp : String :=
+private
+def tffHelp
+    : String :=
   String.intercalate "\n" [
     "TFF — typed first-order formulas",
     "type:     tff(nat_type, type, nat: $tType).",
@@ -476,7 +549,9 @@ private def tffHelp : String :=
     "TFF is parsed as TPTP input; use /state to inspect collected symbols"
   ]
 
-private def grammarHelp : String :=
+private
+def grammarHelp
+    : String :=
   String.intercalate "\n" [
     "Grammar lookup",
     "/grammar cnf       clause normal form",
@@ -490,7 +565,10 @@ private def grammarHelp : String :=
     "Use /help cnf, /help fof, or /help tff for examples."
   ]
 
-private def roleHelp (topic : Option String) : String :=
+private
+def roleHelp
+    (topic : Option String)
+    : String :=
   let format := topic.getD "all"
   String.intercalate "\n" [
     s!"Roles ({format})",
@@ -511,7 +589,9 @@ private def roleHelp (topic : Option String) : String :=
     s!"Use /grammar {format} for the syntax."
   ]
 
-private def leanHelp : String :=
+private
+def leanHelp
+    : String :=
   String.intercalate "\n" [
     "Lean bridge",
     "1. /goal p => p              create a Lean goal",
@@ -524,7 +604,9 @@ private def leanHelp : String :=
     "example result: fun h => h : _fvar.1 → _fvar.1"
   ]
 
-private def runHelp : String :=
+private
+def runHelp
+    : String :=
   String.intercalate "\n" [
     "Provers",
     "/run                    run the configured or first local prover",
@@ -553,7 +635,9 @@ private def runHelp : String :=
     "  /local vampire -- --mode casc"
   ]
 
-private def contextHelp : String :=
+private
+def contextHelp
+    : String :=
   String.intercalate "\n" [
     "Context drawer",
     "/state [TARGET]            open context or focus a box",
@@ -574,7 +658,10 @@ private def contextHelp : String :=
     "theory: /theory fof|cnf|tff (tf1 alias); provers: /provers; theme: /theme NAME"
   ]
 
-private def commandHelp (command : Argus.Command Command) : String :=
+private
+def commandHelp
+    (command : Argus.Command Command)
+    : String :=
   let details := match command.name with
     | "goal" | "to-lean" | "translate-to-lean" | "snapshot" | "to-tptp" | "reconstruct" | "term" =>
         leanHelp
@@ -587,11 +674,16 @@ private def commandHelp (command : Argus.Command Command) : String :=
   String.intercalate "\n" <| [s!"/{usageLine command}", command.description] ++
     (if details.isEmpty then [] else ["", details])
 
-private def normalizeHelpTopic (topic : String) : String :=
+private
+def normalizeHelpTopic
+    (topic : String)
+    : String :=
   let topic := topic.trimAscii.toString
   if topic.startsWith "/" then topic.drop 1 |>.trimAscii.toString else topic
 
-def helpFor : Option String → String
+def helpFor
+    : Option String →
+      String
   | none => helpText
   | some rawTopic =>
       let topic := normalizeHelpTopic rawTopic
@@ -616,11 +708,17 @@ def helpFor : Option String → String
                   "/help run, /help context"
               ]
 
-private def addFormulaCommand (session : Session) (input name role formula : String) :
-    Except String Session :=
+private
+def addFormulaCommand
+    (session : Session)
+    (input name role formula : String)
+    : Except String Session :=
   parseSource session input s!"fof({name}, {role}, {formula})."
 
-def apply (session : Session) (input : String) : Except String Session :=
+def apply
+    (session : Session)
+    (input : String)
+    : Except String Session :=
   match parseInput input with
   | .source source => parseSource session source source
   | .command command =>

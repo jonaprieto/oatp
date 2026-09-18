@@ -40,7 +40,9 @@ def isOnlineReference (reference : String) : Bool := reference.startsWith online
 
 def onlineReference (systemId : String) : String := onlineReferencePrefix ++ systemId
 
-def onlineSystemId (reference : String) : String :=
+def onlineSystemId
+    (reference : String)
+    : String :=
   if isOnlineReference reference then
     (reference.drop onlineReferencePrefix.length).toString
   else reference
@@ -60,19 +62,30 @@ private inductive HtmlPart where
 
 open Grip GParser
 
-private def htmlTag : GParser conditional HtmlPart :=
+private
+def htmlTag
+    : GParser conditional HtmlPart :=
   HtmlPart.tag <$> GParser.capture (GParser.ch '<' *> GParser.takeWhile (· != 62) <* GParser.ch '>')
 
-private def htmlText : GParser conditional HtmlPart :=
+private
+def htmlText
+    : GParser conditional HtmlPart :=
   HtmlPart.text <$> GParser.capture (GParser.takeWhile1 (· != 60))
 
-private def htmlPart : GParser conditional HtmlPart :=
+private
+def htmlPart
+    : GParser conditional HtmlPart :=
   GParser.chooseG htmlTag [htmlText]
 
-private def htmlDocument : Grip.Parser (List HtmlPart) :=
+private
+def htmlDocument
+    : Grip.Parser (List HtmlPart) :=
   GParser.seqL (GParser.many htmlPart) GParser.eof
 
-private def parseHtml (source : String) : Except Grip.ParseError (List HtmlPart) :=
+private
+def parseHtml
+    (source : String)
+    : Except Grip.ParseError (List HtmlPart) :=
   htmlDocument.parse source.toUTF8
 
 namespace Catalogue
@@ -83,29 +96,44 @@ structure SystemInfo where
   timeLimit : Nat := defaultSystemTimeLimit
   deriving BEq, DecidableEq, Repr
 
-private def quotedAfter (marker line : String) : Option String :=
+private
+def quotedAfter
+    (marker line : String)
+    : Option String :=
   match line.splitOn marker with
   | _ :: value :: _ => some (value.splitOn "\"" |>.headD "")
   | _ => none
 
-private def systemId (line : String) : Option String :=
+private
+def systemId
+    (line : String)
+    : Option String :=
   (quotedAfter "NAME=\"System___" line).orElse fun _ =>
     quotedAfter "name=\"System___" line
 
-private def fieldValue (field id current line : String) : String :=
+private
+def fieldValue
+    (field id current line : String)
+    : String :=
   let lower := quotedAfter s!"name=\"{field}___{id}\"" line
   let upper := quotedAfter s!"NAME=\"{field}___{id}\"" line
   if lower.isSome || upper.isSome then
     (quotedAfter "value=\"" line).getD current
   else current
 
-private def updateInfo (line : String) (system : SystemInfo) : SystemInfo :=
+private
+def updateInfo
+    (line : String)
+    (system : SystemInfo)
+    : SystemInfo :=
   let command := fieldValue "Command" system.id system.command line
   let timeLimit := (fieldValue "TimeLimit" system.id (toString system.timeLimit) line).toNat?.getD
     system.timeLimit
   { system with command, timeLimit }
 
-def parse (html : String) : Array SystemInfo :=
+def parse
+    (html : String)
+    : Array SystemInfo :=
   match parseHtml html with
   | .error _ => #[]
   | .ok parts => parts.foldl (init := #[]) fun systems part =>
@@ -121,22 +149,34 @@ def parse (html : String) : Array SystemInfo :=
 
 def baseName (id : String) : String := id.splitOn "---" |>.headD id
 
-def matchesReference (reference : String) (system : SystemInfo) : Bool :=
+def matchesReference
+    (reference : String)
+    (system : SystemInfo)
+    : Bool :=
   let reference := onlineSystemId reference
   let wanted := reference.toLower
   let id := system.id.toLower
   id == wanted || (baseName system.id).toLower == wanted ||
     id.startsWith (wanted ++ "---")
 
-def resolve (systems : Array SystemInfo) (reference : String) : Option SystemInfo :=
+def resolve
+    (systems : Array SystemInfo)
+    (reference : String)
+    : Option SystemInfo :=
   systems.toList.find? (matchesReference reference)
 
 end Catalogue
 
-def labels (config : Config) : Array String :=
+def labels
+    (config : Config)
+    : Array String :=
   if config.systemLabels.isEmpty then #[config.systemLabel] else config.systemLabels
 
-private def command (config : Config) (label : String) : String :=
+private
+def command
+    (config : Config)
+    (label : String)
+    : String :=
   config.systemCommands.toList.find? (·.1 == label) |>.map (·.2) |>.getD "default"
 
 inductive ResponseError where
@@ -146,13 +186,18 @@ inductive ResponseError where
   | malformedBody (message : String)
   deriving Repr
 
-def ResponseError.message : ResponseError → String
+def ResponseError.message
+    : ResponseError →
+      String
   | .httpStatus status => s!"SystemOnTPTP returned HTTP {status}"
   | .missingStatus => "SystemOnTPTP response did not contain an SZS status"
   | .unsupportedStatus status => s!"SystemOnTPTP returned unsupported SZS status `{status}`"
   | .malformedBody message => s!"SystemOnTPTP response was not valid HTML: {message}"
 
-def fields (config : Config) (problem : Problem) : Array Field :=
+def fields
+    (config : Config)
+    (problem : Problem)
+    : Array Field :=
   let base : Array Field := #[
     { name := "ProblemSource", value := "FORMULAE" },
     { name := "FORMULAEProblem", value := problem.source },
@@ -169,7 +214,11 @@ def fields (config : Config) (problem : Problem) : Array Field :=
     { name := s!"Transform___{label}", value := "none" }
   ]) base
 
-def request (config : Config) (problem : Problem) : Http.Request where
+def request
+    (config : Config)
+    (problem : Problem)
+    : Http.Request
+    where
   method := .post
   url := config.endpoint
   body := encodeUrlEncoded (fields config problem)
@@ -196,10 +245,17 @@ def submit (config : Config) (problem : Problem) :
         OATP.Artifacts.write run "response.error" (Http.Error.message error)
   pure response
 
-private def tagStarts (needle : String) (tag : String) : Bool :=
+private
+def tagStarts
+    (needle : String)
+    (tag : String)
+    : Bool :=
   tag.toLower.startsWith needle
 
-private def bodyText (parts : List HtmlPart) : String :=
+private
+def bodyText
+    (parts : List HtmlPart)
+    : String :=
   let hasBody := parts.any fun part => match part with
     | .tag tag => tagStarts "<body" tag
     | .text _ => false
@@ -219,11 +275,16 @@ private def bodyText (parts : List HtmlPart) : String :=
             else collect inside rest
   String.intercalate "" (collect (!hasBody) parts)
 
-private def decodeHtmlEntities (value : String) : String :=
+private
+def decodeHtmlEntities
+    (value : String)
+    : String :=
   value.replace "&gt;" ">" |>.replace "&lt;" "<" |>.replace "&amp;" "&"
     |>.replace "&quot;" "\"" |>.replace "&#39;" "'"
 
-def parseResponseText (body : String) : Except Grip.ParseError String :=
+def parseResponseText
+    (body : String)
+    : Except Grip.ParseError String :=
   let body := body.trimAscii.toString
   if !body.startsWith "<!DOCTYPE" && !body.toLower.startsWith "<html" then
     .ok body
@@ -232,19 +293,26 @@ def parseResponseText (body : String) : Except Grip.ParseError String :=
     | .error error => .error error
     | .ok parts => .ok <| decodeHtmlEntities (bodyText parts).trimAscii.toString
 
-def responseText (body : String) : String :=
+def responseText
+    (body : String)
+    : String :=
   match parseResponseText body with
   | .ok text => text
   | .error _ => body
 
-def catalogueRequest (endpoint : String) : Http.Request where
+def catalogueRequest
+    (endpoint : String)
+    : Http.Request
+    where
   method := .get
   url := if endpoint == defaultEndpoint then defaultCatalogueEndpoint else endpoint
   maxSeconds := defaultCatalogueTimeoutSeconds
   maxBodyBytes := defaultCatalogueMaxBodyBytes
   maxRequestBodyBytes := defaultCatalogueMaxBodyBytes
 
-def fetchCatalogue (endpoint : String) : IO (Except Http.Error Http.Response) :=
+def fetchCatalogue
+    (endpoint : String)
+    : IO (Except Http.Error Http.Response) :=
   Http.requestWithTransport (catalogueRequest endpoint)
 
 def parseResponse (config : Config) (problem : Problem) (response : Http.Response) :

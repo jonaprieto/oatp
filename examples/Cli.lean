@@ -63,7 +63,9 @@ inductive ConfigAction where
   | show
   | path
 
-private def configActionParam : Param ConfigAction :=
+private
+def configActionParam
+    : Param ConfigAction :=
   Param.named "ACTION" (Param.enum [("show", .show), ("path", .path)])
 
 inductive Action where
@@ -75,7 +77,9 @@ inductive Action where
   | repl
   | doctor
 
-def cli (identity : CliIdentity) : Argus.Command Action :=
+def cli
+    (identity : CliIdentity)
+    : Argus.Command Action :=
   Argus.group identity.name
     [ Argus.cmd "run" (Spec.map Action.run RunOptions.spec)
         (description := "Run a local or explicitly selected online portfolio")
@@ -131,8 +135,11 @@ private def doctorOnlineProblem : Problem := {
   source := "fof(oatp_doctor, conjecture, (p => p)).\n"
 }
 
-private def doctorOnlineAttempts (endpoint : String)
-    (systems : Array SystemOnTPTP.Catalogue.SystemInfo) : Array Portfolio.Attempt :=
+private
+def doctorOnlineAttempts
+    (endpoint : String)
+    (systems : Array SystemOnTPTP.Catalogue.SystemInfo)
+    : Array Portfolio.Attempt :=
   let timeout := OATP.Runtime.doctorTimeoutSeconds
   let outputLimit := OATP.Runtime.doctorMaxOutputBytes
   systems.map fun system => {
@@ -160,14 +167,20 @@ structure DoctorIssue where
   kind : DoctorIssueKind
   detail : String
 
-private def doctorIssueKindLabel : DoctorIssueKind → String
+private
+def doctorIssueKindLabel
+    : DoctorIssueKind →
+      String
   | .noSZSStatus => "no SZS status"
   | .transportTimeout => "transport timeout"
   | .transportFailure => "transport failure"
   | .httpError => "HTTP error"
   | .requestFailure => "request failed"
 
-private def doctorIssueKind : Portfolio.Failure → DoctorIssueKind
+private
+def doctorIssueKind
+    : Portfolio.Failure →
+      DoctorIssueKind
   | .process _ => .requestFailure
   | .http (.transport message) =>
       if message.contains "timed out" then .transportTimeout else .transportFailure
@@ -177,7 +190,10 @@ private def doctorIssueKind : Portfolio.Failure → DoctorIssueKind
   | .response (.unsupportedStatus _) _ => .requestFailure
   | .response (.malformedBody _) _ => .requestFailure
 
-private def doctorIssue : Portfolio.Result → Option DoctorIssue
+private
+def doctorIssue
+    : Portfolio.Result →
+      Option DoctorIssue
   | .artifact _ _ => none
   | .failed attempt failure =>
       match failure with
@@ -187,11 +203,17 @@ private def doctorIssue : Portfolio.Result → Option DoctorIssue
             failure.message ++ "\n\n" ++ failure.output
           some { prover := attempt.name, kind := doctorIssueKind failure, detail }
 
-private def portfolioName : Portfolio.Result → String
+private
+def portfolioName
+    : Portfolio.Result →
+      String
   | .artifact attempt _ => attempt.name
   | .failed attempt _ => attempt.name
 
-private def doctorIssueSummary (issues : List DoctorIssue) : String :=
+private
+def doctorIssueSummary
+    (issues : List DoctorIssue)
+    : String :=
   let kinds : List DoctorIssueKind :=
     [.noSZSStatus, .transportTimeout, .transportFailure, .httpError, .requestFailure]
   String.intercalate " · " <| kinds.filterMap fun kind =>
@@ -218,10 +240,16 @@ private def printDiagnostic (message : String) : IO UInt32 := do
   stderr.putStr "\n"
   pure 1
 
-private def configProverName (value : String) : String :=
+private
+def configProverName
+    (value : String)
+    : String :=
   OATP.ProverReference.fromPersisted value |>.map OATP.ProverReference.display |>.getD value
 
-private def configSelectedProvers (preferences : OATP.Config.Preferences) : String :=
+private
+def configSelectedProvers
+    (preferences : OATP.Config.Preferences)
+    : String :=
   if !preferences.proverSelectionSet then
     "automatic"
   else if preferences.enabledProvers.isEmpty then
@@ -296,7 +324,11 @@ private def showArtifact (artifact : Artifact) : IO UInt32 := do
   unless artifact.stderr.isEmpty do IO.eprint artifact.stderr
   pure <| if SZSStatus.isSuccess artifact.status then 0 else 1
 
-private def processErrorMessage (toolName executable : String) : OATP.Process.Error → String
+private
+def processErrorMessage
+    (toolName executable : String)
+    : OATP.Process.Error →
+      String
   | .io message =>
       s!"could not start local prover `{executable}`: {message}; " ++
         s!"check the path or run `{toolName} doctor`"
@@ -325,13 +357,19 @@ private def noLocalProverMessage : IO String := do
   pure <| s!"no local ATP found; tried {String.intercalate ", " candidates.toList}. " ++
     "Install one, pass --prover PATH, or explicitly select an online-* prover"
 
-private def responseErrorMessage : SystemOnTPTP.ResponseError → String
+private
+def responseErrorMessage
+    : SystemOnTPTP.ResponseError →
+      String
   | .httpStatus status => s!"SystemOnTPTP returned HTTP {status}"
   | .missingStatus => "SystemOnTPTP response did not contain an SZS status"
   | .unsupportedStatus status => s!"SystemOnTPTP returned unsupported SZS status `{status}`"
   | .malformedBody message => s!"SystemOnTPTP response was not valid HTML: {message}"
 
-private def showPortfolioResult : Portfolio.Result → IO Bool
+private
+def showPortfolioResult
+    : Portfolio.Result →
+      IO Bool
   | .artifact _ artifact => do
       let marker := if SZSStatus.isSuccess artifact.status then "✓" else "!"
       IO.eprintln s!"{marker} {artifact.prover.label}: {artifact.status} ({artifact.elapsedMs}ms)"
@@ -347,8 +385,12 @@ private def showPortfolioResult : Portfolio.Result → IO Bool
       unless failure.output.isEmpty do IO.eprint failure.output
       pure false
 
-private def portfolioView (total : Nat) (progress : Widgets.IndeterminateProgressState)
-    (results : List Portfolio.Result) : Text :=
+private
+def portfolioView
+    (total : Nat)
+    (progress : Widgets.IndeterminateProgressState)
+    (results : List Portfolio.Result)
+    : Text :=
   let latest := match results.getLast? with
     | some result => s!" · latest {portfolioName result}"
     | none => ""

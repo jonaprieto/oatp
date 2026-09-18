@@ -33,15 +33,21 @@ def defaultTheory : String := supportedTheories.headD "fof"
 
 def theoryChoices : List String := supportedTheories ++ theoryAliases.map Prod.fst
 
-def normalizeTheory (value : String) : Option String :=
+def normalizeTheory
+    (value : String)
+    : Option String :=
   let value := value.toLower
   if value ∈ supportedTheories then some value
   else theoryAliases.find? (·.1 == value) |>.map Prod.snd
 
-def parse (source : String) : Except Grip.ParseError Document :=
+def parse
+    (source : String)
+    : Except Grip.ParseError Document :=
   _root_.TPTP.parseString source
 
-def parseStatement (source : String) : Except Grip.ParseError Statement :=
+def parseStatement
+    (source : String)
+    : Except Grip.ParseError Statement :=
   _root_.TPTP.parseStatementString source
 
 namespace Syntax
@@ -49,7 +55,9 @@ namespace Syntax
 abbrev Term := _root_.TPTP.Formula.Term
 abbrev Formula := _root_.TPTP.Formula.Expr
 
-def parseFormula (source : String) : Except Grip.ParseError Formula :=
+def parseFormula
+    (source : String)
+    : Except Grip.ParseError Formula :=
   _root_.TPTP.Formula.parseFormulaString source
 
 end Syntax
@@ -66,8 +74,9 @@ def ofFof (name : String) (role : Role) (formula : _root_.TPTP.Formula.Expr) :
     formula
   }
 
-def parseFormula (statement : _root_.TPTP.Statement) :
-    Except Grip.ParseError _root_.TPTP.Formula.Expr :=
+def parseFormula
+    (statement : _root_.TPTP.Statement)
+    : Except Grip.ParseError _root_.TPTP.Formula.Expr :=
   _root_.TPTP.Statement.parseFormula statement
 
 end Statement
@@ -76,7 +85,11 @@ end OATP.TPTP
 
 namespace OATP
 
-def Problem.ofStatement (name : String) (statement : _root_.TPTP.Statement) : Problem where
+def Problem.ofStatement
+    (name : String)
+    (statement : _root_.TPTP.Statement)
+    : Problem
+    where
   name := name
   source := _root_.TPTP.Statement.render statement
 
