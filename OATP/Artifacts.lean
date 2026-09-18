@@ -34,7 +34,10 @@ private def roots : IO (List System.FilePath) := do
   let fallback ← OATP.Config.directory
   pure <| System.FilePath.join current ".oatp" :: fallback.toList
 
-def start (label : String) (problem : Problem) : IO (Option Run) := do
+def start
+    (label : String)
+    (problem : Problem)
+    : IO (Option Run) := do
   let stamp ← IO.monoMsNow
   for root in ← roots do
     -- ponytail: 64 bounded suffixes cover same-millisecond concurrent runs;
@@ -51,7 +54,10 @@ def start (label : String) (problem : Problem) : IO (Option Run) := do
       catch _ => pure ()
   pure none
 
-def write (run : Run) (name content : String) : IO Unit := do
+def write
+    (run : Run)
+    (name content : String)
+    : IO Unit := do
   try IO.FS.writeFile (System.FilePath.join run.directory name) content
   catch _ => pure ()
 

@@ -254,16 +254,13 @@ open OATP OATP.TPTP
     { columns := 100, rows := 24 }).plainText.contains "state •"
 #guard (OATP.ReplView.screen { stateOpen := true, panelFocus := .drawer }
     { columns := 100, rows := 24 }).plainText.contains "state • active"
-def completionApp
-    : OATP.ReplView.App :=
+def completionApp : OATP.ReplView.App :=
   { repl := { input := { value := "/st", cursor := 3 }
               completion := some { candidates := #[{ replacement := "/state" }] } } }
 #guard (OATP.ReplView.screen completionApp { columns := 100, rows := 24 }).plainText.contains
   "/state"
 #guard OATP.ReplView.formatElapsed 1_500 == "1.5 s"
-private
-def timedEntry
-    : OATP.ReplView.TranscriptEntry :=
+private def timedEntry : OATP.ReplView.TranscriptEntry :=
   { cell := 1
     input := "/to-lean p => p"
     output := "goal created"
@@ -271,9 +268,7 @@ def timedEntry
 #guard (OATP.ReplView.screen
     { entries := [timedEntry] }
     { columns := 100, rows := 24 }).plainText.contains "(12 ms)"
-private
-def plainEntry
-    : OATP.ReplView.TranscriptEntry :=
+private def plainEntry : OATP.ReplView.TranscriptEntry :=
   { cell := 1
     input := "/to-lean p => p"
     output := "goal created" }

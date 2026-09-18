@@ -24,7 +24,10 @@ structure CheckedProof where
   proof : Expr
   target : Expr
 
-private def prettyExpr (expression : Expr) : MetaM String := do
+private
+def prettyExpr
+    (expression : Expr)
+    : MetaM String := do
   let formatted ← ppExpr expression
   pure s!"{formatted}"
 

@@ -99,7 +99,9 @@ def load : IO (Preferences × Option String) := do
         | .error _ => pure (default, some s!"invalid config `{file}`: expected a JSON object")
       catch _ => pure (default, none)
 
-def save (preferences : Preferences) : IO (Option String) := do
+def save
+    (preferences : Preferences)
+    : IO (Option String) := do
   match ← path with
   | none => pure (some "cannot persist preferences: HOME/XDG_CONFIG_HOME is unset")
   | some file =>

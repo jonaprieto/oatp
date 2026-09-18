@@ -56,8 +56,12 @@ def create : IO Runtime := do
     metaState := {}
   }
 
-private def runMeta {α : Type} (runtime : Runtime) (action : MetaM α) :
-    IO (α × Runtime) := do
+private
+def runMeta
+    {α : Type}
+    (runtime : Runtime)
+    (action : MetaM α)
+    : IO (α × Runtime) := do
   let (value, coreState, metaState) ← action.toIO runtime.coreContext runtime.coreState {}
     runtime.metaState
   pure (value, { runtime with coreState, metaState })
@@ -112,8 +116,12 @@ def lookupAtom
     : Option Expr :=
   atoms.find? (·.1 == name) |>.map Prod.snd
 
-private partial def toLean (atoms : Array (String × Expr))
-    (formula : _root_.TPTP.Formula.Expr) : TranslationM Expr := do
+private
+partial
+def toLean
+    (atoms : Array (String × Expr))
+    (formula : _root_.TPTP.Formula.Expr)
+    : TranslationM Expr := do
   match formula with
   | .atom predicate arguments =>
       if !arguments.isEmpty then
@@ -143,33 +151,46 @@ where
     let right ← toLean atoms right
     ExceptT.lift <| mkAppM name #[left, right]
 
-private def makeGoal (source : String) (formula : _root_.TPTP.Formula.Expr) :
-    MetaM (Except String Goal) := do
+private
+def makeGoal
+    (source : String)
+    (formula : _root_.TPTP.Formula.Expr)
+    : MetaM (Except String Goal) := do
   let atoms := atomNames formula #[]
   withAtoms atoms.toList fun locals => do
     let target ← toLean locals formula
     let goal ← ExceptT.lift <| mkFreshExprMVar (some target)
     pure { mvarId := goal.mvarId!, source, atoms }
 
-def goalFromFormula (runtime : Runtime) (source : String) :
-    IO (Except String (Runtime × Goal)) := do
+def goalFromFormula
+    (runtime : Runtime)
+    (source : String)
+    : IO (Except String (Runtime × Goal)) := do
   match OATP.TPTP.Syntax.parseFormula source with
   | .error error => pure (.error (error.pretty source.toUTF8))
   | .ok formula =>
       let (result, runtime) ← runMeta runtime (makeGoal source formula)
       pure <| result.map fun goal => (runtime, goal)
 
-def snapshot (runtime : Runtime) (goal : Goal) : IO (Runtime × OATP.GoalSnapshot) := do
+def snapshot
+    (runtime : Runtime)
+    (goal : Goal)
+    : IO (Runtime × OATP.GoalSnapshot) := do
   let (value, runtime) ← runMeta runtime (OATP.Lean.snapshot goal.mvarId)
   pure (runtime, value)
 
-def translateToTPTP (runtime : Runtime) (goal : Goal) :
-    IO (Runtime × Except String OATP.Lean.GoalTranslation) := do
+def translateToTPTP
+    (runtime : Runtime)
+    (goal : Goal)
+    : IO (Runtime × Except String OATP.Lean.GoalTranslation) := do
   let (value, runtime) ← runMeta runtime (OATP.Lean.translateGoal goal.mvarId)
   pure (runtime, value)
 
-def reconstruct (runtime : Runtime) (goal : Goal) (step : OATP.Proof.Step) :
-    IO (Runtime × Except String RenderedTerm) := do
+def reconstruct
+    (runtime : Runtime)
+    (goal : Goal)
+    (step : OATP.Proof.Step)
+    : IO (Runtime × Except String RenderedTerm) := do
   let action : MetaM (Except String RenderedTerm) := do
     match ← OATP.Proof.reconstruct goal.mvarId step with
     | .error message => pure (.error message)

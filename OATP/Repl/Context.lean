@@ -215,7 +215,10 @@ def validateDocument
     | _root_.TPTP.Item.statement statement => validateStatement statement
     | _root_.TPTP.Item.include _ => pure ()) |>.map (fun _ => ())
 
-private def parseDocument (source : String) : Except String _root_.TPTP.Document := do
+private
+def parseDocument
+    (source : String)
+    : Except String _root_.TPTP.Document := do
   match OATP.TPTP.parse source with
   | .error error => .error (error.pretty source.toUTF8)
   | .ok document =>
@@ -258,15 +261,22 @@ def removeContext
         let removed := String.intercalate ", " (indices.map contextIndexText)
         .ok (record session input s!"removed {removed}")
 
-private def singleStatement (source : String) : Except String _root_.TPTP.Statement := do
+private
+def singleStatement
+    (source : String)
+    : Except String _root_.TPTP.Statement := do
   let document ← parseDocument source
   match document.items.toList with
   | [.statement statement] => pure statement
   | [] => .error "update expects one TPTP statement"
   | _ => .error "update expects exactly one TPTP statement"
 
-def updateContext (session : Session) (input : String) (index : Nat) (source : String) :
-    Except String Session := do
+def updateContext
+    (session : Session)
+    (input : String)
+    (index : Nat)
+    (source : String)
+    : Except String Session := do
   let statement ← singleStatement source
   match session.context.find? (·.id == index) with
   | some item =>
