@@ -43,15 +43,21 @@ def symbolName
     s!"{hexDigit (value / 16)}{hexDigit (value % 16)}"
   "oatp_" ++ if body.isEmpty then "atom" else String.intercalate "" body
 
-private def unsupported (expression : Expr) : MetaM (Except String TPTP.Formula.Expr) := do
+private
+def unsupported
+    (expression : Expr)
+    : MetaM (Except String TPTP.Formula.Expr) := do
   let rendered ← ppExpr expression
   pure <| Except.error (s!"unsupported Lean proposition `{rendered}`; supported fragment is " ++
     "propositional logic over named atoms")
 
 -- partiality: Lean Expr stores recursive applications in arrays; this private MetaM traversal
 -- is conservative and tested at the translation trust boundary.
-private partial def translateProp (expression : Expr) :
-    MetaM (Except String TPTP.Formula.Expr) := do
+private
+partial
+def translateProp
+    (expression : Expr)
+    : MetaM (Except String TPTP.Formula.Expr) := do
   let expression ← instantiateMVars expression
   let (function, arguments) := expression.getAppFnArgs
   if function == ``True && arguments.isEmpty then
@@ -91,8 +97,12 @@ private partial def translateProp (expression : Expr) :
       return ← unsupported expression
   | _ => return ← unsupported expression
 
-private def renderStatement (name : String) (role : _root_.TPTP.Role)
-    (formula : TPTP.Formula.Expr) : Except String String := do
+private
+def renderStatement
+    (name : String)
+    (role : _root_.TPTP.Role)
+    (formula : TPTP.Formula.Expr)
+    : Except String String := do
   let statement ← OATP.TPTP.Statement.ofFof name role formula
   pure <| _root_.TPTP.Statement.render statement
 

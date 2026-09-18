@@ -29,17 +29,23 @@ inductive Step where
   | implicationIntro (localName : Name) (body : Step)
   deriving Repr
 
-def stepNames
-    : List String :=
+def stepNames : List String :=
   ["true-intro", "exact", "and-left", "and-right", "and-intro", "implication-intro"]
 
-private def andParts (target : Expr) : MetaM (Option (Expr × Expr)) := do
+private
+def andParts
+    (target : Expr)
+    : MetaM (Option (Expr × Expr)) := do
   match ← whnf target with
   | .app (.app (.const ``And _) left) right => pure (some (left, right))
   | _ => pure none
 
-private def projection (target : Expr) (localName : Name) (useLeft : Bool) :
-    MetaM (Except String Expr) := do
+private
+def projection
+    (target : Expr)
+    (localName : Name)
+    (useLeft : Bool)
+    : MetaM (Except String Expr) := do
   let hypothesis ← getFVarFromUserName localName
   match ← andParts (← inferType hypothesis) with
   | none => pure (.error s!"local hypothesis `{localName}` is not a conjunction")

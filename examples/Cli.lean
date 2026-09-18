@@ -63,9 +63,7 @@ inductive ConfigAction where
   | show
   | path
 
-private
-def configActionParam
-    : Param ConfigAction :=
+private def configActionParam : Param ConfigAction :=
   Param.named "ACTION" (Param.enum [("show", .show), ("path", .path)])
 
 inductive Action where
@@ -101,11 +99,18 @@ def cli
 
 private def doctorPalette : ColorScheme := ColorScheme.catppuccin
 
-private def doctorSection (title : String) : IO Unit := do
+private
+def doctorSection
+    (title : String)
+    : IO Unit := do
   writeTextLine Text.empty
   writeTextLine (Text.styled title (Style.bold <+> Style.fg doctorPalette.purple))
 
-private def doctorRow (label value : String) (ok : Bool) : IO Unit := do
+private
+def doctorRow
+    (label value : String)
+    (ok : Bool)
+    : IO Unit := do
   let marker := if ok then
       Text.styled "✓" (Style.bold <+> Style.fg doctorPalette.green)
     else
@@ -116,7 +121,10 @@ private def doctorRow (label value : String) (ok : Bool) : IO Unit := do
   writeTextLine (Text.plain "  " ++ marker ++ Text.plain " " ++ label ++ Text.plain " " ++
     Text.styled value valueStyle)
 
-private def doctorTool (command : String) : IO Unit := do
+private
+def doctorTool
+    (command : String)
+    : IO Unit := do
   match ← Http.commandVersion command with
   | some version => doctorRow command version true
   | none => doctorRow command "not found" false
@@ -222,7 +230,10 @@ def doctorIssueSummary
 
 private def doctorIssueFile : String := "oatp-doctor-issues.txt"
 
-private def writeDoctorIssues (issues : List DoctorIssue) : IO (Option String) := do
+private
+def writeDoctorIssues
+    (issues : List DoctorIssue)
+    : IO (Option String) := do
   let entries := issues.map fun issue =>
     s!"[{doctorIssueKindLabel issue.kind}] {issue.prover}\n{issue.detail}"
   try
@@ -231,7 +242,10 @@ private def writeDoctorIssues (issues : List DoctorIssue) : IO (Option String) :
     pure (some doctorIssueFile)
   catch _ => pure none
 
-private def printDiagnostic (message : String) : IO UInt32 := do
+private
+def printDiagnostic
+    (message : String)
+    : IO UInt32 := do
   let stderr ← IO.getStderr
   let target ← TermColor.targetWithTty .auto (← stderr.isTty)
   let report := (Report.error "command failed").withCode "cli"
@@ -257,7 +271,11 @@ def configSelectedProvers
   else
     String.intercalate ", " (preferences.enabledProvers.toList.map configProverName)
 
-private def runConfig (identity : CliIdentity) (action : ConfigAction) : IO UInt32 := do
+private
+def runConfig
+    (identity : CliIdentity)
+    (action : ConfigAction)
+    : IO UInt32 := do
   match action with
   | .path =>
       match ← OATP.Config.path with
@@ -287,9 +305,14 @@ private def runConfig (identity : CliIdentity) (action : ConfigAction) : IO UInt
       | none => pure 0
 
     -- partiality: this live UI loop runs until an external IO action sets finished.
-private partial def progressLoop (finished : IO.Ref Bool)
-    (config : Widgets.ProgressConfig) (state : Widgets.IndeterminateProgressState)
-    (region : LiveRegion) : IO Unit := do
+private
+partial
+def progressLoop
+    (finished : IO.Ref Bool)
+    (config : Widgets.ProgressConfig)
+    (state : Widgets.IndeterminateProgressState)
+    (region : LiveRegion)
+    : IO Unit := do
   if ← finished.get then
     let _ ← region.finish
     pure ()
@@ -299,7 +322,12 @@ private partial def progressLoop (finished : IO.Ref Bool)
     IO.sleep 120
     progressLoop finished config state region
 
-private def withProgress {α : Type} (label : String) (action : IO α) : IO α := do
+private
+def withProgress
+    {α : Type}
+    (label : String)
+    (action : IO α)
+    : IO α := do
   if !(← stdoutSupportsControl) then
     return ← action
   withHiddenCursor do
@@ -316,7 +344,10 @@ private def withProgress {α : Type} (label : String) (action : IO α) : IO α :
       let _ ← IO.ofExcept progress.get
     pure result
 
-private def showArtifact (artifact : Artifact) : IO UInt32 := do
+private
+def showArtifact
+    (artifact : Artifact)
+    : IO UInt32 := do
   let marker := if SZSStatus.isSuccess artifact.status then "✓" else "!"
   IO.eprintln s!"{marker} {artifact.prover.label}: {artifact.status} ({artifact.elapsedMs}ms)"
   unless artifact.stdout.isEmpty || artifact.stdout.trimAscii.toString.startsWith "<!DOCTYPE" do
@@ -335,7 +366,11 @@ def processErrorMessage
   | .outputTooLarge actual limit =>
       s!"local prover output exceeded {limit} bytes ({actual} captured)"
 
-private def runLocal (toolName : String) (options : LocalOptions) : IO UInt32 := do
+private
+def runLocal
+    (toolName : String)
+    (options : LocalOptions)
+    : IO UInt32 := do
   try
     let problem ← readProblem options.problem
     let limits : Limits := {
@@ -403,10 +438,15 @@ def portfolioView
   } { progress with label := Text.styled label (Style.fg doctorPalette.foreground) }
 
 -- partiality: this live UI loop runs until an external portfolio action sets finished.
-private partial def portfolioProgressLoop (finished : IO.Ref Bool)
+private
+partial
+def portfolioProgressLoop
+    (finished : IO.Ref Bool)
     (progress : IO.Ref Widgets.IndeterminateProgressState)
-    (results : IO.Ref (List Portfolio.Result)) (region : IO.Ref LiveRegion)
-    (total : Nat) : IO Unit := do
+    (results : IO.Ref (List Portfolio.Result))
+    (region : IO.Ref LiveRegion)
+    (total : Nat)
+    : IO Unit := do
   if ← finished.get then
     pure ()
   else
@@ -420,8 +460,12 @@ private partial def portfolioProgressLoop (finished : IO.Ref Bool)
     IO.sleep 120
     portfolioProgressLoop finished progress results region total
 
-private def withPortfolioProgress {α : Type} (total : Nat)
-    (action : (Portfolio.Result → IO Unit) → IO α) : IO α := do
+private
+def withPortfolioProgress
+    {α : Type}
+    (total : Nat)
+    (action : (Portfolio.Result → IO Unit) → IO α)
+    : IO α := do
   if !(← stdoutSupportsControl) then
     return ← action (fun _ => pure ())
   withHiddenCursor do
@@ -450,7 +494,11 @@ private def withPortfolioProgress {α : Type} (total : Nat)
       let _ ← next.finish
     pure value
 
-private def runDoctorOnline (identity : CliIdentity) (transports : Array String) : IO Bool := do
+private
+def runDoctorOnline
+    (identity : CliIdentity)
+    (transports : Array String)
+    : IO Bool := do
   doctorSection "ONLINE ATP (probe)"
   if transports.isEmpty then
     doctorRow "service" "unavailable (no HTTP transport)" false
@@ -481,7 +529,10 @@ private def runDoctorOnline (identity : CliIdentity) (transports : Array String)
           | none => doctorRow "details" "could not write issue report" false
         pure (responsive > 0)
 
-private def runDoctor (identity : CliIdentity) : IO UInt32 := do
+private
+def runDoctor
+    (identity : CliIdentity)
+    : IO UInt32 := do
   let transports ← Http.availableTransports
   let (online, ready) :=
     if transports.contains "curl" then
@@ -508,7 +559,11 @@ private def runDoctor (identity : CliIdentity) : IO UInt32 := do
 
   pure <| if transports.isEmpty || !onlineWorking then 1 else 0
 
-private def runPortfolio (problem : Problem) (attempts : Array Portfolio.Attempt) : IO UInt32 := do
+private
+def runPortfolio
+    (problem : Problem)
+    (attempts : Array Portfolio.Attempt)
+    : IO UInt32 := do
   let results ← withPortfolioProgress attempts.size fun onResult =>
     Portfolio.runWith problem attempts onResult
   let mut success := false
@@ -516,7 +571,11 @@ private def runPortfolio (problem : Problem) (attempts : Array Portfolio.Attempt
     success := (← showPortfolioResult result) || success
   pure <| if success then 0 else 1
 
-private def runDefault (identity : CliIdentity) (options : RunOptions) : IO UInt32 := do
+private
+def runDefault
+    (identity : CliIdentity)
+    (options : RunOptions)
+    : IO UInt32 := do
   try
     let problem ← readProblem options.problem
     let rawReferences ← if options.provers.isEmpty then
@@ -578,7 +637,11 @@ private def runDefault (identity : CliIdentity) (options : RunOptions) : IO UInt
     else runPortfolio problem attempts
   catch error => printDiagnostic s!"could not read problem: {error}"
 
-private def runSystems (identity : CliIdentity) (options : SystemsOptions) : IO UInt32 := do
+private
+def runSystems
+    (identity : CliIdentity)
+    (options : SystemsOptions)
+    : IO UInt32 := do
   writeTextLine (Text.styled s!"{identity.name} systems {identity.version}"
     (Style.bold <+> Style.fg doctorPalette.purple))
   writeTextLine (Text.styled "LOCAL" (Style.bold <+> Style.fg doctorPalette.cyan))
@@ -612,8 +675,13 @@ private def runSystems (identity : CliIdentity) (options : SystemsOptions) : IO 
       (Style.fg doctorPalette.comment))
     pure 0
 
-private def submitOnline (options : OnlineOptions) (problem : Problem) (endpoint : String)
-    (system : SystemOnTPTP.Catalogue.SystemInfo) : IO UInt32 := do
+private
+def submitOnline
+    (options : OnlineOptions)
+    (problem : Problem)
+    (endpoint : String)
+    (system : SystemOnTPTP.Catalogue.SystemInfo)
+    : IO UInt32 := do
   let config : SystemOnTPTP.Config := {
     systemLabel := system.id
     systemCommands := if system.command.isEmpty then #[] else #[(system.id, system.command)]
@@ -630,7 +698,11 @@ private def submitOnline (options : OnlineOptions) (problem : Problem) (endpoint
       | .error error => printDiagnostic (responseErrorMessage error)
       | .ok artifact => showArtifact { artifact with elapsedMs := (← IO.monoMsNow) - started }
 
-private def runOnline (identity : CliIdentity) (options : OnlineOptions) : IO UInt32 := do
+private
+def runOnline
+    (identity : CliIdentity)
+    (options : OnlineOptions)
+    : IO UInt32 := do
   try
     let problem ← readProblem options.problem
     let endpoint := options.remote.endpoint.getD identity.endpoint
@@ -645,7 +717,9 @@ private def runOnline (identity : CliIdentity) (options : OnlineOptions) : IO UI
             s!"run `{identity.name} systems --online`")
   catch error => printDiagnostic s!"could not read problem: {error}"
 
-def main (argv : List String) : IO UInt32 := do
+def main
+    (argv : List String)
+    : IO UInt32 := do
   if let "repl" :: replArgs := argv then
     return ← oatpReplMain replArgs
   let identity ← cliIdentity

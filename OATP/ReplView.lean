@@ -35,9 +35,7 @@ open scoped TermColor.Style
 
 def version : String := OATP.version
 
-def aurora
-    : ColorScheme
-    where
+def aurora : ColorScheme where
   background := .rgb 13 24 37
   foreground := .rgb 225 241 245
   selection := .rgb 39 70 83
@@ -51,8 +49,7 @@ def aurora
   purple := .rgb 178 146 255
   pink := .rgb 245 132 203
 
-def themes
-    : List (String × ColorScheme) :=
+def themes : List (String × ColorScheme) :=
   [("aurora", aurora), ("terracotta", {
     background := .rgb 26 28 38
     foreground := .rgb 214 216 226
@@ -169,8 +166,7 @@ def appBinding
     label := String.intercalate "/" (keys.map Keymap.keyLabel)
     description }
 
-def appBindings
-    : List (BindingSpec AppKeyAction) :=
+def appBindings : List (BindingSpec AppKeyAction) :=
   [ appBinding [.ctrl 'R', .ctrl 'r'] .toggleRun none "toggle the run drawer"
   , appBinding [.ctrl 'H', .ctrl 'h'] .toggleHistory none "toggle the history drawer"
   , appBinding [.ctrl 'S', .ctrl 's'] .toggleState none "toggle the state drawer"
@@ -276,8 +272,7 @@ inductive ContextTarget where
 
 namespace ContextTarget
 
-def all
-    : List ContextTarget :=
+def all : List ContextTarget :=
   [.formulas, .symbols, .problem, .goal, .translation, .term]
 
 def name
@@ -371,8 +366,7 @@ def fallbackSize : Size := { columns := 110, rows := 28 }
 
 def inputConfig : TextInputConfig := { width := 160, maxLength := 16_384 }
 
-def multilineConfig
-    : MultilineConfig :=
+def multilineConfig : MultilineConfig :=
   { text := inputConfig, lineBreak := .ctrl 'n' }
 
 private def minFrameWidth : Nat := 34
@@ -443,9 +437,7 @@ def dimText
   { segments := text.segments.map fun segment =>
       { segment with style := Style.dim <+> segment.style } }
 
-private
-def base64Alphabet
-    : String :=
+private def base64Alphabet : String :=
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 private
@@ -705,8 +697,13 @@ def transcriptLines
   let views := entries.reverse.map (transcriptLine scheme symbols width)
   (spacedEntries views).flatMap splitLines
 
-private def reportWidget (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
-    (entry : TranscriptEntry) : Option CollapsibleRender := do
+private
+def reportWidget
+    (scheme : ColorScheme)
+    (symbols : Array Symbol)
+    (width : Nat)
+    (entry : TranscriptEntry)
+    : Option CollapsibleRender := do
   let report ← entry.report
   pure <| renderCollapsible (reportWidgetConfig scheme) (max 1 (width - 2))
     (reportSummary scheme report) (reportBody scheme symbols width entry report)
@@ -1125,8 +1122,7 @@ def toggleFocusedProver
     { updated with statusNotice := some s!"{ProverReference.display reference} {
       if enabled then "disabled" else "enabled"}" }
 
-def contextTargetNames
-    : List String :=
+def contextTargetNames : List String :=
   ContextTarget.all.map ContextTarget.name
 
 def contextTargetOfString

@@ -62,24 +62,16 @@ private inductive HtmlPart where
 
 open Grip GParser
 
-private
-def htmlTag
-    : GParser conditional HtmlPart :=
+private def htmlTag : GParser conditional HtmlPart :=
   HtmlPart.tag <$> GParser.capture (GParser.ch '<' *> GParser.takeWhile (· != 62) <* GParser.ch '>')
 
-private
-def htmlText
-    : GParser conditional HtmlPart :=
+private def htmlText : GParser conditional HtmlPart :=
   HtmlPart.text <$> GParser.capture (GParser.takeWhile1 (· != 60))
 
-private
-def htmlPart
-    : GParser conditional HtmlPart :=
+private def htmlPart : GParser conditional HtmlPart :=
   GParser.chooseG htmlTag [htmlText]
 
-private
-def htmlDocument
-    : Grip.Parser (List HtmlPart) :=
+private def htmlDocument : Grip.Parser (List HtmlPart) :=
   GParser.seqL (GParser.many htmlPart) GParser.eof
 
 private
@@ -227,8 +219,10 @@ def request
   maxBodyBytes := config.maxBodyBytes
   maxRequestBodyBytes := config.maxBodyBytes
 
-def submit (config : Config) (problem : Problem) :
-  IO (Except Http.Error Http.Response) := do
+def submit
+    (config : Config)
+    (problem : Problem)
+    : IO (Except Http.Error Http.Response) := do
   let label := String.intercalate ", " (labels config).toList
   let request := request config problem
   let artifacts ← OATP.Artifacts.start s!"online {label}" problem
@@ -315,8 +309,11 @@ def fetchCatalogue
     : IO (Except Http.Error Http.Response) :=
   Http.requestWithTransport (catalogueRequest endpoint)
 
-def parseResponse (config : Config) (problem : Problem) (response : Http.Response) :
-    Except ResponseError Artifact := do
+def parseResponse
+    (config : Config)
+    (problem : Problem)
+    (response : Http.Response)
+    : Except ResponseError Artifact := do
   if response.statusCode < 200 || response.statusCode ≥ 300 then
     throw (.httpStatus response.statusCode)
   let token ← match SZSStatus.tokenFromOutput response.body with

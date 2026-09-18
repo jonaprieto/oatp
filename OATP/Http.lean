@@ -26,9 +26,7 @@ structure Field where
   value : String
   deriving BEq, DecidableEq, Repr
 
-private
-def hexDigits
-    : Array Char :=
+private def hexDigits : Array Char :=
   #[
     '0', '1', '2', '3', '4', '5', '6', '7',
     '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
@@ -78,7 +76,10 @@ def validHeaderValue
   value.toList.all fun character =>
     character != '"' && character != '\\' && character != '\r' && character != '\n'
 
-def encodeMultipart (boundary : String) (parts : Array MultipartPart) : Except String String := do
+def encodeMultipart
+    (boundary : String)
+    (parts : Array MultipartPart)
+    : Except String String := do
   if boundary.isEmpty || !boundary.toList.all (fun character =>
       character.isAlphanum || character == '-' || character == '_') then
     throw "multipart boundary must contain only letters, digits, '-' or '_'"
@@ -132,7 +133,9 @@ structure Response where
   stderr : String := ""
   deriving Repr
 
-def commandVersion (command : String) : IO (Option String) := do
+def commandVersion
+    (command : String)
+    : IO (Option String) := do
   try
     let output ← IO.Process.output { cmd := command, args := #["--version"] }
     if output.exitCode != 0 then
@@ -189,7 +192,10 @@ def statusFromOutput
       | none => none
   | _ => none
 
-private def requestWithCurlUnsafe (request : Request) : IO (Except Error Response) := do
+private
+def requestWithCurlUnsafe
+    (request : Request)
+    : IO (Except Error Response) := do
   let base : Array String := #[
     "--silent", "--show-error",
     "--max-time", toString request.maxSeconds,
@@ -240,7 +246,10 @@ def statusFromWgetOutput
         else find lines
   find (output.splitOn "\n")
 
-private def requestWithWgetUnsafe (request : Request) : IO (Except Error Response) := do
+private
+def requestWithWgetUnsafe
+    (request : Request)
+    : IO (Except Error Response) := do
   let base : Array String := #[
     "--quiet", "--server-response", "--max-redirect=0", "--tries=1",
     "--timeout=" ++ toString request.maxSeconds,
@@ -266,7 +275,10 @@ private def requestWithWgetUnsafe (request : Request) : IO (Except Error Respons
       else
         return Except.ok { statusCode, body := output.stdout }
 
-private def validateRequest (request : Request) : Except Error Unit := do
+private
+def validateRequest
+    (request : Request)
+    : Except Error Unit := do
   if request.url.isEmpty then
     throw (.invalidRequest "HTTP request URL must not be empty")
   if request.maxSeconds == 0 then
@@ -277,7 +289,10 @@ private def validateRequest (request : Request) : Except Error Unit := do
   if actual > request.maxRequestBodyBytes then
     throw (.requestBodyTooLarge actual request.maxRequestBodyBytes)
 
-private def requestWithTransportUnsafe (request : Request) : IO (Except Error Response) := do
+private
+def requestWithTransportUnsafe
+    (request : Request)
+    : IO (Except Error Response) := do
   match validateRequest request with
   | .error error => return .error error
   | .ok _ => pure ()
@@ -289,13 +304,18 @@ private def requestWithTransportUnsafe (request : Request) : IO (Except Error Re
   else
     pure <| Except.error (.transport "OATP requires curl or wget for HTTPS transport")
 
-def requestWithTransport (request : Request) : IO (Except Error Response) := do
+def requestWithTransport
+    (request : Request)
+    : IO (Except Error Response) := do
   try
     requestWithTransportUnsafe request
   catch error =>
     pure (.error (.io s!"{error}"))
 
-def requestWith (transport : Transport) (request : Request) : IO (Except Error Response) := do
+def requestWith
+    (transport : Transport)
+    (request : Request)
+    : IO (Except Error Response) := do
   try
     match validateRequest request with
     | .error error => pure (.error error)
@@ -306,7 +326,9 @@ def requestWith (transport : Transport) (request : Request) : IO (Except Error R
   catch error =>
     pure (.error (.io s!"{error}"))
 
-def requestWithCurl (request : Request) : IO (Except Error Response) := do
+def requestWithCurl
+    (request : Request)
+    : IO (Except Error Response) := do
   requestWith .curl request
 
 end OATP.Http

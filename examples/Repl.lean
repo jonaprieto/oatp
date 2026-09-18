@@ -38,7 +38,9 @@ def appendEntry
     (ok : Bool)
     (elapsedMs : Option Nat := none)
     (sources : Sources := #[])
-    (diagnostic : Option Diagnostic := none) (report : Option Report := none) : App :=
+    (diagnostic : Option Diagnostic := none)
+    (report : Option Report := none)
+    : App :=
   { app with
     entries := { cell, input, output, ok, elapsedMs, sources, diagnostic, report } :: app.entries
     transcriptScroll := 0
@@ -252,12 +254,19 @@ def finishRunRows
       { row with status := .cancelled, detail := "skipped after first success" } else row
   else rows
 
-private def publishRunRows (app : App) (rows : Array RunRow) : IO Unit := do
+private
+def publishRunRows
+    (app : App)
+    (rows : Array RunRow)
+    : IO Unit := do
   match app.runProgress with
   | some progress => progress.set rows
   | none => pure ()
 
-private def currentRunRows (app : App) : IO (Array RunRow) := do
+private
+def currentRunRows
+    (app : App)
+    : IO (Array RunRow) := do
   match app.runProgress with
   | some progress => progress.get
   | none => pure app.runRows
@@ -292,7 +301,10 @@ def configProverName
     : String :=
   OATP.ProverReference.fromPersisted value |>.map OATP.ProverReference.display |>.getD value
 
-private def configOutput (app : App) : IO (String × Report) := do
+private
+def configOutput
+    (app : App)
+    : IO (String × Report) := do
   let path := (← OATP.Config.path).map (fun value => s!"{value}") |>.getD "unavailable"
   let (_, warning) ← OATP.Config.load
   let current := preferences app
@@ -329,7 +341,10 @@ private def configOutput (app : App) : IO (String × Report) := do
       | none => []
   pure (output, report)
 
-private def savePreferences (before after : App) : IO App := do
+private
+def savePreferences
+    (before after : App)
+    : IO App := do
   if preferences before == preferences after then
     pure after
   else
@@ -353,7 +368,10 @@ private def selectableProvers : IO (Array OATP.ProverReference × Option String)
   | .ok online => pure (installed ++ online, none)
   | .error message => pure (installed, some message)
 
-private def defaultProvers (app : App) : IO (Array OATP.ProverReference) := do
+private
+def defaultProvers
+    (app : App)
+    : IO (Array OATP.ProverReference) := do
   let installed ← installedProverReferences
   match app.defaultProver with
   | some reference => match reference.kind with
@@ -366,8 +384,11 @@ private def defaultProvers (app : App) : IO (Array OATP.ProverReference) := do
       | some name => pure #[OATP.ProverReference.fromLocal name]
       | none => pure #[]
 
-private def selectedProvers (app : App) (all includeDefault : Bool := false) :
-    IO (Array OATP.ProverReference) := do
+private
+def selectedProvers
+    (app : App)
+    (all includeDefault : Bool := false)
+    : IO (Array OATP.ProverReference) := do
   let installed ← installedProverReferences
   let selected ← if all then
       pure installed
@@ -546,10 +567,7 @@ def startingRunRows
         { name := OATP.ProverReference.display reference, status := .running }
   | .error _ => #[{ name := "run", status := .running }]
 
-private
-def backgroundJobs
-    : TermColor.Repl.Terminal.JobConfig App
-    where
+private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
   shouldRun := fun app input => !app.busy && backendLine input
   start := fun app input => { app with
     busy := true
@@ -606,7 +624,10 @@ def backgroundJobs
 #guard (backgroundJobs.start { repl := { history := #["first"] } } "/help").repl.history ==
   #["first"]
 
-private def systemsText (request : OATP.Repl.SystemsRequest) : IO String := do
+private
+def systemsText
+    (request : OATP.Repl.SystemsRequest)
+    : IO String := do
   let installed ← OATP.Runtime.installedProvers
   let lines := if installed.isEmpty then ["LOCAL: none"] else
       ["LOCAL:"] ++ installed.toList.map (fun prover => "  " ++ prover)
@@ -669,7 +690,11 @@ def proverMatches
     : Bool :=
   fuzzy query (OATP.ProverReference.display reference) || fuzzy query reference.name
 
-private def infoText (app : App) (query : String) : IO (String × Bool) := do
+private
+def infoText
+    (app : App)
+    (query : String)
+    : IO (String × Bool) := do
   let installed ← OATP.Runtime.installedProvers
   let found := installed.filter (fuzzy query)
   if found.size == 1 then
@@ -743,13 +768,21 @@ def parseStepTokens
   | [] => .error "expected a proof step"
   | token :: _ => .error s!"unknown proof step `{token}`"
 
-private def parseStep (source : String) : Except String OATP.Proof.Step := do
+private
+def parseStep
+    (source : String)
+    : Except String OATP.Proof.Step := do
   let (step, rest) ← parseStepTokens (OATP.Repl.splitWords source)
   match rest with
   | [] => pure step
   | token :: _ => .error s!"unexpected proof step token `{token}`"
 
-private def submitGoal (app : App) (cell : Nat) (input formula : String) : IO App := do
+private
+def submitGoal
+    (app : App)
+    (cell : Nat)
+    (input formula : String)
+    : IO App := do
   let runtime ← match app.leanRuntime with
     | some runtime => pure runtime
     | none => OATP.Lean.Repl.create
@@ -766,8 +799,13 @@ private def submitGoal (app : App) (cell : Nat) (input formula : String) : IO Ap
         translation := none
         term := none } cell input output true
 
-private def submitTheoryFormula (app : App) (cell : Nat) (input : String)
-    (command : OATP.Repl.Command) : IO (Option App) := do
+private
+def submitTheoryFormula
+    (app : App)
+    (cell : Nat)
+    (input : String)
+    (command : OATP.Repl.Command)
+    : IO (Option App) := do
   match command with
   | .axiom name formula | .conjecture name formula =>
       let role := match command with | .axiom _ _ => "axiom" | _ => "conjecture"
@@ -778,8 +816,13 @@ private def submitTheoryFormula (app : App) (cell : Nat) (input : String)
       | .error message => pure (some (note app cell input message false))
   | _ => pure none
 
-private def submitLeanCommand (app : App) (cell : Nat) (input : String)
-    (command : OATP.Repl.Command) : IO (Option App) := do
+private
+def submitLeanCommand
+    (app : App)
+    (cell : Nat)
+    (input : String)
+    (command : OATP.Repl.Command)
+    : IO (Option App) := do
   match command with
   | .goal formula | .toLean formula => do
       return some (← submitGoal app cell input formula)
@@ -822,7 +865,12 @@ private def submitLeanCommand (app : App) (cell : Nat) (input : String)
     | none => return some (note app cell input "no rendered term" false)
   | _ => pure none
 
-private def applyPureCommand (app : App) (cell : Nat) (input : String) : IO App := do
+private
+def applyPureCommand
+    (app : App)
+    (cell : Nat)
+    (input : String)
+    : IO App := do
   match OATP.Repl.apply app.session input with
   | .ok session =>
       let app := if changesContext input then invalidateContext { app with session }
@@ -833,8 +881,13 @@ private def applyPureCommand (app : App) (cell : Nat) (input : String) : IO App 
         pure <| appendEntry app cell input (lastHistory session) true
   | .error message => pure (note app cell input message false)
 
-private def submitCommand (app : App) (cell : Nat) (input : String)
-    (command : OATP.Repl.Command) : IO App := do
+private
+def submitCommand
+    (app : App)
+    (cell : Nat)
+    (input : String)
+    (command : OATP.Repl.Command)
+    : IO App := do
   match command with
   | .quit => pure { app with running := false }
   | .load path => do
@@ -982,7 +1035,11 @@ private def submitCommand (app : App) (cell : Nat) (input : String)
       pure (notePlain app cell input result.text result.ok none (some result.report))
   | _ => applyPureCommand app cell input
 
-private def submitCore (app : App) (input : String) : IO App := do
+private
+def submitCore
+    (app : App)
+    (input : String)
+    : IO App := do
   let input := input.trimAscii.toString
   let cell := app.session.nextCell
   let firstWord := (OATP.Repl.splitWords input).headD ""
@@ -999,7 +1056,11 @@ private def submitCore (app : App) (input : String) : IO App := do
   else
     return (← applyPureCommand app cell input)
 
-private def submit (app : App) (input : String) : IO App := do
+private
+def submit
+    (app : App)
+    (input : String)
+    : IO App := do
   let started ← IO.monoMsNow
   let updated ← submitCore app input
   let updated := clearSelection updated
@@ -1009,7 +1070,10 @@ private def submit (app : App) (input : String) : IO App := do
   | entry :: rest => pure { app with entries := { entry with elapsedMs := some elapsedMs } :: rest }
   | [] => pure app
 
-private def commandValues (typeName : String) : IO (List String) := do
+private
+def commandValues
+    (typeName : String)
+    : IO (List String) := do
   match typeName with
   | "TOPIC" => pure (List.eraseDups (OATP.Repl.helpTopics ++ OATP.Repl.commandNames))
   | "FORMAT" | "THEORY" | "STEP" =>
@@ -1038,10 +1102,7 @@ def complete
     : IO (List Completion) :=
   completeCommandWith OATP.Repl.commandSpec commandValues input
 
-private
-def appKeymap
-    : TermColor.Repl.Terminal.AppKeymap App
-    where
+private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
   Action := AppKeyAction
   keymap := Keymap.fromSpecs appBindings
   contexts := fun app =>
@@ -1261,7 +1322,10 @@ private def reportTestApp : App := {
   | some app => app.transcriptScroll == 3 && app.panelFocus == .main
   | none => false
 
-private def interactive (initial : App) : IO Unit := do
+private
+def interactive
+    (initial : App)
+    : IO Unit := do
   withAlternateScreen do
     clearScreen
     TermColor.Repl.Terminal.run {
@@ -1283,7 +1347,11 @@ private def interactive (initial : App) : IO Unit := do
       quit := fun app => { app with running := false }
     }
 
-private def runScript (app : App) (lines : List String) : IO App := do
+private
+def runScript
+    (app : App)
+    (lines : List String)
+    : IO App := do
   let mut app := app
   for line in lines do
     if app.running then
@@ -1291,16 +1359,17 @@ private def runScript (app : App) (lines : List String) : IO App := do
         app ← submit app line
   pure app
 
-private def staticOutput (app : App) : IO Unit := do
+private
+def staticOutput
+    (app : App)
+    : IO Unit := do
   for entry in app.entries.reverse do
     IO.println s!"[{entry.cell}] › {entry.input}"
     let timing := entry.elapsedMs.map (fun milliseconds =>
       s!" ({formatElapsed milliseconds})") |>.getD ""
     IO.println s!"    {(if entry.ok then "=" else "!")} {entry.output}{timing}"
 
-private
-def usage
-    : String :=
+private def usage : String :=
   "oatp repl — interactive theorem-proving workbench\n\n" ++
   "usage:\n  lake exe oatp repl\n  lake exe oatp repl --script FILE\n\n" ++
   "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  " ++
@@ -1313,7 +1382,10 @@ def scriptExitCode
     : UInt32 :=
   if app.entries.all (·.ok) then 0 else 1
 
-private def initialApp (runtime : OATP.Lean.Repl.Runtime) : IO App := do
+private
+def initialApp
+    (runtime : OATP.Lean.Repl.Runtime)
+    : IO App := do
   let (prefs, warning) ← OATP.Config.load
   let runProgress ← IO.mkRef (#[] : Array RunRow)
   let scheme := themeByName prefs.theme |>.getD aurora
@@ -1336,7 +1408,9 @@ private def initialApp (runtime : OATP.Lean.Repl.Runtime) : IO App := do
     statusNotice := warning
   }
 
-def oatpReplMain (args : List String) : IO UInt32 := do
+def oatpReplMain
+    (args : List String)
+    : IO UInt32 := do
   if args == ["--help"] || args == ["-h"] then
     IO.println usage
     return 0

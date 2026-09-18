@@ -13,12 +13,11 @@ namespace OATP.Properties
 
 open OATP OATP.TPTP
 
-theorem empty_plain_render
-    : OATP.Term.renderPlain #[] = "" := by
+theorem empty_plain_render : OATP.Term.renderPlain #[] = "" := by
   rfl
 
-theorem note_plain_render
-    : OATP.Term.renderPlain #[.note "ready"] = "note: ready" := by
+theorem note_plain_render :
+    OATP.Term.renderPlain #[.note "ready"] = "note: ready" := by
   rfl
 
 theorem goal_context_plain_render :

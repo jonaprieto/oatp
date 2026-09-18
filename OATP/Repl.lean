@@ -27,8 +27,7 @@ open OATP.TPTP
 open _root_.Argus
 open _root_.Grip
 
-def helpTopics
-    : List String :=
+def helpTopics : List String :=
   ["cnf", "fof", "tff", "lean", "run", "context", "grammar", "roles"]
 
 def grammarTopics : List String := OATP.TPTP.supportedTheories
@@ -43,8 +42,7 @@ def completionParam
     : Param String :=
   Param.named typeName (Param.enum (values.map fun value => (value, value)))
 
-def contextIndexParam
-    : Param Nat :=
+def contextIndexParam : Param Nat :=
   Param.ofParser "INDEX" (GParser.seqR (GParser.optional (GParser.ch '#')) GParser.nat)
 
 def staticCompletionValues
@@ -291,8 +289,7 @@ def textSpec
       (Spec.arg name help (Param.named name Param.str))
       (Spec.many (Spec.arg name help (Param.named name Param.str))))
 
-def commandSpec
-    : Argus.Command Command :=
+def commandSpec : Argus.Command Command :=
   Argus.group "oatp"
     [ Argus.cmd "help" (Spec.map Command.help (Spec.opt (Spec.arg "TOPIC" "Help topic"
         (Param.named "TOPIC" Param.str))))
@@ -430,9 +427,7 @@ def parseCommandSpec
           | [] => ""
         .error (message ++ hint)
 
-private
-def commandChildren
-    : List (Argus.Command Command) :=
+private def commandChildren : List (Argus.Command Command) :=
   match commandSpec.body with
   | .subs children => children
   | .opts _ => []
@@ -467,8 +462,7 @@ def usageLine
     output ++ if optional then " [" ++ value ++ "]" else " " ++ value) ""
   command.name ++ flags ++ arguments
 
-def commandHelpText
-    : String :=
+def commandHelpText : String :=
   String.intercalate "\n" <| ["OATP REPL commands"] ++ commandChildren.map fun command =>
     "  /" ++ usageLine command ++ "  " ++ command.description
 
@@ -488,13 +482,10 @@ def parseInput
   else
     .source source
 
-def helpText
-    : String :=
+def helpText : String :=
   commandHelpText
 
-private
-def cnfHelp
-    : String :=
+private def cnfHelp : String :=
   String.intercalate "\n" [
     "CNF — clause normal form",
     "statement: cnf(NAME, ROLE, CLAUSE).",
@@ -514,9 +505,7 @@ def cnfHelp
     "  /state formulas   /roles cnf   /run --prover eprover"
   ]
 
-private
-def fofHelp
-    : String :=
+private def fofHelp : String :=
   String.intercalate "\n" [
     "FOF — first-order formulas",
     "statement: fof(NAME, ROLE, FORMULA).",
@@ -534,9 +523,7 @@ def fofHelp
     "use FOF when the problem needs implication, conjunction, or quantifiers"
   ]
 
-private
-def tffHelp
-    : String :=
+private def tffHelp : String :=
   String.intercalate "\n" [
     "TFF — typed first-order formulas",
     "type:     tff(nat_type, type, nat: $tType).",
@@ -549,9 +536,7 @@ def tffHelp
     "TFF is parsed as TPTP input; use /state to inspect collected symbols"
   ]
 
-private
-def grammarHelp
-    : String :=
+private def grammarHelp : String :=
   String.intercalate "\n" [
     "Grammar lookup",
     "/grammar cnf       clause normal form",
@@ -589,9 +574,7 @@ def roleHelp
     s!"Use /grammar {format} for the syntax."
   ]
 
-private
-def leanHelp
-    : String :=
+private def leanHelp : String :=
   String.intercalate "\n" [
     "Lean bridge",
     "1. /goal p => p              create a Lean goal",
@@ -604,9 +587,7 @@ def leanHelp
     "example result: fun h => h : _fvar.1 → _fvar.1"
   ]
 
-private
-def runHelp
-    : String :=
+private def runHelp : String :=
   String.intercalate "\n" [
     "Provers",
     "/run                    run the configured or first local prover",
@@ -635,9 +616,7 @@ def runHelp
     "  /local vampire -- --mode casc"
   ]
 
-private
-def contextHelp
-    : String :=
+private def contextHelp : String :=
   String.intercalate "\n" [
     "Context drawer",
     "/state [TARGET]            open context or focus a box",

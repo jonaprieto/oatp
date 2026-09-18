@@ -74,7 +74,10 @@ def Failure.output
   | .process _ | .http _ => ""
   | .response _ output => output
 
-def execute (problem : Problem) (attempt : Attempt) : IO Result := do
+def execute
+    (problem : Problem)
+    (attempt : Attempt)
+    : IO Result := do
   match attempt.backend with
   | .local command =>
       match ← Process.run { name := attempt.name } problem attempt.limits command with
@@ -97,8 +100,13 @@ def execute (problem : Problem) (attempt : Attempt) : IO Result := do
               pure (.failed attempt (.response error output))
 
 -- partiality: task completion is external and waitAny' controls progress through the pending set.
-private partial def collect (pending : List (Task (Except IO.Error Result)))
-    (results : Array Result) (onResult : Result → IO Unit) : IO (Array Result) := do
+private
+partial
+def collect
+    (pending : List (Task (Except IO.Error Result)))
+    (results : Array Result)
+    (onResult : Result → IO Unit)
+    : IO (Array Result) := do
   match pending with
   | [] => pure results
   | task :: rest =>
@@ -129,8 +137,13 @@ def successful
   | .artifact _ artifact => SZSStatus.isSuccess artifact.status
   | .failed _ _ => false
 
-private def runUntilSuccess (problem : Problem) (attempts : List Attempt)
-    (results : Array Result) (onResult : Result → IO Unit) : IO (Array Result) := do
+private
+def runUntilSuccess
+    (problem : Problem)
+    (attempts : List Attempt)
+    (results : Array Result)
+    (onResult : Result → IO Unit)
+    : IO (Array Result) := do
   match attempts with
   | [] => pure results
   | attempt :: rest =>

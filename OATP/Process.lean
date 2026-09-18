@@ -39,8 +39,13 @@ inductive Error where
 
 -- partiality: process completion and the monotonic clock are external; the deadline bounds
 -- polling behavior, not kernel recursion.
-private partial def waitForExit {cfg : IO.Process.StdioConfig}
-    (child : IO.Process.Child cfg) (deadline : Nat) : IO (Bool × UInt32) := do
+private
+partial
+def waitForExit
+    {cfg : IO.Process.StdioConfig}
+    (child : IO.Process.Child cfg)
+    (deadline : Nat)
+    : IO (Bool × UInt32) := do
   match ← child.tryWait with
   | some exitCode => pure (false, exitCode)
   | none =>
@@ -54,8 +59,13 @@ private partial def waitForExit {cfg : IO.Process.StdioConfig}
         IO.sleep (min 10 remaining).toUInt32
         waitForExit child deadline
 
-private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (command : Command) :
-    IO (Except Error Artifact) := do
+private
+def runUnsafe
+    (prover : Prover)
+    (problem : Problem)
+    (limits : Limits)
+    (command : Command)
+    : IO (Except Error Artifact) := do
   let command := command.withStdinProblem
   let artifacts ← OATP.Artifacts.start s!"local {command.executable}" problem
   for run in artifacts do
@@ -121,8 +131,12 @@ private def runUnsafe (prover : Prover) (problem : Problem) (limits : Limits) (c
     OATP.Artifacts.write run "result.txt" s!"{status}\n"
   return .ok artifact
 
-def run (prover : Prover) (problem : Problem) (limits : Limits) (command : Command) :
-    IO (Except Error Artifact) := do
+def run
+    (prover : Prover)
+    (problem : Problem)
+    (limits : Limits)
+    (command : Command)
+    : IO (Except Error Artifact) := do
   try
     runUnsafe prover problem limits command
   catch error =>

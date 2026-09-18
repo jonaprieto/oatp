@@ -24,7 +24,9 @@ inductive CatalogueCache where
   | refresh
   | noCache
 
-def readProblem (path : String) : IO Problem := do
+def readProblem
+    (path : String)
+    : IO Problem := do
   pure { name := path, source := ← IO.FS.readFile path }
 
 def defaultLocalProverCandidates : Array String := #["eprover", "vampire", "metis"]
@@ -41,8 +43,9 @@ def localProverCandidates : IO (Array String) := do
       pure <| value.splitOn "," |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty) |>.toArray
   | none => pure defaultLocalProverCandidates
 
-def catalogueLocation (cacheNamespace endpoint : String) :
-    IO (Option (System.FilePath × System.FilePath)) := do
+def catalogueLocation
+    (cacheNamespace endpoint : String)
+    : IO (Option (System.FilePath × System.FilePath)) := do
   let root ← match ← IO.getEnv "XDG_CACHE_HOME" with
     | some path => pure (some (⟨path⟩ : System.FilePath))
     | none => match ← IO.getEnv "HOME" with
@@ -68,9 +71,11 @@ def httpErrorMessage
   | .bodyTooLarge actual limit =>
       s!"HTTP response exceeded {limit} bytes ({actual} captured)"
 
-def fetchCatalogue (endpoint : String)
+def fetchCatalogue
+    (endpoint : String)
     (location : Option (System.FilePath × System.FilePath))
-    (writeCache : Bool) : IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo)) := do
+    (writeCache : Bool)
+    : IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo)) := do
   match ← SystemOnTPTP.fetchCatalogue endpoint with
   | .error error => pure (.error (httpErrorMessage error))
   | .ok response =>
@@ -89,8 +94,10 @@ def fetchCatalogue (endpoint : String)
               catch _ => pure ()
           pure (.ok systems)
 
-def loadCatalogue (cacheNamespace endpoint : String) (mode : CatalogueCache) :
-    IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo)) := do
+def loadCatalogue
+    (cacheNamespace endpoint : String)
+    (mode : CatalogueCache)
+    : IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo)) := do
   let location ← catalogueLocation cacheNamespace endpoint
   match mode with
   | .normal =>
@@ -113,8 +120,11 @@ def installedProvers : IO (Array String) := do
       found := found.push executable
   pure found
 
-def resolveOnline (toolName : String) (systems : Array SystemOnTPTP.Catalogue.SystemInfo)
-    (references : List String) : Except String (Array SystemOnTPTP.Catalogue.SystemInfo) := do
+def resolveOnline
+    (toolName : String)
+    (systems : Array SystemOnTPTP.Catalogue.SystemInfo)
+    (references : List String)
+    : Except String (Array SystemOnTPTP.Catalogue.SystemInfo) := do
   let resolved ← references.mapM fun reference =>
     match SystemOnTPTP.Catalogue.resolve systems reference with
     | some system => pure system
