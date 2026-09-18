@@ -37,12 +37,20 @@ def path : IO (Option System.FilePath) := do
 
 private def field (json : Json) (name : String) : Option Json := json.get? name
 
-private def stringField (json : Json) (name fallback : String) : String :=
+private
+def stringField
+    (json : Json)
+    (name fallback : String)
+    : String :=
   match field json name with
   | some (.str value) => value
   | _ => fallback
 
-private def stringArrayField (json : Json) (name : String) : Array String :=
+private
+def stringArrayField
+    (json : Json)
+    (name : String)
+    : Array String :=
   match field json name with
   | some (.arr values) =>
       let result : List String := values.toList.filterMap fun value =>
@@ -52,7 +60,10 @@ private def stringArrayField (json : Json) (name : String) : Array String :=
       result.toArray
   | _ => #[]
 
-private def fromJson : Json → Preferences
+private
+def fromJson
+    : Json →
+      Preferences
   | json => {
       theory := stringField json "theory" default.theory
       defaultProver := stringField json "defaultProver" default.defaultProver
@@ -64,7 +75,10 @@ private def fromJson : Json → Preferences
       theme := stringField json "theme" default.theme
     }
 
-private def toJson (preferences : Preferences) : Json :=
+private
+def toJson
+    (preferences : Preferences)
+    : Json :=
   .obj #[
     ("theory", .str preferences.theory),
     ("defaultProver", .str preferences.defaultProver),

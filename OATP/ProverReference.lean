@@ -29,13 +29,19 @@ namespace ProverReference
 
 def fromLocal (name : String) : ProverReference := { name, kind := .local }
 
-def fromOnline (name : String) : ProverReference :=
+def fromOnline
+    (name : String)
+    : ProverReference :=
   { name := OATP.SystemOnTPTP.onlineSystemId name, kind := .online }
 
-def ofString (name : String) : ProverReference :=
+def ofString
+    (name : String)
+    : ProverReference :=
   if OATP.SystemOnTPTP.isOnlineReference name then fromOnline name else fromLocal name
 
-def fromPersisted (value : String) : Option ProverReference :=
+def fromPersisted
+    (value : String)
+    : Option ProverReference :=
   if value.startsWith "local:" then
     let name := value.drop "local:".length |>.toString
     if name.isEmpty then none else some (fromLocal name)
@@ -44,12 +50,16 @@ def fromPersisted (value : String) : Option ProverReference :=
     if name.isEmpty then none else some (fromOnline name)
   else if value.isEmpty then none else some (ofString value)
 
-def persisted (reference : ProverReference) : String :=
+def persisted
+    (reference : ProverReference)
+    : String :=
   match reference.kind with
   | .local => "local:" ++ reference.name
   | .online => "online:" ++ reference.name
 
-def display (reference : ProverReference) : String :=
+def display
+    (reference : ProverReference)
+    : String :=
   match reference.kind with
   | .local => reference.name
   | .online => OATP.SystemOnTPTP.onlineReference reference.name

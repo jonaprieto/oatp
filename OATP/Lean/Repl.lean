@@ -62,16 +62,28 @@ private def runMeta {α : Type} (runtime : Runtime) (action : MetaM α) :
     runtime.metaState
   pure (value, { runtime with coreState, metaState })
 
-private def addAtom (atoms : Array String) (name : String) : Array String :=
+private
+def addAtom
+    (atoms : Array String)
+    (name : String)
+    : Array String :=
   if atoms.contains name then atoms else atoms.push name
 
 private abbrev TranslationM := ExceptT String MetaM
 
-private def translationError {α : Type} (message : String) : TranslationM α :=
+private
+def translationError
+    {α : Type}
+    (message : String)
+    : TranslationM α :=
   ExceptT.mk (pure (.error message))
 
-private partial def atomNames (formula : _root_.TPTP.Formula.Expr) (atoms : Array String) :
-    Array String :=
+private
+partial
+def atomNames
+    (formula : _root_.TPTP.Formula.Expr)
+    (atoms : Array String)
+    : Array String :=
   match formula with
   | .atom predicate arguments =>
       if arguments.isEmpty then addAtom atoms predicate else atoms
@@ -81,15 +93,23 @@ private partial def atomNames (formula : _root_.TPTP.Formula.Expr) (atoms : Arra
       atomNames right (atomNames left atoms)
   | .forall _ body | .exists _ body => atomNames body atoms
 
-private def withAtoms {α : Type} (atoms : List String)
-    (action : Array (String × Expr) → TranslationM α) : MetaM (Except String α) :=
+private
+def withAtoms
+    {α : Type}
+    (atoms : List String)
+    (action : Array (String × Expr) → TranslationM α)
+    : MetaM (Except String α) :=
   match atoms with
   | [] => (action #[]).run
   | atom :: rest =>
     withLocalDeclD (Name.mkSimple atom) (mkSort .zero) fun fvar =>
       withAtoms rest fun locals => action (locals.push (atom, fvar))
 
-private def lookupAtom (atoms : Array (String × Expr)) (name : String) : Option Expr :=
+private
+def lookupAtom
+    (atoms : Array (String × Expr))
+    (name : String)
+    : Option Expr :=
   atoms.find? (·.1 == name) |>.map Prod.snd
 
 private partial def toLean (atoms : Array (String × Expr))

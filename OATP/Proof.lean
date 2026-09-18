@@ -29,7 +29,8 @@ inductive Step where
   | implicationIntro (localName : Name) (body : Step)
   deriving Repr
 
-def stepNames : List String :=
+def stepNames
+    : List String :=
   ["true-intro", "exact", "and-left", "and-right", "and-intro", "implication-intro"]
 
 private def andParts (target : Expr) : MetaM (Option (Expr × Expr)) := do
@@ -50,7 +51,11 @@ private def projection (target : Expr) (localName : Name) (useLeft : Bool) :
       else
         pure (.error s!"conjunction projection from `{localName}` has the wrong target")
 
-private def build (target : Expr) : Step → MetaM (Except String Expr)
+private
+def build
+    (target : Expr)
+    : Step →
+      MetaM (Except String Expr)
   | .exact localName => do
       let hypothesis ← getFVarFromUserName localName
       let hypothesisType ← inferType hypothesis

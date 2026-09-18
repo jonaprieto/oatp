@@ -30,8 +30,14 @@ open TermColor.Widgets
 
 private def catalogueNamespace : String := "oatp-repl"
 
-private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : Bool)
-    (elapsedMs : Option Nat := none) (sources : Sources := #[])
+private
+def appendEntry
+    (app : App)
+    (cell : Nat)
+    (input output : String)
+    (ok : Bool)
+    (elapsedMs : Option Nat := none)
+    (sources : Sources := #[])
     (diagnostic : Option Diagnostic := none) (report : Option Report := none) : App :=
   { app with
     entries := { cell, input, output, ok, elapsedMs, sources, diagnostic, report } :: app.entries
@@ -41,7 +47,10 @@ private def appendEntry (app : App) (cell : Nat) (input output : String) (ok : B
 #guard (appendEntry { repl := { history := #["first"] } } 1 "input" "output" true).repl.history ==
   #["first"]
 
-private def diagnosticFor (source message : String) : Source × Diagnostic :=
+private
+def diagnosticFor
+    (source message : String)
+    : Source × Diagnostic :=
   let sourceText := source
   let source := Source.fromBytes "input" source.toUTF8
   let title := message.splitOn "\n" |>.headD message
@@ -49,8 +58,14 @@ private def diagnosticFor (source message : String) : Source × Diagnostic :=
     (Label.primary (Span.range 0 0 sourceText.toUTF8.size))
   (source, diagnostic)
 
-private def note (app : App) (cell : Nat) (input output : String) (ok : Bool)
-    (elapsedMs : Option Nat := none) : App :=
+private
+def note
+    (app : App)
+    (cell : Nat)
+    (input output : String)
+    (ok : Bool)
+    (elapsedMs : Option Nat := none)
+    : App :=
   let (sources, diagnostic) := if ok then
       (#[], none)
     else
@@ -59,8 +74,15 @@ private def note (app : App) (cell : Nat) (input output : String) (ok : Bool)
   appendEntry { app with session := OATP.Repl.note app.session input output } cell input output ok
     elapsedMs sources diagnostic
 
-private def notePlain (app : App) (cell : Nat) (input output : String) (ok : Bool)
-    (elapsedMs : Option Nat := none) (report : Option Report := none) : App :=
+private
+def notePlain
+    (app : App)
+    (cell : Nat)
+    (input output : String)
+    (ok : Bool)
+    (elapsedMs : Option Nat := none)
+    (report : Option Report := none)
+    : App :=
   appendEntry { app with session := OATP.Repl.note app.session input output } cell input output ok
     elapsedMs #[] none report
 
@@ -68,23 +90,37 @@ private def notePlain (app : App) (cell : Nat) (input output : String) (ok : Boo
   | entry :: _ => match entry.diagnostic with | none => true | some _ => false
   | [] => false
 
-private def noteDiagnostic (app : App) (cell : Nat) (input source message : String) : App :=
+private
+def noteDiagnostic
+    (app : App)
+    (cell : Nat)
+    (input source message : String)
+    : App :=
   let (source, diagnostic) := diagnosticFor source message
   appendEntry { app with session := OATP.Repl.note app.session input message }
     cell input message false
     none #[source] (some diagnostic)
 
-private def clearDerived (app : App) : App :=
+private
+def clearDerived
+    (app : App)
+    : App :=
   { app with goal := none, translation := none, term := none, leanGoal := none }
 
-private def invalidateContext (app : App) : App :=
+private
+def invalidateContext
+    (app : App)
+    : App :=
   { clearDerived app with
     runRows := #[]
     runOpen := false
     runFocus := 0
     contextItemFocus := none }
 
-private def clearTranscript (app : App) : App :=
+private
+def clearTranscript
+    (app : App)
+    : App :=
   { app with
     entries := []
     transcriptScroll := 0
@@ -94,17 +130,26 @@ private def clearTranscript (app : App) : App :=
     copyPending := none
     repl := { app.repl with input := {}, historyIndex := none, completion := none } }
 
-private def changesContext (input : String) : Bool :=
+private
+def changesContext
+    (input : String)
+    : Bool :=
   match OATP.Repl.parseInput input with
   | .source _ => true
   | .command command => match command with
       | .parse _ | .axiom _ _ | .conjecture _ _ | .remove _ | .update _ _ | .reset => true
       | _ => false
 
-private def lastHistory (session : OATP.Repl.Session) : String :=
+private
+def lastHistory
+    (session : OATP.Repl.Session)
+    : String :=
   session.history.toList.reverse.head?.map (·.result) |>.getD "ok"
 
-private def artifactText : Portfolio.Result → (String × Bool)
+private
+def artifactText
+    : Portfolio.Result →
+      (String × Bool)
   | .artifact attempt artifact =>
       let head := s!"{attempt.name}: {artifact.status} ({artifact.elapsedMs}ms)"
       let details := if artifact.stderr.contains "no input problem files" then
@@ -118,19 +163,32 @@ private def artifactText : Portfolio.Result → (String × Bool)
       (head ++ details, SZSStatus.isSuccess artifact.status)
   | .failed attempt failure => (s!"{attempt.name}: failed: {failure.message}", false)
 
-private def resultHasIssue : Portfolio.Result → Bool
+private
+def resultHasIssue
+    : Portfolio.Result →
+      Bool
   | .artifact _ artifact => !SZSStatus.isSuccess artifact.status
   | .failed _ _ => true
 
-private def resultSucceeded : Portfolio.Result → Bool
+private
+def resultSucceeded
+    : Portfolio.Result →
+      Bool
   | .artifact _ artifact => SZSStatus.isSuccess artifact.status
   | .failed _ _ => false
 
-private def resultIssueText : Portfolio.Result → String
+private
+def resultIssueText
+    : Portfolio.Result →
+      String
   | .artifact attempt artifact => s!"{attempt.name}: returned {artifact.status}"
   | .failed attempt failure => s!"{attempt.name}: {failure.message}"
 
-private def runReport (strategy : OATP.RunStrategy) (results : List Portfolio.Result) : Report :=
+private
+def runReport
+    (strategy : OATP.RunStrategy)
+    (results : List Portfolio.Result)
+    : Report :=
   let issues := results.filter resultHasIssue
   let report := if strategy == .firstSuccess && results.any resultSucceeded then
       Report.info "first successful prover completed"
@@ -149,10 +207,16 @@ structure RunOutput where
   ok : Bool
   report : Report
 
-private def failedRunOutput (code message : String) : RunOutput :=
+private
+def failedRunOutput
+    (code message : String)
+    : RunOutput :=
   { text := message, ok := false, report := (Report.error message).withCode code }
 
-private def runRow : Portfolio.Result → RunRow
+private
+def runRow
+    : Portfolio.Result →
+      RunRow
   | .artifact attempt artifact =>
       { name := attempt.name
         status := .result artifact.status
@@ -165,14 +229,21 @@ private def runRow : Portfolio.Result → RunRow
   | .failed attempt failure =>
       { name := attempt.name, status := .failed, detail := failure.message }
 
-private def runRowsFor (attempts : Array Portfolio.Attempt) (strategy : OATP.RunStrategy) :
-    Array RunRow :=
+private
+def runRowsFor
+    (attempts : Array Portfolio.Attempt)
+    (strategy : OATP.RunStrategy)
+    : Array RunRow :=
   attempts.mapIdx fun index attempt => {
     name := attempt.name
     status := if strategy == .all || index == 0 then .running else .queued }
 
-private def finishRunRows (rows : Array RunRow) (results : List Portfolio.Result)
-    (strategy : OATP.RunStrategy) : Array RunRow :=
+private
+def finishRunRows
+    (rows : Array RunRow)
+    (results : List Portfolio.Result)
+    (strategy : OATP.RunStrategy)
+    : Array RunRow :=
   let rows := results.foldl (fun rows result =>
     let completed := runRow result
     rows.map fun current => if current.name == completed.name then completed else current) rows
@@ -191,11 +262,17 @@ private def currentRunRows (app : App) : IO (Array RunRow) := do
   | some progress => progress.get
   | none => pure app.runRows
 
-private def currentProblem (app : App) : Option Problem :=
+private
+def currentProblem
+    (app : App)
+    : Option Problem :=
   app.translation.map (fun source => { name := "lean-goal", source }) |>.orElse
     (fun _ => OATP.Repl.problem app.session)
 
-private def theoryStatus (theory : String) : String :=
+private
+def theoryStatus
+    (theory : String)
+    : String :=
   s!"theory: {theory}; available: {String.intercalate ", " OATP.TPTP.supportedTheories}"
 
 #guard theoryStatus "fof" == "theory: fof; available: fof, cnf, tff"
@@ -209,7 +286,10 @@ private def preferences (app : App) : OATP.Config.Preferences := {
   theme := app.themeName
 }
 
-private def configProverName (value : String) : String :=
+private
+def configProverName
+    (value : String)
+    : String :=
   OATP.ProverReference.fromPersisted value |>.map OATP.ProverReference.display |>.getD value
 
 private def configOutput (app : App) : IO (String × Report) := do
@@ -311,8 +391,12 @@ private def selectedProvers (app : App) (all includeDefault : Bool := false) :
     pure <| defaults.foldl (fun selected reference =>
       if selected.any (· == reference) then selected else selected.push reference) selected
 
-private def runRequest (app : App) (request : OATP.Repl.RunRequest)
-    (includeDefault : Bool := false) : IO RunOutput := do
+private
+def runRequest
+    (app : App)
+    (request : OATP.Repl.RunRequest)
+    (includeDefault : Bool := false)
+    : IO RunOutput := do
   match currentProblem app with
   | none =>
       let message :=
@@ -420,15 +504,20 @@ private def runRequest (app : App) (request : OATP.Repl.RunRequest)
         pure <| RunOutput.mk (String.intercalate "\n" (rendered.map Prod.fst))
           (rendered.any Prod.snd) (runReport app.strategy results.toList)
 
-private def backendLine (input : String) : Bool :=
+private
+def backendLine
+    (input : String)
+    : Bool :=
   match OATP.Repl.parseCommandSpec input with
   | .ok command => match command with
       | .run _ | .local _ | .online _ | .check => true
       | _ => false
   | .error _ => false
 
-private def backendRequest (input : String) :
-    Except String (OATP.Repl.RunRequest × Bool) :=
+private
+def backendRequest
+    (input : String)
+    : Except String (OATP.Repl.RunRequest × Bool) :=
   match OATP.Repl.parseCommandSpec input with
   | .ok (.run request) => pure (request, false)
   | .ok (.local request) => pure ({
@@ -445,7 +534,10 @@ private def backendRequest (input : String) :
   | .ok _ => .error "not a prover command"
   | .error message => .error message
 
-private def startingRunRows (input : String) : Array RunRow :=
+private
+def startingRunRows
+    (input : String)
+    : Array RunRow :=
   match backendRequest input with
   | .ok (request, includeDefault) =>
       if request.references.isEmpty then #[{ name := if includeDefault then
@@ -454,7 +546,10 @@ private def startingRunRows (input : String) : Array RunRow :=
         { name := OATP.ProverReference.display reference, status := .running }
   | .error _ => #[{ name := "run", status := .running }]
 
-private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
+private
+def backgroundJobs
+    : TermColor.Repl.Terminal.JobConfig App
+    where
   shouldRun := fun app input => !app.busy && backendLine input
   start := fun app input => { app with
     busy := true
@@ -558,12 +653,20 @@ private def doctorText : IO String := do
     "Use /systems --online to inspect the remote catalogue."
   ]
 
-private def fuzzy (query : String) (value : String) : Bool :=
+private
+def fuzzy
+    (query : String)
+    (value : String)
+    : Bool :=
   let query := query.toLower
   let value := value.toLower
   value == query || value.startsWith query || value.contains query
 
-private def proverMatches (query : String) (reference : OATP.ProverReference) : Bool :=
+private
+def proverMatches
+    (query : String)
+    (reference : OATP.ProverReference)
+    : Bool :=
   fuzzy query (OATP.ProverReference.display reference) || fuzzy query reference.name
 
 private def infoText (app : App) (query : String) : IO (String × Bool) := do
@@ -615,7 +718,11 @@ private def infoText (app : App) (query : String) : IO (String × Bool) := do
           String.intercalate ", " (online.toList.map (fun system =>
             SystemOnTPTP.onlineReference system.id))}", false)
 
-private partial def parseStepTokens : List String → Except String (OATP.Proof.Step × List String)
+private
+partial
+def parseStepTokens
+    : List String →
+      Except String (OATP.Proof.Step × List String)
   | "true-intro" :: rest => pure (.trueIntro, rest)
   | "exact" :: [] => .error "exact expects a hypothesis name"
   | "exact" :: name :: rest => pure (.exact (Name.mkSimple name), rest)
@@ -924,10 +1031,17 @@ private def commandValues (typeName : String) : IO (List String) := do
       pure (localNames.toList ++ online.toList)
   | _ => pure []
 
-private def complete (_app : App) (input : TextInputState) : IO (List Completion) :=
+private
+def complete
+    (_app : App)
+    (input : TextInputState)
+    : IO (List Completion) :=
   completeCommandWith OATP.Repl.commandSpec commandValues input
 
-private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
+private
+def appKeymap
+    : TermColor.Repl.Terminal.AppKeymap App
+    where
   Action := AppKeyAction
   keymap := Keymap.fromSpecs appBindings
   contexts := fun app =>
@@ -997,7 +1111,12 @@ private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
 #guard (Keymap.fromSpecs appBindings).resolve [AppContext.keyContext .state] (.char 'e') ==
   some AppKeyAction.prepareUpdateContext
 
-private def handleMouse (app : App) (size : Size) (mouse : MouseEvent) : Option App :=
+private
+def handleMouse
+    (app : App)
+    (size : Size)
+    (mouse : MouseEvent)
+    : Option App :=
   if app.runOpen then
     match drawerWidths size.columns with
     | none => none
@@ -1179,14 +1298,19 @@ private def staticOutput (app : App) : IO Unit := do
       s!" ({formatElapsed milliseconds})") |>.getD ""
     IO.println s!"    {(if entry.ok then "=" else "!")} {entry.output}{timing}"
 
-private def usage : String :=
+private
+def usage
+    : String :=
   "oatp repl — interactive theorem-proving workbench\n\n" ++
   "usage:\n  lake exe oatp repl\n  lake exe oatp repl --script FILE\n\n" ++
   "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  " ++
   "/to-tptp\n  " ++
   "/reconstruct implication-intro h exact h\n  /term"
 
-private def scriptExitCode (app : App) : UInt32 :=
+private
+def scriptExitCode
+    (app : App)
+    : UInt32 :=
   if app.entries.all (·.ok) then 0 else 1
 
 private def initialApp (runtime : OATP.Lean.Repl.Runtime) : IO App := do

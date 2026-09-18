@@ -25,11 +25,15 @@ inductive RunStrategy where
 
 namespace RunStrategy
 
-def name : RunStrategy → String
+def name
+    : RunStrategy →
+      String
   | .all => "all"
   | .firstSuccess => "first-success"
 
-def ofString : String → Option RunStrategy
+def ofString
+    : String →
+      Option RunStrategy
   | "all" => some .all
   | "first-success" => some .firstSuccess
   | _ => none
@@ -45,7 +49,9 @@ structure Prover where
 
 namespace Prover
 
-def label (prover : Prover) : String :=
+def label
+    (prover : Prover)
+    : String :=
   match prover.version with
   | some version => s!"{prover.name} {version}"
   | none => prover.name
@@ -67,7 +73,9 @@ namespace SZSStatus
 
 private def statusPrefixes : List String := ["% SZS status ", "# SZS status "]
 
-def tokenFromLine (line : String) : Option String :=
+def tokenFromLine
+    (line : String)
+    : Option String :=
   let line := line.trimAscii.toString
   let rec find : List String → Option String
     | [] => none
@@ -78,11 +86,17 @@ def tokenFromLine (line : String) : Option String :=
         else find markers
   find statusPrefixes
 
-private def tokenFromLines : List String → Option String
+private
+def tokenFromLines
+    : List String →
+      Option String
   | [] => none
   | line :: lines => tokenFromLine line |>.orElse (fun _ => tokenFromLines lines)
 
-private def resultTokenFromLine (line : String) : Option String :=
+private
+def resultTokenFromLine
+    (line : String)
+    : Option String :=
   let line := line.trimAscii.toString
   match line.splitOn " says " with
   | _ :: result :: _ =>
@@ -90,12 +104,16 @@ private def resultTokenFromLine (line : String) : Option String :=
       if token.isEmpty then none else some token
   | _ => none
 
-def tokenFromOutput (output : String) : Option String :=
+def tokenFromOutput
+    (output : String)
+    : Option String :=
   let lines := output.splitOn "\n"
   tokenFromLines lines |>.orElse fun _ =>
     lines.findSome? resultTokenFromLine
 
-def ofString : String → Option SZSStatus
+def ofString
+    : String →
+      Option SZSStatus
   | "Theorem" | "theorem" => some .theorem
   | "Unsatisfiable" | "unsatisfiable" => some .unsatisfiable
   | "Satisfiable" | "satisfiable" => some .satisfiable
@@ -107,10 +125,14 @@ def ofString : String → Option SZSStatus
   | "Unknown" | "unknown" => some .unknown
   | _ => none
 
-def ofOutput (output : String) : Option SZSStatus :=
+def ofOutput
+    (output : String)
+    : Option SZSStatus :=
   tokenFromOutput output >>= ofString
 
-def toString : SZSStatus → String
+def toString
+    : SZSStatus →
+      String
   | .theorem => "Theorem"
   | .unsatisfiable => "Unsatisfiable"
   | .satisfiable => "Satisfiable"
@@ -120,7 +142,9 @@ def toString : SZSStatus → String
   | .error => "Error"
   | .unknown => "Unknown"
 
-def isSuccess : SZSStatus → Bool
+def isSuccess
+    : SZSStatus →
+      Bool
   | .theorem | .unsatisfiable => true
   | _ => false
 
@@ -155,12 +179,16 @@ inductive Outcome where
   | failed (message : String) (artifact : Option Artifact := none)
   deriving Repr
 
-def Outcome.artifact : Outcome → Option Artifact
+def Outcome.artifact
+    : Outcome →
+      Option Artifact
   | .candidate artifact => some artifact
   | .timedOut artifact => some artifact
   | .failed _ artifact => artifact
 
-def Outcome.status : Outcome → String
+def Outcome.status
+    : Outcome →
+      String
   | .candidate artifact => s!"candidate ({artifact.status})"
   | .timedOut _ => "timeout"
   | .failed message _ => s!"failed: {message}"

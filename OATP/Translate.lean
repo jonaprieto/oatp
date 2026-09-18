@@ -28,10 +28,16 @@ structure GoalTranslation where
   target : String
   deriving Repr
 
-private def hexDigit (value : Nat) : Char :=
+private
+def hexDigit
+    (value : Nat)
+    : Char :=
   if value < 10 then Char.ofNat (48 + value) else Char.ofNat (97 + (value - 10))
 
-private def symbolName (raw : String) : String :=
+private
+def symbolName
+    (raw : String)
+    : String :=
   let body := raw.toUTF8.toList.map fun byte =>
     let value := byte.toNat
     s!"{hexDigit (value / 16)}{hexDigit (value % 16)}"
@@ -90,10 +96,15 @@ private def renderStatement (name : String) (role : _root_.TPTP.Role)
   let statement ← OATP.TPTP.Statement.ofFof name role formula
   pure <| _root_.TPTP.Statement.render statement
 
-private def renderFormula (formula : TPTP.Formula.Expr) : Except String String :=
+private
+def renderFormula
+    (formula : TPTP.Formula.Expr)
+    : Except String String :=
   formula.toTPTP
 
-def translateGoal (mvarId : MVarId) : MetaM (Except String GoalTranslation) :=
+def translateGoal
+    (mvarId : MVarId)
+    : MetaM (Except String GoalTranslation) :=
   mvarId.withContext do
     let target ← instantiateMVars (← mvarId.getType)
     unless ← isProp target do

@@ -16,7 +16,9 @@ namespace OATP.Term
 
 open OATP TermColor
 
-def eventText : SearchEvent → Text
+def eventText
+    : SearchEvent →
+      Text
   | .goal snapshot =>
       let context := if snapshot.context.isEmpty then "" else
         "\n" ++ String.intercalate "\n" (snapshot.context.toList.map (fun line => "  " ++ line))
@@ -28,10 +30,14 @@ def eventText : SearchEvent → Text
   | .result outcome => Text.styled "result: " Style.bold ++ Text.plain outcome.status
   | .note message => Text.styled "note: " Style.dim ++ Text.plain message
 
-def renderPlain (events : Array SearchEvent) : String :=
+def renderPlain
+    (events : Array SearchEvent)
+    : String :=
   String.intercalate "\n" (events.toList.map (fun event => (eventText event).plainText))
 
-def renderAnsi16 (events : Array SearchEvent) : String :=
+def renderAnsi16
+    (events : Array SearchEvent)
+    : String :=
   String.intercalate "\n"
     (events.toList.map (fun event => Text.render RenderTarget.ansi16 (eventText event)))
 

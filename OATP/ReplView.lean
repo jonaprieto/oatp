@@ -35,7 +35,9 @@ open scoped TermColor.Style
 
 def version : String := OATP.version
 
-def aurora : ColorScheme where
+def aurora
+    : ColorScheme
+    where
   background := .rgb 13 24 37
   foreground := .rgb 225 241 245
   selection := .rgb 39 70 83
@@ -49,7 +51,8 @@ def aurora : ColorScheme where
   purple := .rgb 178 146 255
   pink := .rgb 245 132 203
 
-def themes : List (String × ColorScheme) :=
+def themes
+    : List (String × ColorScheme) :=
   [("aurora", aurora), ("terracotta", {
     background := .rgb 26 28 38
     foreground := .rgb 214 216 226
@@ -78,7 +81,10 @@ structure SemanticColors where
   functionColor : Color
   predicateColor : Color
 
-def semanticColors (scheme : ColorScheme) : SemanticColors where
+def semanticColors
+    (scheme : ColorScheme)
+    : SemanticColors
+    where
   format := scheme.cyan
   role := scheme.purple
   error := scheme.red
@@ -124,7 +130,9 @@ inductive AppContext
   | history
   | historyInput
 
-def AppContext.name : AppContext → String
+def AppContext.name
+    : AppContext →
+      String
   | .default => "default"
   | .run => "run"
   | .runInput => "run-input"
@@ -135,7 +143,9 @@ def AppContext.name : AppContext → String
   | .history => "history"
   | .historyInput => "history-input"
 
-def AppContext.keyContext : AppContext → KeyContext
+def AppContext.keyContext
+    : AppContext →
+      KeyContext
   | .default => KeyContext.ofString "default"
   | .run => KeyContext.ofString "run"
   | .runInput => KeyContext.ofString "run-input"
@@ -146,15 +156,21 @@ def AppContext.keyContext : AppContext → KeyContext
   | .history => KeyContext.ofString "history"
   | .historyInput => KeyContext.ofString "history-input"
 
-private def appBinding (keys : List Key) (action : AppKeyAction)
-    (context : Option AppContext) (description : String) : BindingSpec AppKeyAction :=
+private
+def appBinding
+    (keys : List Key)
+    (action : AppKeyAction)
+    (context : Option AppContext)
+    (description : String)
+    : BindingSpec AppKeyAction :=
   { keys
     action
     context := context.map AppContext.keyContext
     label := String.intercalate "/" (keys.map Keymap.keyLabel)
     description }
 
-def appBindings : List (BindingSpec AppKeyAction) :=
+def appBindings
+    : List (BindingSpec AppKeyAction) :=
   [ appBinding [.ctrl 'R', .ctrl 'r'] .toggleRun none "toggle the run drawer"
   , appBinding [.ctrl 'H', .ctrl 'h'] .toggleHistory none "toggle the history drawer"
   , appBinding [.ctrl 'S', .ctrl 's'] .toggleState none "toggle the state drawer"
@@ -180,12 +196,17 @@ def appBindings : List (BindingSpec AppKeyAction) :=
   , appBinding [.pageUp] .transcriptPageUp (some .default) "scroll transcript up"
   , appBinding [.pageDown] .transcriptPageDown (some .default) "scroll transcript down" ]
 
-def appKeyLabel (action : AppKeyAction) (context : AppContext) : String :=
+def appKeyLabel
+    (action : AppKeyAction)
+    (context : AppContext)
+    : String :=
   (appBindings.find? (fun binding => binding.action == action &&
     (binding.context == none || binding.context == some (AppContext.keyContext context)))).map
       (·.label) |>.getD "?"
 
-def themeByName (name : String) : Option ColorScheme :=
+def themeByName
+    (name : String)
+    : Option ColorScheme :=
   themes.find? (fun pair => pair.1 == name) |>.map Prod.snd
 
 def themeNames : String := String.intercalate ", " (themes.map Prod.fst)
@@ -221,7 +242,9 @@ inductive RunStatus where
 
 namespace RunStatus
 
-def label : RunStatus → String
+def label
+    : RunStatus →
+      String
   | .queued => "queued"
   | .running => "running"
   | .result status => s!"{status}"
@@ -253,10 +276,13 @@ inductive ContextTarget where
 
 namespace ContextTarget
 
-def all : List ContextTarget :=
+def all
+    : List ContextTarget :=
   [.formulas, .symbols, .problem, .goal, .translation, .term]
 
-def name : ContextTarget → String
+def name
+    : ContextTarget →
+      String
   | .formulas => "formulas"
   | .symbols => "symbols"
   | .problem => "problem"
@@ -264,7 +290,9 @@ def name : ContextTarget → String
   | .translation => "translation"
   | .term => "term"
 
-def label : ContextTarget → String
+def label
+    : ContextTarget →
+      String
   | .formulas => "FORMULAS"
   | .symbols => "SYMBOLS"
   | .problem => "PROBLEM"
@@ -272,7 +300,9 @@ def label : ContextTarget → String
   | .translation => "LEAN → TPTP"
   | .term => "CHECKED TERM"
 
-def aliases : ContextTarget → List String
+def aliases
+    : ContextTarget →
+      List String
   | .formulas => ["form", "formula", "formulas"]
   | .symbols => ["symbol", "symbols"]
   | .problem => ["problem"]
@@ -280,7 +310,12 @@ def aliases : ContextTarget → List String
   | .translation => ["translation", "tptp"]
   | .term => ["term", "checked-term", "checked"]
 
-private def indexOf (value : String) : List ContextTarget → Nat → Option Nat
+private
+def indexOf
+    (value : String)
+    : List ContextTarget →
+      Nat →
+      Option Nat
   | [], _ => none
   | contextTarget :: rest, index =>
       if (aliases contextTarget).any (· == value) then some index
@@ -336,21 +371,28 @@ def fallbackSize : Size := { columns := 110, rows := 28 }
 
 def inputConfig : TextInputConfig := { width := 160, maxLength := 16_384 }
 
-def multilineConfig : MultilineConfig :=
+def multilineConfig
+    : MultilineConfig :=
   { text := inputConfig, lineBreak := .ctrl 'n' }
 
 private def minFrameWidth : Nat := 34
 
 private def frameWidth (width : Nat) : Nat := max minFrameWidth width
 
-private def boxInnerWidth (outer : Nat) : Nat :=
+private
+def boxInnerWidth
+    (outer : Nat)
+    : Nat :=
   Layout.boxInnerWidth { padding := 1 } outer
 
 private def panelWidth (width : Nat) : Nat := frameWidth width - 2
 
 private def stateDrawerMinWidth : Nat := 70
 
-private def stateDrawerWidths (width : Nat) : Option (Nat × Nat) :=
+private
+def stateDrawerWidths
+    (width : Nat)
+    : Option (Nat × Nat) :=
   let total := frameWidth width
   if total < stateDrawerMinWidth then none
   else
@@ -358,36 +400,64 @@ private def stateDrawerWidths (width : Nat) : Option (Nat × Nat) :=
     let right := max 34 (available * 2 / 5)
     some (available - right, right)
 
-def drawerWidths (width : Nat) : Option (Nat × Nat) :=
+def drawerWidths
+    (width : Nat)
+    : Option (Nat × Nat) :=
   stateDrawerWidths width
 
-private def joinLines : List Text → Text
+private
+def joinLines
+    : List Text →
+      Text
   | [] => Text.empty
   | line :: lines => lines.foldl (fun result next => result ++ Text.plain "\n" ++ next) line
 
-private def fitText (width : Nat) (value : String) : Text :=
+private
+def fitText
+    (width : Nat)
+    (value : String)
+    : Text :=
   truncate width (Text.plain value)
 
-private def fillHeight (height : Nat) (text : Text) : Text :=
+private
+def fillHeight
+    (height : Nat)
+    (text : Text)
+    : Text :=
   let height := max 1 height
   let lines := (splitLines text).take height
   joinLines (lines ++ List.replicate (height - lines.length) Text.empty)
 
-private def withBackground (scheme : ColorScheme) (text : Text) : Text :=
+private
+def withBackground
+    (scheme : ColorScheme)
+    (text : Text)
+    : Text :=
   { segments := text.segments.map fun segment =>
       { segment with style := Style.bg scheme.background <+> segment.style } }
 
-private def dimText (text : Text) : Text :=
+private
+def dimText
+    (text : Text)
+    : Text :=
   { segments := text.segments.map fun segment =>
       { segment with style := Style.dim <+> segment.style } }
 
-private def base64Alphabet : String :=
+private
+def base64Alphabet
+    : String :=
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-private def base64Char (index : Nat) : Char :=
+private
+def base64Char
+    (index : Nat)
+    : Char :=
   base64Alphabet.toList.getD index 'A'
 
-private def base64 : List UInt8 → String
+private
+def base64
+    : List UInt8 →
+      String
   | a :: b :: c :: rest =>
       let value := a.toNat * 65_536 + b.toNat * 256 + c.toNat
       String.ofList [base64Char (value / 262_144), base64Char ((value / 4_096) % 64),
@@ -401,11 +471,19 @@ private def base64 : List UInt8 → String
       String.ofList [base64Char (value / 4), base64Char ((value % 4) * 16), '=', '=']
   | [] => ""
 
-private def clipboardSequence (value : String) : String :=
+private
+def clipboardSequence
+    (value : String)
+    : String :=
   "\u001b]52;c;" ++ base64 value.toUTF8.toList ++ "\u0007"
 
-private def opaqueScreen (scheme : ColorScheme) (size : Size) (content : Text)
-    (copyPending : Option String := none) : Text :=
+private
+def opaqueScreen
+    (scheme : ColorScheme)
+    (size : Size)
+    (content : Text)
+    (copyPending : Option String := none)
+    : Text :=
   let width := max 1 size.columns
   let rows := max 1 size.rows
   let blank := Text.styled (String.ofList (List.replicate width ' '))
@@ -417,29 +495,48 @@ private def opaqueScreen (scheme : ColorScheme) (size : Size) (content : Text)
   | some value => screen ++ Text.plain (clipboardSequence value)
   | none => screen
 
-def formatElapsed (milliseconds : Nat) : String :=
+def formatElapsed
+    (milliseconds : Nat)
+    : String :=
   if milliseconds == 0 then "<1 ms"
   else if milliseconds < 1_000 then s!"{milliseconds} ms"
   else s!"{milliseconds / 1_000}.{milliseconds % 1_000 / 100} s"
 
-private def diagnosticView (scheme : ColorScheme) (width : Nat) (sources : Sources)
-    (diagnostic : Diagnostic) : Text :=
+private
+def diagnosticView
+    (scheme : ColorScheme)
+    (width : Nat)
+    (sources : Sources)
+    (diagnostic : Diagnostic)
+    : Text :=
   TermColor.Diagnostics.render sources diagnostic
     { width := max 1 (frameWidth width - 2), contextLines := 0, hyperlinks := false } scheme
 
-private def identifierChar (character : Char) : Bool :=
+private
+def identifierChar
+    (character : Char)
+    : Bool :=
   character.isAlpha || character.isDigit || character == '_' || character == '$' ||
     character == '\''
 
-private def roleStyle (semantic : SemanticColors) : _root_.TPTP.Role → Option Style
+private
+def roleStyle
+    (semantic : SemanticColors)
+    : _root_.TPTP.Role →
+      Option Style
   | .axiom | .hypothesis | .definition | .assumption | .lemma | .theorem | .corollary
     | .conjecture | .negatedConjecture | .plain | .type | .interpretation | .logic
     | .unknown | .finiteDomain | .finiteFunctor | .finitePredicate =>
       some (Style.fg semantic.role)
   | .other _ => none
 
-private def symbolStyle (scheme : ColorScheme) (symbols : Array Symbol) (token : String)
-    (highlightSyntax : Bool := true) : Style :=
+private
+def symbolStyle
+    (scheme : ColorScheme)
+    (symbols : Array Symbol)
+    (token : String)
+    (highlightSyntax : Bool := true)
+    : Style :=
   let lower := token.toLower
   let semantic := semanticColors scheme
   if token.startsWith "/" then Style.bold <+> Style.fg scheme.orange
@@ -463,14 +560,23 @@ private def symbolStyle (scheme : ColorScheme) (symbols : Array Symbol) (token :
                   | .predicate => Style.fg semantic.predicateColor
               | none => Style.fg scheme.foreground
 
-private def operatorStyle (scheme : ColorScheme) (token : String) : Style :=
+private
+def operatorStyle
+    (scheme : ColorScheme)
+    (token : String)
+    : Style :=
   if token == "!" || token == "?" then Style.fg scheme.pink
   else if token == "(" || token == ")" || token == "[" || token == "]" || token == "," ||
       token == ":" || token == "." || token == ";" then Style.fg scheme.purple
   else Style.fg scheme.blue
 
-private def semanticText (scheme : ColorScheme) (symbols : Array Symbol) (value : String)
-    (highlightSyntax : Bool := true) : Text :=
+private
+def semanticText
+    (scheme : ColorScheme)
+    (symbols : Array Symbol)
+    (value : String)
+    (highlightSyntax : Bool := true)
+    : Text :=
   let flush := fun (state : Text × String) =>
     if state.2.isEmpty then state
     else (state.1 ++ Text.styled state.2
@@ -492,11 +598,19 @@ private def semanticText (scheme : ColorScheme) (symbols : Array Symbol) (value 
         (state.1 ++ Text.plain token, "")
   (flush (value.toList.foldl step (Text.empty, ""))).1
 
-private def semanticFormula (scheme : ColorScheme) (formula : FormulaView) : Text :=
+private
+def semanticFormula
+    (scheme : ColorScheme)
+    (formula : FormulaView)
+    : Text :=
   semanticText scheme formula.symbols formula.formula
 
-private def formulaLine (scheme : ColorScheme) (selected : Option Nat)
-    (formula : FormulaView) : Text :=
+private
+def formulaLine
+    (scheme : ColorScheme)
+    (selected : Option Nat)
+    (formula : FormulaView)
+    : Text :=
   let marker := if selected == some formula.id then "▸ " else "  "
   Text.styled s!"{marker}index #{formula.id} • cell {formula.cell} • {formula.role} "
       (Style.dim <+> Style.fg scheme.comment) ++
@@ -513,20 +627,35 @@ private def reportWidgetConfig (scheme : ColorScheme) : CollapsibleConfig := {
   overflowText := Text.styled "… more" (Style.dim <+> Style.fg scheme.comment)
   emptyText := Text.styled "(no report details)" (Style.dim <+> Style.fg scheme.comment) }
 
-private def reportSummary (scheme : ColorScheme) (report : Report) : Text :=
+private
+def reportSummary
+    (scheme : ColorScheme)
+    (report : Report)
+    : Text :=
   let marker := match report.severity with
     | .error => Text.styled "issues" (Style.bold <+> Style.fg scheme.red)
     | .warning => Text.styled "warning" (Style.bold <+> Style.fg scheme.yellow)
     | _ => Text.styled "check" (Style.bold <+> Style.fg scheme.green)
   marker ++ Text.plain s!" • {report.title} • click to expand • Ctrl-R full output"
 
-private def reportBody (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
-    (entry : TranscriptEntry) (report : Report) : Text :=
+private
+def reportBody
+    (scheme : ColorScheme)
+    (symbols : Array Symbol)
+    (width : Nat)
+    (entry : TranscriptEntry)
+    (report : Report)
+    : Text :=
   renderReport report { width := max 1 (width - 6) } scheme ++ Text.plain "\n" ++
     semanticText scheme symbols entry.output false
 
-private def transcriptLine (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
-    (entry : TranscriptEntry) : Text :=
+private
+def transcriptLine
+    (scheme : ColorScheme)
+    (symbols : Array Symbol)
+    (width : Nat)
+    (entry : TranscriptEntry)
+    : Text :=
   let input := Text.styled s!"[{entry.cell}] " (Style.dim <+> Style.fg scheme.comment) ++
     Text.styled "› " (Style.bold <+> Style.fg scheme.orange) ++
     semanticText scheme symbols entry.input false
@@ -558,13 +687,21 @@ private def transcriptLine (scheme : ColorScheme) (symbols : Array Symbol) (widt
         (Style.dim <+> Style.fg scheme.comment)) |>.getD Text.empty
   input ++ Text.plain "\n" ++ output ++ timing
 
-private def spacedEntries : List Text → List Text
+private
+def spacedEntries
+    : List Text →
+      List Text
   | [] => []
   | [entry] => [entry]
   | entry :: rest => entry :: Text.empty :: spacedEntries rest
 
-private def transcriptLines (scheme : ColorScheme) (symbols : Array Symbol) (width : Nat)
-    (entries : List TranscriptEntry) : List Text :=
+private
+def transcriptLines
+    (scheme : ColorScheme)
+    (symbols : Array Symbol)
+    (width : Nat)
+    (entries : List TranscriptEntry)
+    : List Text :=
   let views := entries.reverse.map (transcriptLine scheme symbols width)
   (spacedEntries views).flatMap splitLines
 
@@ -575,7 +712,10 @@ private def reportWidget (scheme : ColorScheme) (symbols : Array Symbol) (width 
     (reportSummary scheme report) (reportBody scheme symbols width entry report)
     { expanded := entry.reportExpanded }
 
-def reportAtTranscriptRow (app : App) (width row : Nat) : Option Nat :=
+def reportAtTranscriptRow
+    (app : App)
+    (width row : Nat)
+    : Option Nat :=
   let rec find : List TranscriptEntry → Nat → Option Nat
     | [], _ => none
     | entry :: rest, offset =>
@@ -590,19 +730,30 @@ def reportAtTranscriptRow (app : App) (width row : Nat) : Option Nat :=
         | _, _ => find rest (offset + lineCount + 1)
   find app.entries.reverse 0
 
-def toggleReportCell (app : App) (cell : Nat) : App :=
+def toggleReportCell
+    (app : App)
+    (cell : Nat)
+    : App :=
   { app with
     entries := app.entries.map fun entry =>
       if entry.cell == cell then { entry with reportExpanded := !entry.reportExpanded } else entry }
 
-private def visibleTranscriptLines (app : App) (width budget : Nat) : List Text :=
+private
+def visibleTranscriptLines
+    (app : App)
+    (width budget : Nat)
+    : List Text :=
   let lines := transcriptLines app.theme app.session.symbols width app.entries
   let scroll := min app.transcriptScroll (lines.length - budget)
   let visibleEnd := lines.length - scroll
   let start := visibleEnd - min budget visibleEnd
   (lines.drop start).take (visibleEnd - start)
 
-private def transcript (app : App) (width budget bodyStart : Nat) : Text :=
+private
+def transcript
+    (app : App)
+    (width budget bodyStart : Nat)
+    : Text :=
   let lines := visibleTranscriptLines app width budget
   if lines.isEmpty then
     Text.styled "Type a TPTP statement or /help." (Style.dim <+> Style.fg app.theme.comment)
@@ -620,25 +771,43 @@ private def transcript (app : App) (width budget bodyStart : Nat) : Text :=
           else line
     | _, _ => body
 
-private def selectionLines (app : App) (width budget : Nat) : List String :=
+private
+def selectionLines
+    (app : App)
+    (width budget : Nat)
+    : List String :=
   (visibleTranscriptLines app width budget).map (·.plainText)
 
-def scrollTranscriptUp (app : App) : App :=
+def scrollTranscriptUp
+    (app : App)
+    : App :=
   { app with transcriptScroll := app.transcriptScroll + 3 }
 
-def scrollTranscriptDown (app : App) : App :=
+def scrollTranscriptDown
+    (app : App)
+    : App :=
   { app with transcriptScroll := app.transcriptScroll - min 3 app.transcriptScroll }
 
-def scrollTranscriptPageUp (app : App) : App :=
+def scrollTranscriptPageUp
+    (app : App)
+    : App :=
   { app with transcriptScroll := app.transcriptScroll + 10 }
 
-def scrollTranscriptPageDown (app : App) : App :=
+def scrollTranscriptPageDown
+    (app : App)
+    : App :=
   { app with transcriptScroll := app.transcriptScroll - min 10 app.transcriptScroll }
 
-def clearSelection (app : App) : App :=
+def clearSelection
+    (app : App)
+    : App :=
   { app with selectionStart := none, selectionEnd := none }
 
-private def symbolLine (scheme : ColorScheme) (symbol : Symbol) : Text :=
+private
+def symbolLine
+    (scheme : ColorScheme)
+    (symbol : Symbol)
+    : Text :=
   let kind := match symbol.kind with
     | .variable => "var"
     | .constant => "const"
@@ -649,7 +818,11 @@ private def symbolLine (scheme : ColorScheme) (symbol : Symbol) : Text :=
     Text.styled symbol.name (symbolStyle scheme #[symbol] symbol.name) ++
     Text.styled s!"/{symbol.arity}" (Style.dim <+> Style.fg scheme.comment)
 
-private def contextWidgetConfig (scheme : ColorScheme) : CollapsibleConfig where
+private
+def contextWidgetConfig
+    (scheme : ColorScheme)
+    : CollapsibleConfig
+    where
   collapsedMarker := Text.styled "▸ " (Style.fg scheme.comment)
   expandedMarker := Text.styled "▾ " (Style.fg scheme.orange)
   summaryStyle := Style.bold <+> Style.fg scheme.purple
@@ -660,7 +833,10 @@ private def contextWidgetConfig (scheme : ColorScheme) : CollapsibleConfig where
   overflowText := Text.styled "… more" (Style.dim <+> Style.fg scheme.comment)
   emptyText := Text.styled "(none)" (Style.dim <+> Style.fg scheme.comment)
 
-private def contextSections (app : App) : List (Nat × Text × Text) :=
+private
+def contextSections
+    (app : App)
+    : List (Nat × Text × Text) :=
   let formulas := app.session.formulas.toList.reverse.take 8
   let symbols := app.session.symbols.toList.take 12
   let problem := if app.session.context.isEmpty then
@@ -703,14 +879,26 @@ private def contextSections (app : App) : List (Nat × Text × Text) :=
 
 #guard (contextSections ({} : App)).isEmpty
 
-private def contextExpandedAt (app : App) (index : Nat) : Bool :=
+private
+def contextExpandedAt
+    (app : App)
+    (index : Nat)
+    : Bool :=
   app.contextExpanded.getD index true
 
-private def contextState (app : App) (index : Nat) : CollapsibleState :=
+private
+def contextState
+    (app : App)
+    (index : Nat)
+    : CollapsibleState :=
   { expanded := contextExpandedAt app index
     focused := app.contextFocus == index }
 
-private def contextRenders (app : App) (width : Nat) : List (Nat × CollapsibleRender) :=
+private
+def contextRenders
+    (app : App)
+    (width : Nat)
+    : List (Nat × CollapsibleRender) :=
   let innerWidth := max 1 (boxInnerWidth width)
   let rec go : List (Nat × Text × Text) → List (Nat × CollapsibleRender)
     | [] => []
@@ -719,10 +907,17 @@ private def contextRenders (app : App) (width : Nat) : List (Nat × CollapsibleR
           (contextState app index)) :: go sections
   go (contextSections app)
 
-private def contextTexts (app : App) (width : Nat) : List Text :=
+private
+def contextTexts
+    (app : App)
+    (width : Nat)
+    : List Text :=
   (contextRenders app width).map (fun (_, widget) => widget.text)
 
-def contextHitAtRow (app : App) (width row : Nat) : Option (Nat × Bool) :=
+def contextHitAtRow
+    (app : App)
+    (width row : Nat)
+    : Option (Nat × Bool) :=
   if row < 2 then none
   else
     let relativeRow := row - 2
@@ -734,7 +929,10 @@ def contextHitAtRow (app : App) (width row : Nat) : Option (Nat × Bool) :=
           else find renders (offset + widget.lineCount)
     find (contextRenders app width) 0
 
-def contextFormulaAtRow (app : App) (width row : Nat) : Option Nat :=
+def contextFormulaAtRow
+    (app : App)
+    (width row : Nat)
+    : Option Nat :=
   match contextHitAtRow app width row with
   | some (0, false) =>
       let relativeRow := row - 2
@@ -746,16 +944,31 @@ def contextFormulaAtRow (app : App) (width row : Nat) : Option Nat :=
       | [] => none
   | _ => none
 
-private def updateContextExpanded (app : App) (index : Nat) (expanded : Bool) : App :=
+private
+def updateContextExpanded
+    (app : App)
+    (index : Nat)
+    (expanded : Bool)
+    : App :=
   { app with contextExpanded := app.contextExpanded.set! index expanded }
 
-def focusContext (app : App) (index : Nat) : App :=
+def focusContext
+    (app : App)
+    (index : Nat)
+    : App :=
   { app with contextFocus := min (contextSectionCount - 1) index }
 
-private def visibleContextIndices (app : App) : Array Nat :=
+private
+def visibleContextIndices
+    (app : App)
+    : Array Nat :=
   (contextSections app).map (fun (index, _, _) => index) |>.toArray
 
-private def moveContext (app : App) (forward : Bool) : App :=
+private
+def moveContext
+    (app : App)
+    (forward : Bool)
+    : App :=
   let indices := visibleContextIndices app
   if indices.isEmpty then
     app
@@ -768,21 +981,37 @@ private def moveContext (app : App) (forward : Bool) : App :=
         let offset := if forward then 1 else indices.size - 1
         focusContext app (indices[(current + offset) % indices.size]?.getD app.contextFocus)
 
-def focusNextContext (app : App) : App :=
+def focusNextContext
+    (app : App)
+    : App :=
   moveContext app true
 
-def focusPreviousContext (app : App) : App :=
+def focusPreviousContext
+    (app : App)
+    : App :=
   moveContext app false
 
-private def formulaIds (app : App) : List Nat :=
+private
+def formulaIds
+    (app : App)
+    : List Nat :=
   app.session.formulas.toList.reverse.map (·.id)
 
-private def indexOfFormula : Nat → Nat → List Nat → Option Nat
+private
+def indexOfFormula
+    : Nat →
+      Nat →
+      List Nat →
+      Option Nat
   | _, _, [] => none
   | wanted, index, id :: ids =>
       if wanted == id then some index else indexOfFormula wanted (index + 1) ids
 
-private def nextFormulaId (app : App) (forward : Bool) : Option Nat :=
+private
+def nextFormulaId
+    (app : App)
+    (forward : Bool)
+    : Option Nat :=
   let ids := formulaIds app |>.take 8
   match ids with
   | [] => none
@@ -793,66 +1022,99 @@ private def nextFormulaId (app : App) (forward : Bool) : Option Nat :=
           let index := (indexOfFormula current 0 ids).getD 0
           if forward then ids[index + 1]? else if index == 0 then none else ids[index - 1]?
 
-def focusContextItem (app : App) (id : Nat) : App :=
+def focusContextItem
+    (app : App)
+    (id : Nat)
+    : App :=
   if app.session.formulas.any (·.id == id) then
     { app with contextFocus := 0, contextItemFocus := some id }
   else app
 
-def focusNextContextItem (app : App) : App :=
+def focusNextContextItem
+    (app : App)
+    : App :=
   match nextFormulaId app true with
   | some id => focusContextItem app id
   | none => { app with contextItemFocus := none }
 
-def focusPreviousContextItem (app : App) : App :=
+def focusPreviousContextItem
+    (app : App)
+    : App :=
   match nextFormulaId app false with
   | some id => focusContextItem app id
   | none => { app with contextItemFocus := none }
 
-def focusNextContextEntry (app : App) : App :=
+def focusNextContextEntry
+    (app : App)
+    : App :=
   if app.contextFocus == 0 && app.session.formulas.isEmpty == false then
     match nextFormulaId app true with
     | some id => focusContextItem app id
     | none => moveContext app true
   else focusNextContext app
 
-def focusPreviousContextEntry (app : App) : App :=
+def focusPreviousContextEntry
+    (app : App)
+    : App :=
   if app.contextFocus == 0 && app.session.formulas.isEmpty == false then
     match nextFormulaId app false with
     | some id => focusContextItem app id
     | none => moveContext app false
   else focusPreviousContext app
 
-def toggleFocusedContext (app : App) : App :=
+def toggleFocusedContext
+    (app : App)
+    : App :=
   updateContextExpanded app app.contextFocus (!contextExpandedAt app app.contextFocus)
 
-def expandFocusedContext (app : App) : App :=
+def expandFocusedContext
+    (app : App)
+    : App :=
   updateContextExpanded app app.contextFocus true
 
-def collapseFocusedContext (app : App) : App :=
+def collapseFocusedContext
+    (app : App)
+    : App :=
   updateContextExpanded app app.contextFocus false
 
-def focusProver (app : App) (index : Nat) : App :=
+def focusProver
+    (app : App)
+    (index : Nat)
+    : App :=
   let focus := if app.proverChoices.isEmpty then 0 else min (app.proverChoices.size - 1) index
   { app with proverFocus := focus }
 
-def focusNextProver (app : App) : App :=
+def focusNextProver
+    (app : App)
+    : App :=
   focusProver app ((app.proverFocus + 1) % max 1 app.proverChoices.size)
 
-def focusPreviousProver (app : App) : App :=
+def focusPreviousProver
+    (app : App)
+    : App :=
   focusProver app (if app.proverFocus == 0 then max 1 app.proverChoices.size - 1
     else app.proverFocus - 1)
 
-def focusRun (app : App) (index : Nat) : App :=
+def focusRun
+    (app : App)
+    (index : Nat)
+    : App :=
   let focus := if app.runRows.isEmpty then 0 else min (app.runRows.size - 1) index
   { app with runFocus := focus }
 
-def focusNextRun (app : App) : App :=
+def focusNextRun
+    (app : App)
+    : App :=
   focusRun app ((app.runFocus + 1) % max 1 app.runRows.size)
 
-def focusPreviousRun (app : App) : App :=
+def focusPreviousRun
+    (app : App)
+    : App :=
   focusRun app (if app.runFocus == 0 then max 1 app.runRows.size - 1 else app.runFocus - 1)
 
-def toggleFocusedProver (app : App) : App :=
+def toggleFocusedProver
+    (app : App)
+    : App :=
   if app.proverChoices.isEmpty then app else
     let reference := app.proverChoices[app.proverFocus]!
     let enabled := app.enabledProvers.any (· == reference)
@@ -863,13 +1125,20 @@ def toggleFocusedProver (app : App) : App :=
     { updated with statusNotice := some s!"{ProverReference.display reference} {
       if enabled then "disabled" else "enabled"}" }
 
-def contextTargetNames : List String :=
+def contextTargetNames
+    : List String :=
   ContextTarget.all.map ContextTarget.name
 
-def contextTargetOfString (value : String) : Option Nat :=
+def contextTargetOfString
+    (value : String)
+    : Option Nat :=
   ContextTarget.indexOfString value
 
-private def prepareContextCommand (app : App) (command : String) : App :=
+private
+def prepareContextCommand
+    (app : App)
+    (command : String)
+    : App :=
   match app.contextItemFocus with
   | none => { app with statusNotice := some "select a formula in the FORMULAS box first" }
   | some id =>
@@ -890,7 +1159,10 @@ def removeContextItem (app : App) : App := prepareContextCommand app "remove"
 
 def editContextItem (app : App) : App := prepareContextCommand app "update"
 
-def openContextTarget (app : App) (target : String) : Option App :=
+def openContextTarget
+    (app : App)
+    (target : String)
+    : Option App :=
   if target.toLower == "all" then
     let app := { app with stateOpen := true }
     some { app with contextExpanded := Array.replicate contextSectionCount true }
@@ -901,7 +1173,9 @@ def openContextTarget (app : App) (target : String) : Option App :=
         some (if index == 0 then focusNextContextItem app else app)
     | none => none
 
-def toggleStatePanel (app : App) : App :=
+def toggleStatePanel
+    (app : App)
+    : App :=
   if app.stateOpen && app.panelFocus == .drawer then
     { app with stateOpen := false, panelFocus := .main }
   else
@@ -912,7 +1186,9 @@ def toggleStatePanel (app : App) : App :=
       runOpen := false
       panelFocus := .drawer }
 
-def toggleHistoryPanel (app : App) : App :=
+def toggleHistoryPanel
+    (app : App)
+    : App :=
   if app.historyOpen && app.panelFocus == .drawer then
     { app with historyOpen := false, panelFocus := .main }
   else
@@ -923,7 +1199,9 @@ def toggleHistoryPanel (app : App) : App :=
       runOpen := false
       panelFocus := .drawer }
 
-def toggleRunPanel (app : App) : App :=
+def toggleRunPanel
+    (app : App)
+    : App :=
   if app.runRows.isEmpty then
     { app with statusNotice := some "no prover run to inspect" }
   else if app.runOpen && app.panelFocus == .drawer then
@@ -936,7 +1214,11 @@ def toggleRunPanel (app : App) : App :=
       proversOpen := false
       panelFocus := .drawer }
 
-private def contextPanel (app : App) (width height : Nat) : Text :=
+private
+def contextPanel
+    (app : App)
+    (width height : Nat)
+    : Text :=
   let body := joinLines (contextTexts app width)
   let innerWidth := boxInnerWidth width
   let body := padRight innerWidth (fillHeight (max 1 (height - 2)) body)
@@ -947,7 +1229,11 @@ private def contextPanel (app : App) (width height : Nat) : Text :=
            , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
            , maxWidth := some width }
 
-private def historyWidgetConfig (scheme : ColorScheme) : CollapsibleConfig where
+private
+def historyWidgetConfig
+    (scheme : ColorScheme)
+    : CollapsibleConfig
+    where
   collapsedMarker := Text.styled "▸ " (Style.fg scheme.comment)
   expandedMarker := Text.styled "▾ " (Style.fg scheme.orange)
   summaryStyle := Style.bold <+> Style.fg scheme.purple
@@ -957,8 +1243,12 @@ private def historyWidgetConfig (scheme : ColorScheme) : CollapsibleConfig where
   overflowText := Text.styled "… more" (Style.dim <+> Style.fg scheme.comment)
   emptyText := Text.styled "(empty help)" (Style.dim <+> Style.fg scheme.comment)
 
-private def historyWidget (app : App) (width : Nat) (entry : OATP.Repl.HistoryEntry) :
-    Option CollapsibleRender :=
+private
+def historyWidget
+    (app : App)
+    (width : Nat)
+    (entry : OATP.Repl.HistoryEntry)
+    : Option CollapsibleRender :=
   if entry.input.startsWith "/help" then
     let expanded := app.historyExpanded.any (· == entry.cell)
     let lines := entry.result.splitOn "\n" |>.length
@@ -968,7 +1258,12 @@ private def historyWidget (app : App) (width : Nat) (entry : OATP.Repl.HistoryEn
       (max 1 (boxInnerWidth width - 2)) summary (Text.plain entry.result) { expanded }
   else none
 
-private def historyLine (app : App) (width : Nat) (entry : OATP.Repl.HistoryEntry) : Text :=
+private
+def historyLine
+    (app : App)
+    (width : Nat)
+    (entry : OATP.Repl.HistoryEntry)
+    : Text :=
   let input := Text.styled s!"[{entry.cell}] " (Style.dim <+> Style.fg app.theme.comment) ++
     semanticText app.theme app.session.symbols entry.input false
   match historyWidget app width entry with
@@ -978,7 +1273,11 @@ private def historyLine (app : App) (width : Nat) (entry : OATP.Repl.HistoryEntr
       semanticText app.theme app.session.symbols
         (fitText (max 1 (width - 6)) entry.result).plainText false
 
-private def historyPanel (app : App) (width height : Nat) : Text :=
+private
+def historyPanel
+    (app : App)
+    (width height : Nat)
+    : Text :=
   let rows := app.session.history.toList.reverse.take 18
   let body := if rows.isEmpty then
       Text.styled "No commands yet." (Style.dim <+> Style.fg app.theme.comment)
@@ -989,7 +1288,10 @@ private def historyPanel (app : App) (width height : Nat) : Text :=
       (Style.bold <+> Style.fg app.theme.cyan))
            , borderStyle := Style.fg app.theme.selection, maxWidth := some width }
 
-def historyCellAtRow (app : App) (width row : Nat) : Option Nat :=
+def historyCellAtRow
+    (app : App)
+    (width row : Nat)
+    : Option Nat :=
   let rows := app.session.history.toList.reverse.take 18
   let rec find : List OATP.Repl.HistoryEntry → Nat → Option Nat
     | [], _ => none
@@ -1002,17 +1304,27 @@ def historyCellAtRow (app : App) (width row : Nat) : Option Nat :=
         if hit then some entry.cell else find rest (offset + line.height + 1)
   find rows 0
 
-def toggleHistoryCell (app : App) (cell : Nat) : App :=
+def toggleHistoryCell
+    (app : App)
+    (cell : Nat)
+    : App :=
   let expanded := if app.historyExpanded.any (· == cell) then
       app.historyExpanded.filter (· != cell)
     else app.historyExpanded.push cell
   { app with historyExpanded := expanded }
 
-def proverVisibleStart (app : App) (height : Nat) : Nat :=
+def proverVisibleStart
+    (app : App)
+    (height : Nat)
+    : Nat :=
   let visible := max 1 (height - 2)
   if app.proverFocus >= visible then app.proverFocus - visible + 1 else 0
 
-private def proverPanel (app : App) (width height : Nat) : Text :=
+private
+def proverPanel
+    (app : App)
+    (width height : Nat)
+    : Text :=
   let visible := max 1 (height - 2)
   let start := proverVisibleStart app height
   let rows := if app.proverChoices.isEmpty then
@@ -1035,13 +1347,20 @@ private def proverPanel (app : App) (width height : Nat) : Text :=
            , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
            , maxWidth := some width }
 
-private def runStatusStyle (scheme : ColorScheme) : RunStatus → Style
+private
+def runStatusStyle
+    (scheme : ColorScheme)
+    : RunStatus →
+      Style
   | .result .theorem | .result .unsatisfiable => Style.bold <+> Style.fg scheme.green
   | .running | .queued => Style.fg scheme.yellow
   | .result .error | .failed => Style.bold <+> Style.fg scheme.red
   | _ => Style.fg scheme.comment
 
-private def runDetail (row : RunRow) : String :=
+private
+def runDetail
+    (row : RunRow)
+    : String :=
   if !row.detail.isEmpty then row.detail else match row.status with
     | .queued => "queued; waiting for the previous prover"
     | .running => "waiting for the prover result"
@@ -1049,7 +1368,11 @@ private def runDetail (row : RunRow) : String :=
     | .failed => "the prover failed without additional output"
     | .cancelled => "run cancelled"
 
-private def runPanel (app : App) (width height : Nat) : Text :=
+private
+def runPanel
+    (app : App)
+    (width height : Nat)
+    : Text :=
   let innerWidth := boxInnerWidth width
   let rows := if app.runRows.isEmpty then
       [Text.styled "No active prover run." (Style.dim <+> Style.fg app.theme.comment)]
@@ -1076,7 +1399,10 @@ private def runPanel (app : App) (width height : Nat) : Text :=
            , borderStyle := Style.fg (if active then app.theme.selection else app.theme.comment)
            , maxWidth := some width }
 
-private def mascot (scheme : ColorScheme) : Text :=
+private
+def mascot
+    (scheme : ColorScheme)
+    : Text :=
   let arrow := Text.styled "──▶" (Style.fg scheme.cyan)
   joinLines [ Text.styled "TPTP" (Style.fg scheme.yellow) ++ Text.plain " " ++ arrow ++
                 Text.plain " " ++ Text.styled "OATP" (Style.bold <+> Style.fg scheme.green) ++
@@ -1085,7 +1411,11 @@ private def mascot (scheme : ColorScheme) : Text :=
             , Text.plain "          " ++ Text.styled "▼" (Style.fg scheme.cyan)
             , Text.plain "         " ++ Text.styled "LEAN ✓" (Style.fg scheme.blue) ]
 
-private def banner (scheme : ColorScheme) (width : Nat) : Text :=
+private
+def banner
+    (scheme : ColorScheme)
+    (width : Nat)
+    : Text :=
   let outer := frameWidth width
   let inner := boxInnerWidth outer
   let leftContent :=
@@ -1133,7 +1463,11 @@ private def banner (scheme : ColorScheme) (width : Nat) : Text :=
       , titleAlignment := .left, borderStyle := Style.fg scheme.orange
       , maxWidth := some outer }
 
-private def compactHeader (scheme : ColorScheme) (width : Nat) : Text :=
+private
+def compactHeader
+    (scheme : ColorScheme)
+    (width : Nat)
+    : Text :=
   let outer := frameWidth width
   let title := s!" oatp repl v{version} "
   let used := title.length + 2
@@ -1142,14 +1476,22 @@ private def compactHeader (scheme : ColorScheme) (width : Nat) : Text :=
     Text.styled (String.ofList (List.replicate (if outer > used then outer - used else 0) '─'))
       (Style.fg scheme.selection)
 
-def reportAtScreenRow (app : App) (size : Size) (row : Nat) : Option Nat :=
+def reportAtScreenRow
+    (app : App)
+    (size : Size)
+    (row : Nat)
+    : Option Nat :=
   let width := frameWidth size.columns
   let head := if app.entries.isEmpty then banner app.theme width else compactHeader app.theme width
   let bodyStart := head.height + 1
   if row < bodyStart then none else reportAtTranscriptRow app width (row - bodyStart)
 
-def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State)
-    (focused : Bool := true) : Text :=
+def prompt
+    (scheme : ColorScheme)
+    (width : Nat)
+    (state : Repl.State)
+    (focused : Bool := true)
+    : Text :=
   let outer := frameWidth width
   let input := box (Text.styled "› " (Style.bold <+> Style.fg scheme.orange) ++
       TermColor.Repl.renderMultilineTextInputBody
@@ -1165,7 +1507,11 @@ def prompt (scheme : ColorScheme) (width : Nat) (state : Repl.State)
         textStyle := Style.fg scheme.foreground
         kindStyle := Style.dim <+> Style.fg scheme.comment } menu
 
-private def footer (app : App) (width : Nat) : Text :=
+private
+def footer
+    (app : App)
+    (width : Nat)
+    : Text :=
   let outer := frameWidth width
   let state := if app.busy then "[BUSY]" else "[READY]"
   let closeRun := appKeyLabel .closeRun .runInput
@@ -1209,7 +1555,10 @@ private def footer (app : App) (width : Nat) : Text :=
     , truncate rightWidth
         (Text.styled hint (Style.dim <+> Style.fg app.theme.comment)) ] [.left, .left]
 
-def selectedText (app : App) (size : Size) : String :=
+def selectedText
+    (app : App)
+    (size : Size)
+    : String :=
   let width := frameWidth size.columns
   let head := if app.entries.isEmpty then banner app.theme width else compactHeader app.theme width
   let foot := prompt app.theme width app.repl (app.panelFocus == .main) ++
@@ -1227,7 +1576,11 @@ def selectedText (app : App) (size : Size) : String :=
       String.intercalate "\n" (lines.drop low |>.take (high - low + 1))
   | _, _ => ""
 
-private def calcContent (app : App) (size : Size) : Text :=
+private
+def calcContent
+    (app : App)
+    (size : Size)
+    : Text :=
   let width := frameWidth size.columns
   let head := if app.entries.isEmpty then banner app.theme width else compactHeader app.theme width
   let foot := prompt app.theme width app.repl (app.panelFocus == .main) ++
@@ -1237,7 +1590,10 @@ private def calcContent (app : App) (size : Size) : Text :=
   let body := transcript app width budget (head.height + 1)
   head ++ Text.plain "\n" ++ fillHeight budget body ++ Text.plain "\n" ++ foot
 
-def screen (app : App) (size : Size) : Text :=
+def screen
+    (app : App)
+    (size : Size)
+    : Text :=
   let width := frameWidth size.columns
   let size := { size with columns := width }
   let drawerOpen := app.runOpen || app.proversOpen ||

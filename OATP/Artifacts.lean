@@ -21,7 +21,10 @@ structure Run where
   directory : System.FilePath
   deriving Repr
 
-private def safeName (value : String) : String :=
+private
+def safeName
+    (value : String)
+    : String :=
   let name := String.ofList <| value.toList.map fun character =>
     if character.isAlphanum || character == '-' || character == '_' then character else '_'
   if name.isEmpty then "run" else name
@@ -52,7 +55,10 @@ def write (run : Run) (name content : String) : IO Unit := do
   try IO.FS.writeFile (System.FilePath.join run.directory name) content
   catch _ => pure ()
 
-def writeCommand (run : Run) (command : String) : IO Unit :=
+def writeCommand
+    (run : Run)
+    (command : String)
+    : IO Unit :=
   write run "command.txt" command
 
 end OATP.Artifacts

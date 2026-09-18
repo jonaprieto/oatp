@@ -40,13 +40,19 @@ inductive Result where
   | failed (attempt : Attempt) (failure : Failure)
   deriving Repr
 
-private def responseErrorMessage : SystemOnTPTP.ResponseError → String
+private
+def responseErrorMessage
+    : SystemOnTPTP.ResponseError →
+      String
   | .httpStatus status => s!"SystemOnTPTP returned HTTP {status}"
   | .missingStatus => "SystemOnTPTP response did not contain an SZS status"
   | .unsupportedStatus status => s!"SystemOnTPTP returned unsupported SZS status `{status}`"
   | .malformedBody message => s!"SystemOnTPTP response was not valid HTML: {message}"
 
-private def httpErrorMessage : Http.Error → String
+private
+def httpErrorMessage
+    : Http.Error →
+      String
   | .io message => s!"HTTP IO failed: {message}"
   | .invalidRequest message => s!"invalid HTTP request: {message}"
   | .transport message => s!"HTTP transport failed: {message}"
@@ -54,12 +60,16 @@ private def httpErrorMessage : Http.Error → String
   | .requestBodyTooLarge actual limit => s!"HTTP request exceeded {limit} bytes ({actual} captured)"
   | .bodyTooLarge actual limit => s!"HTTP response exceeded {limit} bytes ({actual} captured)"
 
-def Failure.message : Failure → String
+def Failure.message
+    : Failure →
+      String
   | .process message => message
   | .http error => httpErrorMessage error
   | .response error _ => responseErrorMessage error
 
-def Failure.output : Failure → String
+def Failure.output
+    : Failure →
+      String
   | .http (.malformedStatus output) => output
   | .process _ | .http _ => ""
   | .response _ output => output
@@ -97,16 +107,25 @@ private partial def collect (pending : List (Task (Except IO.Error Result)))
       onResult result
       collect remaining (results.push result) onResult
 
-def runWith (problem : Problem) (attempts : Array Attempt)
-    (onResult : Result → IO Unit := fun _ => pure ()) : IO (Array Result) := do
+def runWith
+    (problem : Problem)
+    (attempts : Array Attempt)
+    (onResult : Result → IO Unit := fun _ => pure ())
+    : IO (Array Result) := do
   let tasks ← attempts.toList.mapM fun attempt =>
     IO.asTask (execute problem attempt) Task.Priority.dedicated
   collect tasks #[] onResult
 
-def run (problem : Problem) (attempts : Array Attempt) : IO (Array Result) :=
+def run
+    (problem : Problem)
+    (attempts : Array Attempt)
+    : IO (Array Result) :=
   runWith problem attempts
 
-private def successful : Result → Bool
+private
+def successful
+    : Result →
+      Bool
   | .artifact _ artifact => SZSStatus.isSuccess artifact.status
   | .failed _ _ => false
 
@@ -120,8 +139,12 @@ private def runUntilSuccess (problem : Problem) (attempts : List Attempt)
       if successful result then pure (results.push result)
       else runUntilSuccess problem rest (results.push result) onResult
 
-def runWithStrategy (problem : Problem) (attempts : Array Attempt) (strategy : RunStrategy)
-    (onResult : Result → IO Unit := fun _ => pure ()) : IO (Array Result) :=
+def runWithStrategy
+    (problem : Problem)
+    (attempts : Array Attempt)
+    (strategy : RunStrategy)
+    (onResult : Result → IO Unit := fun _ => pure ())
+    : IO (Array Result) :=
   match strategy with
   | .all => runWith problem attempts onResult
   | .firstSuccess => runUntilSuccess problem attempts.toList #[] onResult
