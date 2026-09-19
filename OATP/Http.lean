@@ -26,7 +26,10 @@ structure Field where
   value : String
   deriving BEq, DecidableEq, Repr
 
-private def hexDigits : Array Char :=
+private
+def hexDigits
+    : Array Char
+    :=
   #[
     '0', '1', '2', '3', '4', '5', '6', '7',
     '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
@@ -84,7 +87,8 @@ def validHeaderValue
 def encodeMultipart
     (boundary : String)
     (parts : Array MultipartPart)
-    : Except String String := do
+    : Except String String
+    := do
   if boundary.isEmpty || !boundary.toList.all (fun character =>
       character.isAlphanum || character == '-' || character == '_') then
     throw "multipart boundary must contain only letters, digits, '-' or '_'"
@@ -140,7 +144,8 @@ structure Response where
 
 def commandVersion
     (command : String)
-    : IO (Option String) := do
+    : IO (Option String)
+    := do
   try
     let output ← IO.Process.output { cmd := command, args := #["--version"] }
     if output.exitCode != 0 then
@@ -151,7 +156,9 @@ def commandVersion
       pure <| if line.isEmpty then none else some line
   catch _ => pure none
 
-def availableTransports : IO (Array String) := do
+def availableTransports
+    : IO (Array String)
+    := do
   let mut available := #[]
   for command in #["curl", "wget"] do
     if (← commandVersion command).isSome then
@@ -201,7 +208,8 @@ def statusFromOutput
 private
 def requestWithCurlUnsafe
     (request : Request)
-    : IO (Except Error Response) := do
+    : IO (Except Error Response)
+    := do
   let base : Array String := #[
     "--silent", "--show-error",
     "--max-time", toString request.maxSeconds,
@@ -257,7 +265,8 @@ def statusFromWgetOutput
 private
 def requestWithWgetUnsafe
     (request : Request)
-    : IO (Except Error Response) := do
+    : IO (Except Error Response)
+    := do
   let base : Array String := #[
     "--quiet", "--server-response", "--max-redirect=0", "--tries=1",
     "--timeout=" ++ toString request.maxSeconds,
@@ -286,7 +295,8 @@ def requestWithWgetUnsafe
 private
 def validateRequest
     (request : Request)
-    : Except Error Unit := do
+    : Except Error Unit
+    := do
   if request.url.isEmpty then
     throw (.invalidRequest "HTTP request URL must not be empty")
   if request.maxSeconds == 0 then
@@ -300,7 +310,8 @@ def validateRequest
 private
 def requestWithTransportUnsafe
     (request : Request)
-    : IO (Except Error Response) := do
+    : IO (Except Error Response)
+    := do
   match validateRequest request with
   | .error error => return .error error
   | .ok _ => pure ()
@@ -314,7 +325,8 @@ def requestWithTransportUnsafe
 
 def requestWithTransport
     (request : Request)
-    : IO (Except Error Response) := do
+    : IO (Except Error Response)
+    := do
   try
     requestWithTransportUnsafe request
   catch error =>
@@ -323,7 +335,8 @@ def requestWithTransport
 def requestWith
     (transport : Transport)
     (request : Request)
-    : IO (Except Error Response) := do
+    : IO (Except Error Response)
+    := do
   try
     match validateRequest request with
     | .error error => pure (.error error)
@@ -336,7 +349,8 @@ def requestWith
 
 def requestWithCurl
     (request : Request)
-    : IO (Except Error Response) := do
+    : IO (Except Error Response)
+    := do
   requestWith .curl request
 
 end OATP.Http

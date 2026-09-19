@@ -29,13 +29,16 @@ inductive Step where
   | implicationIntro (localName : Name) (body : Step)
   deriving Repr
 
-def stepNames : List String :=
+def stepNames
+    : List String
+    :=
   ["true-intro", "exact", "and-left", "and-right", "and-intro", "implication-intro"]
 
 private
 def andParts
     (target : Expr)
-    : MetaM (Option (Expr × Expr)) := do
+    : MetaM (Option (Expr × Expr))
+    := do
   match ← whnf target with
   | .app (.app (.const ``And _) left) right => pure (some (left, right))
   | _ => pure none
@@ -45,7 +48,8 @@ def projection
     (target : Expr)
     (localName : Name)
     (useLeft : Bool)
-    : MetaM (Except String Expr) := do
+    : MetaM (Except String Expr)
+    := do
   let hypothesis ← getFVarFromUserName localName
   match ← andParts (← inferType hypothesis) with
   | none => pure (.error s!"local hypothesis `{localName}` is not a conjunction")
@@ -93,8 +97,11 @@ def build
             | .ok proof => pure (.ok (← mkLambdaFVars #[localVar] proof))
       | _ => pure (.error "implication-intro requires an implication target")
 
-def reconstruct (mvarId : MVarId) (step : Step) :
-    MetaM (Except String OATP.Lean.CheckedProof) := mvarId.withContext do
+def reconstruct
+    (mvarId : MVarId)
+    (step : Step)
+    : MetaM (Except String OATP.Lean.CheckedProof)
+    := mvarId.withContext do
   let target ← instantiateMVars (← mvarId.getType)
   match ← build target step with
   | .error message => pure (.error message)

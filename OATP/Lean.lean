@@ -27,7 +27,8 @@ structure CheckedProof where
 private
 def prettyExpr
     (expression : Expr)
-    : MetaM String := do
+    : MetaM String
+    := do
   let formatted ← ppExpr expression
   pure s!"{formatted}"
 
@@ -60,8 +61,11 @@ def check
     let actual ← prettyExpr candidateType
     pure (.error s!"candidate type mismatch: expected {expected}, got {actual}")
 
-def checkAndAssign (mvarId : MVarId) (candidate : Expr) :
-    MetaM (Except String CheckedProof) := mvarId.withContext do
+def checkAndAssign
+    (mvarId : MVarId)
+    (candidate : Expr)
+    : MetaM (Except String CheckedProof)
+    := mvarId.withContext do
   match ← check mvarId candidate with
   | .error message => pure (.error message)
   | .ok checked =>

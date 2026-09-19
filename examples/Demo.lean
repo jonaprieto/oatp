@@ -20,7 +20,9 @@ def sampleEvents : Array SearchEvent := #[
     elapsedMs := 8
   })]
 
-def main : IO Unit := do
+def main
+    : IO Unit
+    := do
   IO.println (OATP.Term.renderPlain sampleEvents)
   IO.println ""
   IO.print (OATP.Term.renderAnsi16 sampleEvents)

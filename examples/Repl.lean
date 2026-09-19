@@ -272,7 +272,8 @@ private
 def publishRunRows
     (app : App)
     (rows : Array RunRow)
-    : IO Unit := do
+    : IO Unit
+    := do
   match app.runProgress with
   | some progress => progress.set rows
   | none => pure ()
@@ -280,7 +281,8 @@ def publishRunRows
 private
 def currentRunRows
     (app : App)
-    : IO (Array RunRow) := do
+    : IO (Array RunRow)
+    := do
   match app.runProgress with
   | some progress => progress.get
   | none => pure app.runRows
@@ -321,7 +323,8 @@ def configProverName
 private
 def configOutput
     (app : App)
-    : IO (String × Report) := do
+    : IO (String × Report)
+    := do
   let path := (← OATP.Config.path).map (fun value => s!"{value}") |>.getD "unavailable"
   let (_, warning) ← OATP.Config.load
   let current := preferences app
@@ -361,7 +364,8 @@ def configOutput
 private
 def savePreferences
     (before after : App)
-    : IO App := do
+    : IO App
+    := do
   if preferences before == preferences after then
     pure after
   else
@@ -369,17 +373,26 @@ def savePreferences
     | none => pure after
     | some message => pure { after with statusNotice := some message }
 
-private def installedProverReferences : IO (Array OATP.ProverReference) := do
+private
+def installedProverReferences
+    : IO (Array OATP.ProverReference)
+    := do
   let installed ← OATP.Runtime.installedProvers
   pure (installed.map OATP.ProverReference.fromLocal)
 
-private def onlineProverNames : IO (Except String (Array OATP.ProverReference)) := do
+private
+def onlineProverNames
+    : IO (Except String (Array OATP.ProverReference))
+    := do
   match ← OATP.Runtime.loadCatalogue catalogueNamespace
       SystemOnTPTP.defaultCatalogueEndpoint .normal with
   | .error message => pure (.error message)
   | .ok systems => pure (.ok (systems.map fun system => OATP.ProverReference.fromOnline system.id))
 
-private def selectableProvers : IO (Array OATP.ProverReference × Option String) := do
+private
+def selectableProvers
+    : IO (Array OATP.ProverReference × Option String)
+    := do
   let installed ← installedProverReferences
   match ← onlineProverNames with
   | .ok online => pure (installed ++ online, none)
@@ -388,7 +401,8 @@ private def selectableProvers : IO (Array OATP.ProverReference × Option String)
 private
 def defaultProvers
     (app : App)
-    : IO (Array OATP.ProverReference) := do
+    : IO (Array OATP.ProverReference)
+    := do
   let installed ← installedProverReferences
   match app.defaultProver with
   | some reference => match reference.kind with
@@ -405,7 +419,8 @@ private
 def selectedProvers
     (app : App)
     (all includeDefault : Bool := false)
-    : IO (Array OATP.ProverReference) := do
+    : IO (Array OATP.ProverReference)
+    := do
   let installed ← installedProverReferences
   let selected ← if all then
       pure installed
@@ -434,7 +449,8 @@ def runRequest
     (app : App)
     (request : OATP.Repl.RunRequest)
     (includeDefault : Bool := false)
-    : IO RunOutput := do
+    : IO RunOutput
+    := do
   match currentProblem app with
   | none =>
       let message :=
@@ -587,7 +603,10 @@ def startingRunRows
         { name := OATP.ProverReference.display reference, status := .running }
   | .error _ => #[{ name := "run", status := .running }]
 
-private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
+private
+def backgroundJobs
+    : TermColor.Repl.Terminal.JobConfig App
+    where
   shouldRun := fun app input => !app.busy && backendLine input
   start := fun app input => { app with
     busy := true
@@ -647,7 +666,8 @@ private def backgroundJobs : TermColor.Repl.Terminal.JobConfig App where
 private
 def systemsText
     (request : OATP.Repl.SystemsRequest)
-    : IO String := do
+    : IO String
+    := do
   let installed ← OATP.Runtime.installedProvers
   let lines := if installed.isEmpty then ["LOCAL: none"] else
       ["LOCAL:"] ++ installed.toList.map (fun prover => "  " ++ prover)
@@ -664,7 +684,10 @@ def systemsText
         pure <| String.intercalate "\n" (lines ++ ["ONLINE:"] ++
           systems.toList.map (fun system => "  " ++ SystemOnTPTP.onlineReference system.id))
 
-private def doctorText : IO String := do
+private
+def doctorText
+    : IO String
+    := do
   let transports ← Http.availableTransports
   let installed ← OATP.Runtime.installedProvers
   let platform ← try
@@ -716,7 +739,8 @@ private
 def infoText
     (app : App)
     (query : String)
-    : IO (String × Bool) := do
+    : IO (String × Bool)
+    := do
   let installed ← OATP.Runtime.installedProvers
   let found := installed.filter (fuzzy query)
   if found.size == 1 then
@@ -793,7 +817,8 @@ def parseStepTokens
 private
 def parseStep
     (source : String)
-    : Except String OATP.Proof.Step := do
+    : Except String OATP.Proof.Step
+    := do
   let (step, rest) ← parseStepTokens (OATP.Repl.splitWords source)
   match rest with
   | [] => pure step
@@ -804,7 +829,8 @@ def submitGoal
     (app : App)
     (cell : Nat)
     (input formula : String)
-    : IO App := do
+    : IO App
+    := do
   let runtime ← match app.leanRuntime with
     | some runtime => pure runtime
     | none => OATP.Lean.Repl.create
@@ -827,7 +853,8 @@ def submitTheoryFormula
     (cell : Nat)
     (input : String)
     (command : OATP.Repl.Command)
-    : IO (Option App) := do
+    : IO (Option App)
+    := do
   match command with
   | .axiom name formula | .conjecture name formula =>
       let role := match command with | .axiom _ _ => "axiom" | _ => "conjecture"
@@ -844,7 +871,8 @@ def submitLeanCommand
     (cell : Nat)
     (input : String)
     (command : OATP.Repl.Command)
-    : IO (Option App) := do
+    : IO (Option App)
+    := do
   match command with
   | .goal formula | .toLean formula => do
       return some (← submitGoal app cell input formula)
@@ -892,7 +920,8 @@ def applyPureCommand
     (app : App)
     (cell : Nat)
     (input : String)
-    : IO App := do
+    : IO App
+    := do
   match OATP.Repl.apply app.session input with
   | .ok session =>
       let app := if changesContext input then invalidateContext { app with session }
@@ -909,7 +938,8 @@ def submitCommand
     (cell : Nat)
     (input : String)
     (command : OATP.Repl.Command)
-    : IO App := do
+    : IO App
+    := do
   match command with
   | .quit => pure { app with running := false }
   | .load path => do
@@ -1061,7 +1091,8 @@ private
 def submitCore
     (app : App)
     (input : String)
-    : IO App := do
+    : IO App
+    := do
   let input := input.trimAscii.toString
   let cell := app.session.nextCell
   let firstWord := (OATP.Repl.splitWords input).headD ""
@@ -1082,7 +1113,8 @@ private
 def submit
     (app : App)
     (input : String)
-    : IO App := do
+    : IO App
+    := do
   let started ← IO.monoMsNow
   let updated ← submitCore app input
   let updated := clearSelection updated
@@ -1095,7 +1127,8 @@ def submit
 private
 def commandValues
     (typeName : String)
-    : IO (List String) := do
+    : IO (List String)
+    := do
   match typeName with
   | "TOPIC" => pure (List.eraseDups (OATP.Repl.helpTopics ++ OATP.Repl.commandNames))
   | "FORMAT" | "THEORY" | "STEP" =>
@@ -1125,7 +1158,10 @@ def complete
     :=
   completeCommandWith OATP.Repl.commandSpec commandValues input
 
-private def appKeymap : TermColor.Repl.Terminal.AppKeymap App where
+private
+def appKeymap
+    : TermColor.Repl.Terminal.AppKeymap App
+    where
   Action := AppKeyAction
   keymap := Keymap.fromSpecs appBindings
   contexts := fun app =>
@@ -1349,7 +1385,8 @@ private def reportTestApp : App := {
 private
 def interactive
     (initial : App)
-    : IO Unit := do
+    : IO Unit
+    := do
   withAlternateScreen do
     clearScreen
     TermColor.Repl.Terminal.run {
@@ -1375,7 +1412,8 @@ private
 def runScript
     (app : App)
     (lines : List String)
-    : IO App := do
+    : IO App
+    := do
   let mut app := app
   for line in lines do
     if app.running then
@@ -1386,14 +1424,18 @@ def runScript
 private
 def staticOutput
     (app : App)
-    : IO Unit := do
+    : IO Unit
+    := do
   for entry in app.entries.reverse do
     IO.println s!"[{entry.cell}] › {entry.input}"
     let timing := entry.elapsedMs.map (fun milliseconds =>
       s!" ({formatElapsed milliseconds})") |>.getD ""
     IO.println s!"    {(if entry.ok then "=" else "!")} {entry.output}{timing}"
 
-private def usage : String :=
+private
+def usage
+    : String
+    :=
   "oatp repl — interactive theorem-proving workbench\n\n" ++
   "usage:\n  lake exe oatp repl\n  lake exe oatp repl --script FILE\n\n" ++
   "examples:\n  /load problem.p\n  /to-lean p => p\n  /snapshot\n  " ++
@@ -1410,7 +1452,8 @@ def scriptExitCode
 private
 def initialApp
     (runtime : OATP.Lean.Repl.Runtime)
-    : IO App := do
+    : IO App
+    := do
   let (prefs, warning) ← OATP.Config.load
   let runProgress ← IO.mkRef (#[] : Array RunRow)
   let scheme := themeByName prefs.theme |>.getD aurora
@@ -1435,7 +1478,8 @@ def initialApp
 
 def oatpReplMain
     (args : List String)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   if args == ["--help"] || args == ["-h"] then
     IO.println usage
     return 0

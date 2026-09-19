@@ -153,7 +153,9 @@ def isSuccess
   | .theorem | .unsatisfiable => true
   | _ => false
 
-instance : ToString SZSStatus where
+instance
+    : ToString SZSStatus
+    where
   toString := toString
 
 end SZSStatus

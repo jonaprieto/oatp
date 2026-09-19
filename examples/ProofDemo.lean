@@ -12,7 +12,10 @@ def demoP : Prop := True
 def demoQ : Prop := True
 def demoPredicate (_ : Nat) : Prop := True
 
-private def runProofDemo : TermElabM Unit := do
+private
+def runProofDemo
+    : TermElabM Unit
+    := do
   let goal ← mkFreshExprMVar (some (mkConst ``True))
   match ← OATP.Proof.reconstruct goal.mvarId! .trueIntro with
   | .ok _ => logInfo "OATP proof demo: kernel-checked True introduction"
@@ -68,6 +71,8 @@ meta def elabOATPProofDemo : CommandElab := fun stx =>
 
 #oatp_proof_demo
 
-def main : IO UInt32 := do
+def main
+    : IO UInt32
+    := do
   IO.println "OATP proof demo passed"
   return 0

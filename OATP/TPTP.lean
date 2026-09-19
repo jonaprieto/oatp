@@ -72,7 +72,8 @@ def ofFof
     (name : String)
     (role : Role)
     (formula : _root_.TPTP.Formula.Expr)
-    : Except String _root_.TPTP.Statement := do
+    : Except String _root_.TPTP.Statement
+    := do
   let formula ← formula.toTPTP
   pure {
     kind := .fof

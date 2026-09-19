@@ -30,7 +30,10 @@ def safeName
     if character.isAlphanum || character == '-' || character == '_' then character else '_'
   if name.isEmpty then "run" else name
 
-private def roots : IO (List System.FilePath) := do
+private
+def roots
+    : IO (List System.FilePath)
+    := do
   let current ← IO.currentDir
   let fallback ← OATP.Config.directory
   pure <| System.FilePath.join current ".oatp" :: fallback.toList
@@ -38,7 +41,8 @@ private def roots : IO (List System.FilePath) := do
 def start
     (label : String)
     (problem : Problem)
-    : IO (Option Run) := do
+    : IO (Option Run)
+    := do
   let stamp ← IO.monoMsNow
   for root in ← roots do
     -- ponytail: 64 bounded suffixes cover same-millisecond concurrent runs;
@@ -58,7 +62,8 @@ def start
 def write
     (run : Run)
     (name content : String)
-    : IO Unit := do
+    : IO Unit
+    := do
   try IO.FS.writeFile (System.FilePath.join run.directory name) content
   catch _ => pure ()
 
