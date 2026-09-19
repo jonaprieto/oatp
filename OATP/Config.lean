@@ -21,7 +21,10 @@ structure Preferences where
 
 def default : Preferences := {}
 
-private def configRoot : IO (Option System.FilePath) := do
+private
+def configRoot
+    : IO (Option System.FilePath)
+    := do
   match ← IO.getEnv "XDG_CONFIG_HOME" with
   | some path => pure (some ⟨path⟩)
   | none =>
@@ -29,10 +32,14 @@ private def configRoot : IO (Option System.FilePath) := do
       | some path => pure (some (System.FilePath.join ⟨path⟩ ".config"))
       | none => pure none
 
-def directory : IO (Option System.FilePath) := do
+def directory
+    : IO (Option System.FilePath)
+    := do
   pure <| (← configRoot).map fun root => System.FilePath.join root "oatp"
 
-def path : IO (Option System.FilePath) := do
+def path
+    : IO (Option System.FilePath)
+    := do
   pure <| (← directory).map fun root => System.FilePath.join root "config.json"
 
 private def field (json : Json) (name : String) : Option Json := json.get? name
@@ -91,7 +98,9 @@ def toJson
     ("theme", .str preferences.theme)
   ]
 
-def load : IO (Preferences × Option String) := do
+def load
+    : IO (Preferences × Option String)
+    := do
   match ← path with
   | none => pure (default, none)
   | some file =>
@@ -104,7 +113,8 @@ def load : IO (Preferences × Option String) := do
 
 def save
     (preferences : Preferences)
-    : IO (Option String) := do
+    : IO (Option String)
+    := do
   match ← path with
   | none => pure (some "cannot persist preferences: HOME/XDG_CONFIG_HOME is unset")
   | some file =>

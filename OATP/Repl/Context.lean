@@ -233,7 +233,8 @@ def validateDocument
 private
 def parseDocument
     (source : String)
-    : Except String _root_.TPTP.Document := do
+    : Except String _root_.TPTP.Document
+    := do
   match OATP.TPTP.parse source with
   | .error error => .error (error.pretty source.toUTF8)
   | .ok document =>
@@ -282,7 +283,8 @@ def removeContext
 private
 def singleStatement
     (source : String)
-    : Except String _root_.TPTP.Statement := do
+    : Except String _root_.TPTP.Statement
+    := do
   let document ← parseDocument source
   match document.items.toList with
   | [.statement statement] => pure statement
@@ -294,7 +296,8 @@ def updateContext
     (input : String)
     (index : Nat)
     (source : String)
-    : Except String Session := do
+    : Except String Session
+    := do
   let statement ← singleStatement source
   match session.context.find? (·.id == index) with
   | some item =>

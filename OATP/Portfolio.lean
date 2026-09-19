@@ -77,7 +77,8 @@ def Failure.output
 def execute
     (problem : Problem)
     (attempt : Attempt)
-    : IO Result := do
+    : IO Result
+    := do
   match attempt.backend with
   | .local command =>
       match ← Process.run { name := attempt.name } problem attempt.limits command with
@@ -106,7 +107,8 @@ def collect
     (pending : List (Task (Except IO.Error Result)))
     (results : Array Result)
     (onResult : Result → IO Unit)
-    : IO (Array Result) := do
+    : IO (Array Result)
+    := do
   match pending with
   | [] => pure results
   | task :: rest =>
@@ -119,7 +121,8 @@ def runWith
     (problem : Problem)
     (attempts : Array Attempt)
     (onResult : Result → IO Unit := fun _ => pure ())
-    : IO (Array Result) := do
+    : IO (Array Result)
+    := do
   let tasks ← attempts.toList.mapM fun attempt =>
     IO.asTask (execute problem attempt) Task.Priority.dedicated
   collect tasks #[] onResult
@@ -144,7 +147,8 @@ def runUntilSuccess
     (attempts : List Attempt)
     (results : Array Result)
     (onResult : Result → IO Unit)
-    : IO (Array Result) := do
+    : IO (Array Result)
+    := do
   match attempts with
   | [] => pure results
   | attempt :: rest =>

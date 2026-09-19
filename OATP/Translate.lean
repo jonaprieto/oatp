@@ -48,7 +48,8 @@ def symbolName
 private
 def unsupported
     (expression : Expr)
-    : MetaM (Except String TPTP.Formula.Expr) := do
+    : MetaM (Except String TPTP.Formula.Expr)
+    := do
   let rendered ← ppExpr expression
   pure <| Except.error (s!"unsupported Lean proposition `{rendered}`; supported fragment is " ++
     "propositional logic over named atoms")
@@ -59,7 +60,8 @@ private
 partial
 def translateProp
     (expression : Expr)
-    : MetaM (Except String TPTP.Formula.Expr) := do
+    : MetaM (Except String TPTP.Formula.Expr)
+    := do
   let expression ← instantiateMVars expression
   let (function, arguments) := expression.getAppFnArgs
   if function == ``True && arguments.isEmpty then
@@ -104,7 +106,8 @@ def renderStatement
     (name : String)
     (role : _root_.TPTP.Role)
     (formula : TPTP.Formula.Expr)
-    : Except String String := do
+    : Except String String
+    := do
   let statement ← OATP.TPTP.Statement.ofFof name role formula
   pure <| _root_.TPTP.Statement.render statement
 

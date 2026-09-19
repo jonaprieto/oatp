@@ -25,7 +25,10 @@ structure CliIdentity where
   version : String
   endpoint : String
 
-private def cliIdentity : IO CliIdentity := do
+private
+def cliIdentity
+    : IO CliIdentity
+    := do
   let executable ← Std.IO.Process.getExecutablePath
   let executableName := executable.fileName.getD "tool"
   pure {
@@ -63,7 +66,10 @@ inductive ConfigAction where
   | show
   | path
 
-private def configActionParam : Param ConfigAction :=
+private
+def configActionParam
+    : Param ConfigAction
+    :=
   Param.named "ACTION" (Param.enum [("show", .show), ("path", .path)])
 
 inductive Action where
@@ -103,7 +109,8 @@ private def doctorPalette : ColorScheme := ColorScheme.catppuccin
 private
 def doctorSection
     (title : String)
-    : IO Unit := do
+    : IO Unit
+    := do
   writeTextLine Text.empty
   writeTextLine (Text.styled title (Style.bold <+> Style.fg doctorPalette.purple))
 
@@ -111,7 +118,8 @@ private
 def doctorRow
     (label value : String)
     (ok : Bool)
-    : IO Unit := do
+    : IO Unit
+    := do
   let marker := if ok then
       Text.styled "✓" (Style.bold <+> Style.fg doctorPalette.green)
     else
@@ -125,12 +133,16 @@ def doctorRow
 private
 def doctorTool
     (command : String)
-    : IO Unit := do
+    : IO Unit
+    := do
   match ← Http.commandVersion command with
   | some version => doctorRow command version true
   | none => doctorRow command "not found" false
 
-private def doctorPlatform : IO String := do
+private
+def doctorPlatform
+    : IO String
+    := do
   try
     let output ← IO.Process.output { cmd := "uname", args := #["-s", "-m"] }
     if output.exitCode == 0 then
@@ -236,7 +248,8 @@ private def doctorIssueFile : String := "oatp-doctor-issues.txt"
 private
 def writeDoctorIssues
     (issues : List DoctorIssue)
-    : IO (Option String) := do
+    : IO (Option String)
+    := do
   let entries := issues.map fun issue =>
     s!"[{doctorIssueKindLabel issue.kind}] {issue.prover}\n{issue.detail}"
   try
@@ -248,7 +261,8 @@ def writeDoctorIssues
 private
 def printDiagnostic
     (message : String)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   let stderr ← IO.getStderr
   let target ← TermColor.targetWithTty .auto (← stderr.isTty)
   let report := (Report.error "command failed").withCode "cli"
@@ -280,7 +294,8 @@ private
 def runConfig
     (identity : CliIdentity)
     (action : ConfigAction)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   match action with
   | .path =>
       match ← OATP.Config.path with
@@ -317,7 +332,8 @@ def progressLoop
     (config : Widgets.ProgressConfig)
     (state : Widgets.IndeterminateProgressState)
     (region : LiveRegion)
-    : IO Unit := do
+    : IO Unit
+    := do
   if ← finished.get then
     let _ ← region.finish
     pure ()
@@ -332,7 +348,8 @@ def withProgress
     {α : Type}
     (label : String)
     (action : IO α)
-    : IO α := do
+    : IO α
+    := do
   if !(← stdoutSupportsControl) then
     return ← action
   withHiddenCursor do
@@ -352,7 +369,8 @@ def withProgress
 private
 def showArtifact
     (artifact : Artifact)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   let marker := if SZSStatus.isSuccess artifact.status then "✓" else "!"
   IO.eprintln s!"{marker} {artifact.prover.label}: {artifact.status} ({artifact.elapsedMs}ms)"
   unless artifact.stdout.isEmpty || artifact.stdout.trimAscii.toString.startsWith "<!DOCTYPE" do
@@ -375,7 +393,8 @@ private
 def runLocal
     (toolName : String)
     (options : LocalOptions)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   try
     let problem ← readProblem options.problem
     let limits : Limits := {
@@ -392,7 +411,10 @@ def runLocal
     | .error error => printDiagnostic (processErrorMessage toolName options.executable error)
   catch error => printDiagnostic s!"could not read problem: {error}"
 
-private def noLocalProverMessage : IO String := do
+private
+def noLocalProverMessage
+    : IO String
+    := do
   let candidates ← localProverCandidates
   pure <| s!"no local ATP found; tried {String.intercalate ", " candidates.toList}. " ++
     "Install one, pass --prover PATH, or explicitly select an online-* prover"
@@ -452,7 +474,8 @@ def portfolioProgressLoop
     (results : IO.Ref (List Portfolio.Result))
     (region : IO.Ref LiveRegion)
     (total : Nat)
-    : IO Unit := do
+    : IO Unit
+    := do
   if ← finished.get then
     pure ()
   else
@@ -471,7 +494,8 @@ def withPortfolioProgress
     {α : Type}
     (total : Nat)
     (action : (Portfolio.Result → IO Unit) → IO α)
-    : IO α := do
+    : IO α
+    := do
   if !(← stdoutSupportsControl) then
     return ← action (fun _ => pure ())
   withHiddenCursor do
@@ -504,7 +528,8 @@ private
 def runDoctorOnline
     (identity : CliIdentity)
     (transports : Array String)
-    : IO Bool := do
+    : IO Bool
+    := do
   doctorSection "ONLINE ATP (probe)"
   if transports.isEmpty then
     doctorRow "service" "unavailable (no HTTP transport)" false
@@ -538,7 +563,8 @@ def runDoctorOnline
 private
 def runDoctor
     (identity : CliIdentity)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   let transports ← Http.availableTransports
   let (online, ready) :=
     if transports.contains "curl" then
@@ -569,7 +595,8 @@ private
 def runPortfolio
     (problem : Problem)
     (attempts : Array Portfolio.Attempt)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   let results ← withPortfolioProgress attempts.size fun onResult =>
     Portfolio.runWith problem attempts onResult
   let mut success := false
@@ -581,7 +608,8 @@ private
 def runDefault
     (identity : CliIdentity)
     (options : RunOptions)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   try
     let problem ← readProblem options.problem
     let rawReferences ← if options.provers.isEmpty then
@@ -647,7 +675,8 @@ private
 def runSystems
     (identity : CliIdentity)
     (options : SystemsOptions)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   writeTextLine (Text.styled s!"{identity.name} systems {identity.version}"
     (Style.bold <+> Style.fg doctorPalette.purple))
   writeTextLine (Text.styled "LOCAL" (Style.bold <+> Style.fg doctorPalette.cyan))
@@ -687,7 +716,8 @@ def submitOnline
     (problem : Problem)
     (endpoint : String)
     (system : SystemOnTPTP.Catalogue.SystemInfo)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   let config : SystemOnTPTP.Config := {
     systemLabel := system.id
     systemCommands := if system.command.isEmpty then #[] else #[(system.id, system.command)]
@@ -708,7 +738,8 @@ private
 def runOnline
     (identity : CliIdentity)
     (options : OnlineOptions)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   try
     let problem ← readProblem options.problem
     let endpoint := options.remote.endpoint.getD identity.endpoint
@@ -725,7 +756,8 @@ def runOnline
 
 def main
     (argv : List String)
-    : IO UInt32 := do
+    : IO UInt32
+    := do
   if let "repl" :: replArgs := argv then
     return ← oatpReplMain replArgs
   let identity ← cliIdentity

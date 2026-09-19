@@ -46,7 +46,8 @@ def waitForExit
     {cfg : IO.Process.StdioConfig}
     (child : IO.Process.Child cfg)
     (deadline : Nat)
-    : IO (Bool × UInt32) := do
+    : IO (Bool × UInt32)
+    := do
   match ← child.tryWait with
   | some exitCode => pure (false, exitCode)
   | none =>
@@ -66,7 +67,8 @@ def runUnsafe
     (problem : Problem)
     (limits : Limits)
     (command : Command)
-    : IO (Except Error Artifact) := do
+    : IO (Except Error Artifact)
+    := do
   let command := command.withStdinProblem
   let artifacts ← OATP.Artifacts.start s!"local {command.executable}" problem
   for run in artifacts do
@@ -137,7 +139,8 @@ def run
     (problem : Problem)
     (limits : Limits)
     (command : Command)
-    : IO (Except Error Artifact) := do
+    : IO (Except Error Artifact)
+    := do
   try
     runUnsafe prover problem limits command
   catch error =>

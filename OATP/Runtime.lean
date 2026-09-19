@@ -26,7 +26,8 @@ inductive CatalogueCache where
 
 def readProblem
     (path : String)
-    : IO Problem := do
+    : IO Problem
+    := do
   pure { name := path, source := ← IO.FS.readFile path }
 
 def defaultLocalProverCandidates : Array String := #["eprover", "vampire", "metis"]
@@ -37,7 +38,9 @@ def doctorTimeoutSeconds : Nat := 5
 
 def doctorMaxOutputBytes : Nat := 1024 * 1024
 
-def localProverCandidates : IO (Array String) := do
+def localProverCandidates
+    : IO (Array String)
+    := do
   match ← IO.getEnv "OATP_LOCAL_PROVERS" with
   | some value =>
       pure <| value.splitOn "," |>.map (·.trimAscii.toString) |>.filter (!·.isEmpty) |>.toArray
@@ -45,7 +48,8 @@ def localProverCandidates : IO (Array String) := do
 
 def catalogueLocation
     (cacheNamespace endpoint : String)
-    : IO (Option (System.FilePath × System.FilePath)) := do
+    : IO (Option (System.FilePath × System.FilePath))
+    := do
   let root ← match ← IO.getEnv "XDG_CACHE_HOME" with
     | some path => pure (some (⟨path⟩ : System.FilePath))
     | none => match ← IO.getEnv "HOME" with
@@ -75,7 +79,8 @@ def fetchCatalogue
     (endpoint : String)
     (location : Option (System.FilePath × System.FilePath))
     (writeCache : Bool)
-    : IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo)) := do
+    : IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo))
+    := do
   match ← SystemOnTPTP.fetchCatalogue endpoint with
   | .error error => pure (.error (httpErrorMessage error))
   | .ok response =>
@@ -97,7 +102,8 @@ def fetchCatalogue
 def loadCatalogue
     (cacheNamespace endpoint : String)
     (mode : CatalogueCache)
-    : IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo)) := do
+    : IO (Except String (Array SystemOnTPTP.Catalogue.SystemInfo))
+    := do
   let location ← catalogueLocation cacheNamespace endpoint
   match mode with
   | .normal =>
@@ -113,7 +119,9 @@ def loadCatalogue
   | .refresh => fetchCatalogue endpoint location true
   | .noCache => fetchCatalogue endpoint none false
 
-def installedProvers : IO (Array String) := do
+def installedProvers
+    : IO (Array String)
+    := do
   let mut found := #[]
   for executable in ← localProverCandidates do
     if (← Http.commandVersion executable).isSome then
@@ -124,7 +132,8 @@ def resolveOnline
     (toolName : String)
     (systems : Array SystemOnTPTP.Catalogue.SystemInfo)
     (references : List String)
-    : Except String (Array SystemOnTPTP.Catalogue.SystemInfo) := do
+    : Except String (Array SystemOnTPTP.Catalogue.SystemInfo)
+    := do
   let resolved ← references.mapM fun reference =>
     match SystemOnTPTP.Catalogue.resolve systems reference with
     | some system => pure system

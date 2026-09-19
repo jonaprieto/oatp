@@ -47,7 +47,9 @@ private def coreContext : Core.Context := {
   quotContext := `OATP
 }
 
-def create : IO Runtime := do
+def create
+    : IO Runtime
+    := do
   Lean.initSearchPath (← Lean.getBuildDir)
   let env ← Lean.importModules #[{ module := `Init.Prelude }] {}
   pure {
@@ -61,7 +63,8 @@ def runMeta
     {α : Type}
     (runtime : Runtime)
     (action : MetaM α)
-    : IO (α × Runtime) := do
+    : IO (α × Runtime)
+    := do
   let (value, coreState, metaState) ← action.toIO runtime.coreContext runtime.coreState {}
     runtime.metaState
   pure (value, { runtime with coreState, metaState })
@@ -126,7 +129,8 @@ partial
 def toLean
     (atoms : Array (String × Expr))
     (formula : _root_.TPTP.Formula.Expr)
-    : TranslationM Expr := do
+    : TranslationM Expr
+    := do
   match formula with
   | .atom predicate arguments =>
       if !arguments.isEmpty then
@@ -160,7 +164,8 @@ private
 def makeGoal
     (source : String)
     (formula : _root_.TPTP.Formula.Expr)
-    : MetaM (Except String Goal) := do
+    : MetaM (Except String Goal)
+    := do
   let atoms := atomNames formula #[]
   withAtoms atoms.toList fun locals => do
     let target ← toLean locals formula
@@ -170,7 +175,8 @@ def makeGoal
 def goalFromFormula
     (runtime : Runtime)
     (source : String)
-    : IO (Except String (Runtime × Goal)) := do
+    : IO (Except String (Runtime × Goal))
+    := do
   match OATP.TPTP.Syntax.parseFormula source with
   | .error error => pure (.error (error.pretty source.toUTF8))
   | .ok formula =>
@@ -180,14 +186,16 @@ def goalFromFormula
 def snapshot
     (runtime : Runtime)
     (goal : Goal)
-    : IO (Runtime × OATP.GoalSnapshot) := do
+    : IO (Runtime × OATP.GoalSnapshot)
+    := do
   let (value, runtime) ← runMeta runtime (OATP.Lean.snapshot goal.mvarId)
   pure (runtime, value)
 
 def translateToTPTP
     (runtime : Runtime)
     (goal : Goal)
-    : IO (Runtime × Except String OATP.Lean.GoalTranslation) := do
+    : IO (Runtime × Except String OATP.Lean.GoalTranslation)
+    := do
   let (value, runtime) ← runMeta runtime (OATP.Lean.translateGoal goal.mvarId)
   pure (runtime, value)
 
@@ -195,7 +203,8 @@ def reconstruct
     (runtime : Runtime)
     (goal : Goal)
     (step : OATP.Proof.Step)
-    : IO (Runtime × Except String RenderedTerm) := do
+    : IO (Runtime × Except String RenderedTerm)
+    := do
   let action : MetaM (Except String RenderedTerm) := do
     match ← OATP.Proof.reconstruct goal.mvarId step with
     | .error message => pure (.error message)
