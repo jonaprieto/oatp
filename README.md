@@ -29,7 +29,16 @@ Changes are reviewed, tested, and remain the maintainer's responsibility.
 
 ## Install the binary
 
-Install the latest release binary with [`jpillora/installer`](https://github.com/jpillora/installer):
+With Homebrew (macOS arm64 and x86_64, Linux x86_64):
+
+```sh
+brew tap jonaprieto/oatp https://github.com/jonaprieto/oatp
+brew trust --formula jonaprieto/oatp/oatp
+brew install oatp
+oatp --version
+```
+
+Or, on any platform, install the latest release binary with [`jpillora/installer`](https://github.com/jpillora/installer):
 
 ```sh
 curl https://i.jpillora.com/jonaprieto/oatp! | bash

@@ -61,3 +61,22 @@ jobs:
           token: ${{ secrets.ECOSYSTEM_READ_TOKEN }}
           skip: lean-axioms
       - run: git diff --check
+
+  formula:
+    runs-on: macos-latest
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Audit the formula as committed
+        run: |
+          brew tap-new --no-git ci/local
+          tap=$(brew --repository ci/local)
+          cp Formula/oatp.rb "$tap/Formula/oatp.rb"
+          brew audit --strict ci/local/oatp
+      - name: Install and test the prebuilt binary
+        run: |
+          brew install ci/local/oatp
+          brew test ci/local/oatp
