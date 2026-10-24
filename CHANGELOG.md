@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.12 — 2026-10-24
+
+- Refresh Grip to v0.4.1, Grip JSON to v0.1.8, TPTP to v0.5.9, Argus to v0.5.6 and TermColor
+  REPL to v0.8.9. Grip JSON 0.1.8 decodes unpaired surrogate escapes to U+FFFD instead of
+  dropping them or corrupting the next character.
+- Lay out declarations one binder group per line.
+
 ## 0.7.11 — 2026-09-09
 
 - Refresh TPTP to v0.5.8 for UTF-8 validation and document diagnostics.
