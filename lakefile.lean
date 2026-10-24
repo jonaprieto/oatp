@@ -7,15 +7,15 @@ package «oatp» where
 
 require grip from git
   "https://github.com/jonaprieto/lean-grip.git"
-  @ "v0.3.6"
+  @ "v0.4.1"
 
 require «grip-json» from git
   "https://github.com/jonaprieto/lean-grip-json.git"
-  @ "v0.1.7"
+  @ "v0.1.8"
 
 require tptp from git
   "https://github.com/jonaprieto/lean-grip-tptp.git"
-  @ "v0.5.8"
+  @ "v0.5.9"
 
 require «termcolor» from git
   "https://github.com/jonaprieto/lean-termcolor.git"
@@ -35,11 +35,11 @@ require «termcolor-widgets» from git
 
 require «termcolor-repl» from git
   "https://github.com/jonaprieto/lean-termcolor-repl.git"
-  @ "v0.8.8"
+  @ "v0.8.9"
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
-  @ "v0.5.5"
+  @ "v0.5.6"
 
 @[default_target]
 lean_lib «OATP» where
