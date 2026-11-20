@@ -73,6 +73,7 @@ jobs:
       - name: Audit the formula as committed
         run: |
           brew tap-new --no-git ci/local
+          brew trust --tap ci/local
           tap=$(brew --repository ci/local)
           cp Formula/oatp.rb "$tap/Formula/oatp.rb"
           brew audit --strict ci/local/oatp
