@@ -32,11 +32,15 @@ Changes are reviewed, tested, and remain the maintainer's responsibility.
 With Homebrew (macOS arm64 and x86_64, Linux x86_64):
 
 ```sh
-brew tap jonaprieto/oatp https://github.com/jonaprieto/oatp
-brew trust --formula jonaprieto/oatp/oatp
-brew install oatp
+brew tap jonaprieto/tap
+brew trust --formula jonaprieto/tap/oatp
+brew install jonaprieto/tap/oatp
 oatp --version
 ```
+
+[`jonaprieto/tap`](https://github.com/jonaprieto/homebrew-tap) syncs `Formula/oatp.rb` from this
+repository daily. The per-repo tap still works: `brew tap jonaprieto/oatp
+https://github.com/jonaprieto/oatp`.
 
 Or, on any platform, install the latest release binary with [`jpillora/installer`](https://github.com/jpillora/installer):
 
