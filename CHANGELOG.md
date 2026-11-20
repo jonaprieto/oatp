@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.13 — 2026-11-20
+
+- Adopt Lean v4.36.0 and refresh Grip to v0.4.3, Grip JSON to v0.1.9, TPTP to v0.5.10 and Argus
+  to v0.5.7.
+- Install with Homebrew from the shared `jonaprieto/tap`.
+
 ## 0.7.12 — 2026-10-24
 
 - Refresh Grip to v0.4.1, Grip JSON to v0.1.8, TPTP to v0.5.9, Argus to v0.5.6 and TermColor
