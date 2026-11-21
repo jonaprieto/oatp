@@ -5,18 +5,18 @@ class Oatp < Formula
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/jonaprieto/oatp/releases/download/v0.7.13/oatp-0.7.13-macos-arm64.tar.gz"
-      sha256 "a0b53d0f1c803a460634cbafd3887bf42eb80921dc71e06b9eceac267f313535"
+      url "https://github.com/jonaprieto/oatp/releases/download/v0.7.14/oatp-0.7.14-macos-arm64.tar.gz"
+      sha256 "e5f8f1c2d9aec215e25f4f6a2937ae165add389bd1207ed97a83f06517a5d267"
     else
-      url "https://github.com/jonaprieto/oatp/releases/download/v0.7.13/oatp-0.7.13-macos-x86_64.tar.gz"
-      sha256 "b02292d90fd2eeb3b7e455ce57f4c33f1cfbf91df3f2e71268e81f506c05fd05"
+      url "https://github.com/jonaprieto/oatp/releases/download/v0.7.14/oatp-0.7.14-macos-x86_64.tar.gz"
+      sha256 "2b5ed041c394babdcb776bedd920e2de8a6aa5b1b92dae5f29cd531e1d0f7599"
     end
   end
 
   on_linux do
     if Hardware::CPU.intel?
-      url "https://github.com/jonaprieto/oatp/releases/download/v0.7.13/oatp-0.7.13-linux-x86_64.tar.gz"
-      sha256 "e7016c3c73e04dd3bf520610e22fb0de1abb9389e0bc5bf223b99c09d0be5f7f"
+      url "https://github.com/jonaprieto/oatp/releases/download/v0.7.14/oatp-0.7.14-linux-x86_64.tar.gz"
+      sha256 "78bc3d7ad40b0cb8170d376d2d5a2715ed4efd2a63f410ed2c9458f2477e81bd"
     else
       odie "oatp currently publishes Linux x86_64 binaries only"
     end
