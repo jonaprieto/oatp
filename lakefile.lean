@@ -11,7 +11,7 @@ require grip from git
 
 require «grip-json» from git
   "https://github.com/jonaprieto/lean-grip-json.git"
-  @ "v0.1.9"
+  @ "v0.1.10"
 
 require tptp from git
   "https://github.com/jonaprieto/lean-grip-tptp.git"
@@ -19,27 +19,27 @@ require tptp from git
 
 require «termcolor» from git
   "https://github.com/jonaprieto/lean-termcolor.git"
-  @ "v1.1.7"
+  @ "v1.1.8"
 
 require «termcolor-diagnostics» from git
   "https://github.com/jonaprieto/lean-termcolor-diagnostics.git"
-  @ "v0.1.18"
+  @ "v0.1.19"
 
 require «termcolor-terminal» from git
   "https://github.com/jonaprieto/lean-termcolor-terminal.git"
-  @ "v0.3.8"
+  @ "v0.3.9"
 
 require «termcolor-widgets» from git
   "https://github.com/jonaprieto/lean-termcolor-widgets.git"
-  @ "v0.1.15"
+  @ "v0.1.16"
 
 require «termcolor-repl» from git
   "https://github.com/jonaprieto/lean-termcolor-repl.git"
-  @ "v0.8.9"
+  @ "v0.8.10"
 
 require argus from git
   "https://github.com/jonaprieto/lean-argus.git"
-  @ "v0.5.7"
+  @ "v0.5.8"
 
 @[default_target]
 lean_lib «OATP» where
